@@ -14,7 +14,9 @@ export default async function InvitePage({params}:{params:Promise<{token:string}
   const {data:invite}=await admin.from("household_invitations").select("*,households(name)").eq("token_hash",hash).is("accepted_at",null).gt("expires_at",new Date().toISOString()).maybeSingle();
   if(!invite)return <InviteStatus title="Запрошення недійсне" text="Посилання застаріло, вже використане або не існує."/>;
   if(!auth.user)return <InviteStatus title={`Вас запрошують до «${invite.households?.name||"Спільні фінанси"}»`} text="Увійдіть або зареєструйтеся з email, на який надіслано запрошення." login/>;
-  if(auth.user.email?.toLowerCase()!==invite.email.toLowerCase())return <InviteStatus title="Інший email" text={`Запрошення призначено для ${invite.email}. Увійдіть з цим email.`}/>;
+  const {data:profile}=await admin.from("profiles").select("username").eq("id",auth.user.id).maybeSingle();
+  const matchesEmail=invite.email&&auth.user.email?.toLowerCase()===invite.email.toLowerCase(),matchesUsername=invite.username&&profile?.username?.toLowerCase()===invite.username.toLowerCase();
+  if(!matchesEmail&&!matchesUsername)return <InviteStatus title="Інший акаунт" text={`Запрошення призначено для ${invite.email||`@${invite.username}`}. Увійдіть з відповідним акаунтом.`}/>;
   await admin.from("household_members").upsert({household_id:invite.household_id,user_id:auth.user.id,role:invite.role},{onConflict:"household_id,user_id"});
   await admin.from("household_invitations").update({accepted_at:new Date().toISOString()}).eq("id",invite.id);
   redirect("/");
