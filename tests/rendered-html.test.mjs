@@ -23,7 +23,12 @@ test("keeps critical finance workflows wired",async()=>{
   for(const action of ["createTransaction","createTransfer","createBudget","createGoal","createDebt","createRecurring","createCategory"])assert.match(finance,new RegExp(action));
   assert.match(app,/exportExcel/);
   assert.match(app,/Динаміка витрат/);
+  assert.match(app,/compact-picker/);
+  assert.match(app,/За тижнями/);
+  assert.match(app,/Повторювати витрату/);
+  assert.match(app,/Надіслати відгук/);
   assert.match(settings,/telegram_chat_id/);
   assert.match(invite,/randomBytes/);
+  assert.match(invite,/inviteUserByEmail/);
   assert.match(xlsx,/sheet_to_json/);
 });

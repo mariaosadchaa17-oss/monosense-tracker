@@ -13,8 +13,13 @@ export async function POST(request:Request){
   const admin=createAdminClient();
   if(username){const {data:profile}=await admin.from("profiles").select("id").ilike("username",username).maybeSingle();if(profile){const {data:user}=await admin.auth.admin.getUserById(profile.id);normalized=user.user?.email?.toLowerCase()||null}}
   const token=randomBytes(32).toString("base64url"),tokenHash=createHash("sha256").update(token).digest("hex");
+  const origin=process.env.NEXT_PUBLIC_APP_URL||new URL(request.url).origin,inviteUrl=`${origin}/invite/${token}`;
   const {error}=await admin.from("household_invitations").insert({household_id:context.householdId,email:normalized,username:username||null,role:["admin","member","viewer"].includes(role)?role:"member",token_hash:tokenHash,invited_by:context.user.id});
   if(error)return NextResponse.json({error:error.message},{status:400});
-  const origin=process.env.NEXT_PUBLIC_APP_URL||new URL(request.url).origin;
-  return NextResponse.json({url:`${origin}/invite/${token}`});
+  let emailed=false;
+  if(isEmail&&normalized){
+    const {error:mailError}=await admin.auth.admin.inviteUserByEmail(normalized,{redirectTo:inviteUrl,data:{household_invite_url:inviteUrl}});
+    emailed=!mailError;
+  }
+  return NextResponse.json({url:inviteUrl,emailed});
 }

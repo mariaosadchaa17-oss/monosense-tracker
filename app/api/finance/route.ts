@@ -141,5 +141,11 @@ export async function POST(request: Request) {
     const {error:splitError}=await supabase.from("transaction_splits").insert(splits);
     if(splitError)return NextResponse.json({error:splitError.message},{status:400});
   }
+  if(body.action==="createTransaction"&&result.data?.id&&body.repeat){
+    const frequency=["weekly","monthly","yearly"].includes(body.repeatFrequency)?body.repeatFrequency:"monthly",next=new Date(body.bookedAt||Date.now());
+    if(frequency==="weekly")next.setDate(next.getDate()+7);else if(frequency==="yearly")next.setFullYear(next.getFullYear()+1);else{next.setMonth(next.getMonth()+1);const day=Math.min(28,Math.max(1,Number(body.repeatDay)||next.getDate()));next.setDate(day)}
+    const {error:repeatError}=await supabase.from("recurring_rules").insert({household_id:householdId,account_id:body.accountId,category_id:body.categoryId||null,name:String(body.note||"Регулярна витрата").slice(0,100),amount:Number(body.amount),currency:String(body.currency),frequency,next_run_at:next.toISOString(),auto_create:false,created_by:user.id});
+    if(repeatError)return NextResponse.json({error:repeatError.message},{status:400});
+  }
   return NextResponse.json({ data: result.data });
 }
