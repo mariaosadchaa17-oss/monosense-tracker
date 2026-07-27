@@ -45,6 +45,7 @@ export function FinoraApp({ initialLoggedIn = false }: { initialLoggedIn?: boole
   const [note, setNote] = useState("");
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
+  const [rates, setRates] = useState<{currency:string;rate:number;date:string}[]>([]);
 
   useEffect(() => {
     setDark(localStorage.getItem("finora-theme") === "dark");
@@ -54,6 +55,11 @@ export function FinoraApp({ initialLoggedIn = false }: { initialLoggedIn?: boole
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     localStorage.setItem("finora-theme", dark ? "dark" : "light");
   }, [dark]);
+  useEffect(() => {
+    fetch("/api/exchange-rates").then(r => r.ok ? r.json() : null).then(data => {
+      if (data?.rates) setRates(data.rates);
+    }).catch(() => {});
+  }, []);
 
   const notify = (message: string) => {
     setToast(message);
@@ -78,6 +84,23 @@ export function FinoraApp({ initialLoggedIn = false }: { initialLoggedIn?: boole
       balance: Number(form.get("balance")) || 0, style: "stash",
     }]);
     setModal(null); notify("Рахунок створено");
+  }
+  async function importCsv(file: File) {
+    const text = await file.text();
+    if (initialLoggedIn) {
+      const response = await fetch("/api/import/csv", { method: "POST", headers: { "Content-Type": "text/csv" }, body: text });
+      const result = await response.json();
+      notify(response.ok ? `Імпортовано операцій: ${result.imported}` : result.error || "Помилка імпорту");
+      return;
+    }
+    const rows = text.replace(/^\uFEFF/, "").split(/\r?\n/).slice(1).filter(Boolean);
+    const imported = rows.map((line, index) => {
+      const cells = line.split(",").map(v => v.replace(/^"|"$/g, ""));
+      const value = Number((cells[3] || "0").replace(",", "."));
+      return { id: Date.now() + index, title: cells[0] || "Імпорт", category: cells[1] || "Інше", date: cells[2] || "Імпортовано", amount: value };
+    }).filter(item => Number.isFinite(item.amount) && item.amount !== 0);
+    setTransactions([...imported, ...transactions]);
+    notify(`Імпортовано операцій: ${imported.length}`);
   }
 
   if (!loggedIn) return <Login dark={dark} setDark={setDark} showPassword={showPassword} setShowPassword={setShowPassword} login={() => setLoggedIn(true)}/>;
@@ -110,9 +133,9 @@ export function FinoraApp({ initialLoggedIn = false }: { initialLoggedIn?: boole
       {page === "Головна" && <Dashboard balance={balance} accounts={accounts} transactions={transactions} openPage={setPage} addAccount={() => setModal("account")}/>}
       {page === "Операції" && <TransactionsView transactions={filteredTransactions} search={search} setSearch={setSearch} remove={id => { setTransactions(transactions.filter(t => t.id !== id)); notify("Операцію видалено"); }} exportCsv={() => exportCsv(transactions, notify)}/>}
       {page === "Бюджет" && <BudgetView notify={notify}/>}
-      {page === "Рахунки" && <AccountsView accounts={accounts} add={() => setModal("account")} remove={id => { setAccounts(accounts.filter(a => a.id !== id)); notify("Рахунок видалено"); }}/>}
+      {page === "Рахунки" && <AccountsView accounts={accounts} rates={rates} add={() => setModal("account")} remove={id => { setAccounts(accounts.filter(a => a.id !== id)); notify("Рахунок видалено"); }}/>}
       {page === "Цілі" && <GoalsView notify={notify}/>}
-      {page === "Налаштування" && <SettingsView dark={dark} setDark={setDark} logout={async () => {
+      {page === "Налаштування" && <SettingsView dark={dark} setDark={setDark} importCsv={importCsv} logout={async () => {
         if (initialLoggedIn) {
           await fetch("/auth/signout", { method: "POST" });
           window.location.href = "/auth";
@@ -164,9 +187,9 @@ function TransactionsView({ transactions, search, setSearch, remove, exportCsv }
   return <section className="panel full-view"><div className="view-toolbar"><label className="search-box"><Search/><input placeholder="Пошук за назвою або категорією" value={search} onChange={e=>setSearch(e.target.value)}/></label><button className="secondary"><Tags/> Фільтри</button><button className="secondary" onClick={exportCsv}><Download/> CSV</button></div><div className="data-head"><span>Операція</span><span>Категорія</span><span>Дата</span><span>Сума</span><span/></div>{transactions.map(t=><div className="data-row" key={t.id}><strong>{t.title}{t.impulse&&<em>Імпульсивна</em>}</strong><span>{t.category}</span><span>{t.date}</span><b className={t.amount>0?"income-amount":""}>{t.amount>0?"+":"−"} ₴ {formatMoney(t.amount)}</b><button className="icon-button danger" onClick={()=>remove(t.id)}><Trash2/></button></div>)}{transactions.length===0&&<div className="empty">Нічого не знайдено</div>}</section>;
 }
 function BudgetView({notify}:{notify:(s:string)=>void}) { return <><div className="metric-grid"><article className="metric"><small>Місячний план</small><strong>₴ 27 500</strong><span>59% використано</span></article><article className="metric"><small>Прогноз залишку</small><strong>₴ 11 180</strong><span className="positive">Краще плану на 12%</span></article><article className="metric"><small>Імпульсивні витрати</small><strong>₴ 2 390</strong><span>14.6% усіх витрат</span></article></div><section className="panel full-view"><div className="section-title"><div><h2>Ліміти за категоріями</h2><p>Липень 2026</p></div><button className="small-primary" onClick={()=>notify("Редактор лімітів буде додано наступним кроком")}><Plus/> Додати ліміт</button></div><div className="large-budget"><BudgetRows rows={budgetRows}/></div><div className="alert-card"><Bell/><div><strong>Наближення до ліміту</strong><p>Категорія «Розваги» використана на 87%. Залишилося ₴ 580.</p></div></div></section></>; }
-function AccountsView({accounts,add,remove}:{accounts:Account[];add:()=>void;remove:(id:number)=>void}) { return <section className="panel full-view"><div className="section-title"><div><h2>Усі рахунки</h2><p>UAH, USD та інші валюти</p></div><button className="small-primary" onClick={add}><Plus/> Новий рахунок</button></div><div className="accounts-grid">{accounts.map(a=><div className="account-wrap" key={a.id}><AccountCard account={a}/><button className="remove-account" onClick={()=>remove(a.id)}><Trash2/> Видалити</button></div>)}</div><div className="rate-card"><Landmark/><div><strong>Курс НБУ</strong><p>USD 41.00 · EUR 47.85</p></div><span>Оновлено сьогодні</span></div></section>; }
+function AccountsView({accounts,rates,add,remove}:{accounts:Account[];rates:{currency:string;rate:number;date:string}[];add:()=>void;remove:(id:number)=>void}) { const visible=rates.filter(r=>["USD","EUR"].includes(r.currency)); return <section className="panel full-view"><div className="section-title"><div><h2>Усі рахунки</h2><p>UAH, USD та інші валюти</p></div><button className="small-primary" onClick={add}><Plus/> Новий рахунок</button></div><div className="accounts-grid">{accounts.map(a=><div className="account-wrap" key={a.id}><AccountCard account={a}/><button className="remove-account" onClick={()=>remove(a.id)}><Trash2/> Видалити</button></div>)}</div><div className="rate-card"><Landmark/><div><strong>Офіційний курс НБУ</strong><p>{visible.length ? visible.map(r=>`${r.currency} ${r.rate.toFixed(4)}`).join(" · ") : "Оновлення курсів…"}</p></div><span>{visible[0]?.date || "Сьогодні"}</span></div></section>; }
 function GoalsView({notify}:{notify:(s:string)=>void}) { const goals=[["Резервний фонд",120000,200000,"#6c5ce7"],["Подорож до Японії",38500,150000,"#19a974"],["Новий ноутбук",42000,70000,"#f4b740"]]; return <section className="panel full-view"><div className="section-title"><div><h2>Фінансові цілі</h2><p>Накопичення та великі покупки</p></div><button className="small-primary" onClick={()=>notify("Нову ціль буде додано в наступному оновленні")}><Plus/> Нова ціль</button></div><div className="goals-grid">{goals.map(g=><article className="goal-card" key={g[0]}><span className="goal-icon"><PiggyBank/></span><small>Ціль</small><h3>{g[0]}</h3><strong>₴ {formatMoney(Number(g[1]))} <span>з ₴ {formatMoney(Number(g[2]))}</span></strong><div><i style={{width:`${Number(g[1])/Number(g[2])*100}%`,background:String(g[3])}}/></div><p>{Math.round(Number(g[1])/Number(g[2])*100)}% накопичено</p><button onClick={()=>notify(`Поповнення цілі «${g[0]}»`)}>Поповнити</button></article>)}</div></section>; }
-function SettingsView({dark,setDark,logout,notify}:{dark:boolean;setDark:(v:boolean)=>void;logout:()=>void;notify:(s:string)=>void}) { return <div className="settings-grid"><section className="panel settings-card"><h2>Загальні</h2><label>Базова валюта<select defaultValue="UAH"><option>UAH — гривня</option><option>USD — долар</option><option>EUR — євро</option></select></label><label>Власник за замовчуванням<input defaultValue="Мій"/></label><label className="setting-toggle"><span><strong>Темна тема</strong><small>Змінити вигляд застосунку</small></span><input type="checkbox" checked={dark} onChange={e=>setDark(e.target.checked)}/></label><button className="primary" onClick={()=>notify("Налаштування збережено")}>Зберегти</button></section><section className="panel settings-card"><h2>Дані та інтеграції</h2><button className="integration" onClick={()=>notify("Імпорт CSV буде додано наступним кроком")}><Upload/><span><strong>Імпорт даних</strong><small>CSV або Excel</small></span><ArrowRight/></button><button className="integration" onClick={()=>notify("Telegram API очікує токен бота")}><Goal/><span><strong>Telegram-бот</strong><small>Швидке додавання витрат</small></span><ArrowRight/></button><button className="logout" onClick={logout}>Вийти з акаунта</button></section></div>; }
+function SettingsView({dark,setDark,logout,notify,importCsv}:{dark:boolean;setDark:(v:boolean)=>void;logout:()=>void;notify:(s:string)=>void;importCsv:(file:File)=>void}) { return <div className="settings-grid"><section className="panel settings-card"><h2>Загальні</h2><label>Базова валюта<select defaultValue="UAH"><option>UAH — гривня</option><option>USD — долар</option><option>EUR — євро</option></select></label><label>Власник за замовчуванням<input defaultValue="Мій"/></label><label className="setting-toggle"><span><strong>Темна тема</strong><small>Змінити вигляд застосунку</small></span><input type="checkbox" checked={dark} onChange={e=>setDark(e.target.checked)}/></label><button className="primary" onClick={()=>notify("Налаштування збережено")}>Зберегти</button></section><section className="panel settings-card"><h2>Дані та інтеграції</h2><label className="integration file-integration"><Upload/><span><strong>Імпорт даних</strong><small>CSV до 5 МБ</small></span><ArrowRight/><input type="file" accept=".csv,text/csv" onChange={e=>{const file=e.target.files?.[0];if(file)importCsv(file);e.target.value="";}}/></label><button className="integration" onClick={()=>notify("Додайте Telegram chat ID у профіль Supabase")}><Goal/><span><strong>Telegram-бот</strong><small>Команда: 300 кава #робота</small></span><ArrowRight/></button><button className="logout" onClick={logout}>Вийти з акаунта</button></section></div>; }
 
 function AccountCard({account}:{account:Account}) { return <article className={`account ${account.style}`}><div><span className="bank-icon">{account.bank==="Готівка"?<Landmark/>:account.bank[0].toUpperCase()}</span><MoreHorizontal/></div><p>{account.name}</p><h3>{account.currency==="UAH"?"₴":"$"} {formatMoney(account.balance)}</h3><small>{account.bank} · {account.owner}</small></article>; }
 function TransactionList({transactions}:{transactions:Transaction[]}) { return <div className="tx-list">{transactions.map(t=><div className="tx" key={t.id}><span className={`tx-icon ${t.amount>0?"income":"shop"}`}>{t.amount>0?<ArrowDownLeft/>:<ShoppingBag/>}</span><div className="tx-info"><strong>{t.title}{t.impulse&&<em>Імпульсивна</em>}</strong><small>{t.category} · {t.date}</small></div><strong className={t.amount>0?"income-amount":""}>{t.amount>0?"+":"−"} ₴ {formatMoney(t.amount)}</strong></div>)}</div>; }
