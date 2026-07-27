@@ -32,12 +32,14 @@ export async function POST(request:Request){
   const categoryRows=chosen.map(item=>({household_id:context.householdId,name:item.name,icon:"CircleDollarSign",color:item.color||"#6558e8",kind:"expense",created_by:context.user.id}));
   if(categoryRows.length)await admin.from("categories").upsert(categoryRows,{onConflict:"household_id,name,kind"});
   const {data:categories}=await admin.from("categories").select("id,name").eq("household_id",context.householdId).eq("kind","expense");
-  const categoryIds=new Map((categories||[]).map(item=>[item.name,item.id])),month=new Date().toISOString().slice(0,7)+"-01";
-  const budgets=chosen.filter(item=>Number(item.limit)>0&&categoryIds.has(item.name)).map(item=>({household_id:context.householdId,category_id:categoryIds.get(item.name),month,limit_amount:Number(item.limit),currency:"UAH",created_by:context.user.id}));
+  const now=new Date(),weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-((weekStart.getDay()+6)%7));
+  const periodStart=period==="week"?weekStart.toISOString().slice(0,10):now.toISOString().slice(0,7)+"-01";
+  const categoryIds=new Map((categories||[]).map(item=>[item.name,item.id]));
+  const budgets=chosen.filter(item=>Number(item.limit)>0&&categoryIds.has(item.name)).map(item=>({household_id:context.householdId,category_id:categoryIds.get(item.name),month:periodStart,limit_amount:Number(item.limit),currency:"UAH",created_by:context.user.id}));
   if(budgets.length)await admin.from("budgets").upsert(budgets,{onConflict:"household_id,category_id,month"});
   const {error:profileError}=await admin.from("profiles").update({username,onboarding_completed:true,planning_period:period,primary_goal:String(body.goal||"control").slice(0,100),updated_at:new Date().toISOString()}).eq("id",context.user.id);
   if(profileError)return NextResponse.json({error:profileError.message},{status:400});
-  let inviteUrl:string|undefined;
+  let inviteUrl:string|undefined,inviteEmailed=false;
   const partner=String(body.partner||"").trim();
   if(partner){
     let email=partner.includes("@")&&!partner.startsWith("@")?partner.toLowerCase():null;
@@ -45,7 +47,10 @@ export async function POST(request:Request){
     if(partnerUsername){const {data:profile}=await admin.from("profiles").select("id,username").ilike("username",partnerUsername).maybeSingle();if(profile){const {data:user}=await admin.auth.admin.getUserById(profile.id);email=user.user?.email?.toLowerCase()||null}}
     const token=randomBytes(32).toString("base64url"),tokenHash=createHash("sha256").update(token).digest("hex");
     const {error:inviteError}=await admin.from("household_invitations").insert({household_id:context.householdId,email,username:partnerUsername||null,role:"member",token_hash:tokenHash,invited_by:context.user.id});
-    if(!inviteError){const origin=process.env.NEXT_PUBLIC_APP_URL||new URL(request.url).origin;inviteUrl=`${origin}/invite/${token}`}
+    if(!inviteError){
+      const origin=process.env.NEXT_PUBLIC_APP_URL||new URL(request.url).origin;inviteUrl=`${origin}/invite/${token}`;
+      if(email){const {error:mailError}=await admin.auth.admin.inviteUserByEmail(email,{redirectTo:inviteUrl,data:{household_invite_url:inviteUrl}});inviteEmailed=!mailError}
+    }
   }
-  return NextResponse.json({ok:true,inviteUrl});
+  return NextResponse.json({ok:true,inviteUrl,inviteEmailed});
 }

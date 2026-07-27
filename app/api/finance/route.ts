@@ -5,7 +5,7 @@ export async function GET() {
   const context = await getFinanceContext();
   if (!context) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { supabase, householdId } = context;
-  const [accounts, transactions, categories, budgets, goals, debts, recurring, transfers, audit,exchangeRates] = await Promise.all([
+  const [accounts, transactions, categories, budgets, goals, debts, recurring, transfers, audit,exchangeRates,profile] = await Promise.all([
     supabase.from("accounts").select("*").eq("household_id", householdId).eq("archived", false).order("created_at"),
     supabase.from("transactions").select("*,categories(name),accounts(name,owner_label),transaction_tags(tags(name))").eq("household_id", householdId).order("booked_at", { ascending: false }).limit(200),
     supabase.from("categories").select("*").eq("household_id", householdId).order("name"),
@@ -16,12 +16,14 @@ export async function GET() {
     supabase.from("transfers").select("*").eq("household_id", householdId).order("booked_at", { ascending: false }).limit(100),
     supabase.from("audit_logs").select("*").eq("household_id",householdId).order("created_at",{ascending:false}).limit(100),
     supabase.from("exchange_rates").select("*").eq("household_id",householdId).order("rate_date",{ascending:false}).limit(20),
+    supabase.from("profiles").select("planning_period").eq("id",context.user.id).single(),
   ]);
-  const error = [accounts, transactions, categories, budgets, goals, debts, recurring, transfers, audit,exchangeRates].find(result => result.error)?.error;
+  const error = [accounts, transactions, categories, budgets, goals, debts, recurring, transfers, audit,exchangeRates,profile].find(result => result.error)?.error;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({
     accounts: accounts.data, transactions: transactions.data, categories: categories.data,
     budgets: budgets.data, goals: goals.data, debts: debts.data, recurring: recurring.data, transfers: transfers.data, audit: audit.data,exchangeRates:exchangeRates.data,
+    planningPeriod:profile.data?.planning_period==="week"?"week":"month",
   });
 }
 
