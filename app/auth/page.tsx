@@ -17,7 +17,7 @@ export default async function AuthPage({ searchParams }: { searchParams: Promise
 
   return <main className="real-auth">
     <section className="real-auth-brand">
-      <div className="brand"><span className="brand-mark"><CircleDollarSign/></span> finora</div>
+      <div className="brand"><span className="brand-mark"><CircleDollarSign/></span> rivna</div>
       <div><span className="eyebrow"><Sparkles/> Ваші гроші. Ваші правила.</span><h1>Фінансова ясність<br/>починається тут.</h1><p>Захищений простір для особистих і спільних фінансів.</p></div>
       <small>Дані захищені Supabase Auth та Row Level Security</small>
     </section>

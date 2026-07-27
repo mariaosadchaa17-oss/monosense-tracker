@@ -10,7 +10,7 @@ export async function POST(){
   const config=getPasskeyConfig();
   const options=await generateRegistrationOptions({
     rpName:config.rpName,rpID:config.rpID,userName:context.user.email||context.user.id,
-    userDisplayName:context.user.user_metadata?.display_name||context.user.email||"Finora user",
+    userDisplayName:context.user.user_metadata?.display_name||context.user.email||"Rivna user",
     userID:new TextEncoder().encode(context.user.id),attestationType:"none",
     excludeCredentials:(existing||[]).map(item=>({id:item.credential_id,transports:item.transports})),
     authenticatorSelection:{residentKey:"required",userVerification:"required",authenticatorAttachment:"platform"},

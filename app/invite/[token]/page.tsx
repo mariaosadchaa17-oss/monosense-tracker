@@ -19,4 +19,4 @@ export default async function InvitePage({params}:{params:Promise<{token:string}
   await admin.from("household_invitations").update({accepted_at:new Date().toISOString()}).eq("id",invite.id);
   redirect("/");
 }
-function InviteStatus({title,text,login=false}:{title:string;text:string;login?:boolean}){return <main className="invite-page"><div className="invite-card"><span className="brand-mark"><CircleDollarSign/></span><span className="goal-icon"><Users/></span><h1>{title}</h1><p>{text}</p>{login&&<Link className="primary" href="/auth">Увійти до Finora</Link>}<Link className="auth-switch" href="/">На головну</Link></div></main>}
+function InviteStatus({title,text,login=false}:{title:string;text:string;login?:boolean}){return <main className="invite-page"><div className="invite-card"><span className="brand-mark"><CircleDollarSign/></span><span className="goal-icon"><Users/></span><h1>{title}</h1><p>{text}</p>{login&&<Link className="primary" href="/auth">Увійти до Rivna</Link>}<Link className="auth-switch" href="/">На головну</Link></div></main>}

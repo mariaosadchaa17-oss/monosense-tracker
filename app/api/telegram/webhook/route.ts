@@ -24,7 +24,7 @@ export async function POST(request: Request) {
   const text = update.message?.text;
   if (!chatId || !text) return NextResponse.json({ ok: true });
   if (text === "/start") {
-    await reply(chatId, `Ваш Telegram chat ID: ${chatId}\nДодайте його у налаштуваннях Finora, а потім надсилайте витрати: 300 кава #робота`);
+    await reply(chatId, `Ваш Telegram chat ID: ${chatId}\nДодайте його у налаштуваннях Rivna, а потім надсилайте витрати: 300 кава #робота`);
     return NextResponse.json({ ok: true });
   }
   const expense = parseQuickExpense(text);
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   const supabase = createAdminClient();
   const { data: preference } = await supabase.from("notification_preferences").select("user_id").eq("telegram_chat_id", String(chatId)).maybeSingle();
   if (!preference) {
-    await reply(chatId, `Спочатку додайте chat ID ${chatId} у налаштуваннях Finora.`);
+    await reply(chatId, `Спочатку додайте chat ID ${chatId} у налаштуваннях Rivna.`);
     return NextResponse.json({ ok: true });
   }
   const { data: membership } = await supabase.from("household_members").select("household_id").eq("user_id", preference.user_id).limit(1).single();
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
     supabase.from("categories").select("id").eq("household_id", membership.household_id).eq("kind", "expense").ilike("name", `%${expense.note}%`).limit(1).maybeSingle(),
   ]);
   if (!account) {
-    await reply(chatId, "У Finora ще немає рахунку. Створіть його перед додаванням витрат.");
+    await reply(chatId, "У Rivna ще немає рахунку. Створіть його перед додаванням витрат.");
     return NextResponse.json({ ok: true });
   }
   const { data: transaction, error } = await supabase.from("transactions").insert({
