@@ -4,7 +4,7 @@ import {useState} from "react";
 import {startAuthentication,startRegistration} from "@simplewebauthn/browser";
 import {Fingerprint,LoaderCircle} from "lucide-react";
 
-export function PasskeyButton({mode,className="",onMessage}:{mode:"register"|"authenticate";className?:string;onMessage?:(message:string)=>void}){
+export function PasskeyButton({mode,className="",onMessage,redirectTo="/"}:{mode:"register"|"authenticate";className?:string;onMessage?:(message:string)=>void;redirectTo?:string}){
   const [loading,setLoading]=useState(false);
   async function run(){
     setLoading(true);
@@ -18,7 +18,7 @@ export function PasskeyButton({mode,className="",onMessage}:{mode:"register"|"au
         const optionsResponse=await fetch("/api/passkey/authenticate/options",{method:"POST"});const payload=await optionsResponse.json();if(!optionsResponse.ok)throw new Error(payload.error);
         const response=await startAuthentication({optionsJSON:payload.options});
         const verify=await fetch("/api/passkey/authenticate/verify",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({response,challengeId:payload.challengeId})});
-        const result=await verify.json();if(!verify.ok)throw new Error(result.error);window.location.href="/";
+        const result=await verify.json();if(!verify.ok)throw new Error(result.error);window.location.href=redirectTo.startsWith("/")&&!redirectTo.startsWith("//")?redirectTo:"/";
       }
     }catch(error){onMessage?.(error instanceof Error?error.message:"Не вдалося використати passkey");}
     finally{setLoading(false);}

@@ -11,6 +11,7 @@
    - `supabase/migrations/202607270007_recurring_reminders.sql`.
    - `supabase/migrations/202607270008_onboarding_and_usernames.sql`.
    - `supabase/migrations/202607270009_feedback.sql`.
+   - `supabase/migrations/202607270010_active_households_and_atomic_import.sql`.
    Друга міграція додає атомарні операції, які одночасно змінюють транзакцію і
    баланс рахунку, а також безпечний переказ та обмін між власними рахунками.
 3. У **Authentication → URL Configuration** додайте production URL Vercel:

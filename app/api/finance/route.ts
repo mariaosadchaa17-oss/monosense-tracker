@@ -5,9 +5,9 @@ export async function GET() {
   const context = await getFinanceContext();
   if (!context) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { supabase, householdId } = context;
-  const [accounts, transactions, categories, budgets, goals, debts, recurring, transfers, audit,exchangeRates,profile] = await Promise.all([
+  const [accounts, transactions, categories, budgets, goals, debts, recurring, transfers, audit,exchangeRates,profile,household] = await Promise.all([
     supabase.from("accounts").select("*").eq("household_id", householdId).eq("archived", false).order("created_at"),
-    supabase.from("transactions").select("*,categories(name),accounts(name,owner_label),transaction_tags(tags(name))").eq("household_id", householdId).order("booked_at", { ascending: false }).limit(200),
+    supabase.from("transactions").select("*,categories(name,icon),accounts(name,owner_label),transaction_tags(tags(name))").eq("household_id", householdId).order("booked_at", { ascending: false }).limit(200),
     supabase.from("categories").select("*").eq("household_id", householdId).order("name"),
     supabase.from("budgets").select("*,categories(name,color,icon)").eq("household_id", householdId),
     supabase.from("goals").select("*").eq("household_id", householdId).order("created_at"),
@@ -16,14 +16,16 @@ export async function GET() {
     supabase.from("transfers").select("*").eq("household_id", householdId).order("booked_at", { ascending: false }).limit(100),
     supabase.from("audit_logs").select("*").eq("household_id",householdId).order("created_at",{ascending:false}).limit(100),
     supabase.from("exchange_rates").select("*").eq("household_id",householdId).order("rate_date",{ascending:false}).limit(20),
-    supabase.from("profiles").select("planning_period").eq("id",context.user.id).single(),
+    supabase.from("profiles").select("planning_period,base_currency").eq("id",context.user.id).single(),
+    supabase.from("households").select("base_currency").eq("id",householdId).single(),
   ]);
-  const error = [accounts, transactions, categories, budgets, goals, debts, recurring, transfers, audit,exchangeRates,profile].find(result => result.error)?.error;
+  const error = [accounts, transactions, categories, budgets, goals, debts, recurring, transfers, audit,exchangeRates,profile,household].find(result => result.error)?.error;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({
     accounts: accounts.data, transactions: transactions.data, categories: categories.data,
     budgets: budgets.data, goals: goals.data, debts: debts.data, recurring: recurring.data, transfers: transfers.data, audit: audit.data,exchangeRates:exchangeRates.data,
     planningPeriod:profile.data?.planning_period==="week"?"week":"month",
+    baseCurrency:String(household.data?.base_currency||profile.data?.base_currency||"UAH"),
   });
 }
 
@@ -41,14 +43,14 @@ export async function POST(request: Request) {
         household_id: householdId, created_by: user.id, name: String(body.name).slice(0, 80),
         bank: String(body.bank || "").slice(0, 80), owner_label: String(body.owner || "").slice(0, 80),
         currency: String(body.currency || "UAH").toUpperCase().slice(0, 3), balance: Number(body.balance) || 0,
-        credit_limit:Number(body.creditLimit)||0,grace_period_end:body.graceEnd||null,
+        credit_limit:Number(body.creditLimit)||0,grace_period_end:body.graceEnd||null,card_color:String(body.cardColor||"").slice(0,20)||null,
       }).select().single();
       break;
     case "updateAccount":
       result=await supabase.from("accounts").update({
         name:String(body.name).slice(0,80),bank:String(body.bank||"").slice(0,80),owner_label:String(body.owner||"").slice(0,80),
         currency:String(body.currency||"UAH").toUpperCase().slice(0,3),balance:Number(body.balance)||0,
-        credit_limit:Number(body.creditLimit)||0,grace_period_end:body.graceEnd||null,updated_at:new Date().toISOString(),
+        credit_limit:Number(body.creditLimit)||0,grace_period_end:body.graceEnd||null,card_color:String(body.cardColor||"").slice(0,20)||null,updated_at:new Date().toISOString(),
       }).eq("id",body.id).eq("household_id",householdId).select().single();
       break;
     case "deleteAccount":
@@ -76,8 +78,9 @@ export async function POST(request: Request) {
     case "createBudget":
       result = await supabase.from("budgets").upsert({
         household_id: householdId, category_id: body.categoryId, month: body.month,
-        limit_amount: Number(body.limitAmount), currency: String(body.currency || "UAH"), created_by: user.id,
-      }, { onConflict: "household_id,category_id,month" }).select().single();
+        period_type:body.periodType==="week"?"week":"month",limit_amount:Number(body.limitAmount),
+        currency:String(body.currency||"UAH"),alert_80_sent:false,alert_100_sent:false,created_by:user.id,
+      }, { onConflict: "household_id,category_id,month,period_type" }).select().single();
       break;
     case "createGoal":
       result = await supabase.from("goals").insert({

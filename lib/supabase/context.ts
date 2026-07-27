@@ -4,8 +4,15 @@ export async function getFinanceContext() {
   const supabase = await createClient();
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth.user) return null;
-  const { data: membership } = await supabase.from("household_members")
-    .select("household_id,role").eq("user_id", auth.user.id).limit(1).single();
+  const {data:profile}=await supabase.from("profiles").select("active_household_id").eq("id",auth.user.id).maybeSingle();
+  const membershipQuery=supabase.from("household_members").select("household_id,role").eq("user_id",auth.user.id);
+  let {data:membership}=profile?.active_household_id
+    ?await membershipQuery.eq("household_id",profile.active_household_id).maybeSingle()
+    :await membershipQuery.order("joined_at").limit(1).maybeSingle();
+  if(!membership){
+    const fallback=await supabase.from("household_members").select("household_id,role").eq("user_id",auth.user.id).order("joined_at").limit(1).maybeSingle();
+    membership=fallback.data;
+  }
   if (!membership) return null;
   return { supabase, user: auth.user, householdId: membership.household_id as string, role: membership.role as string };
 }
