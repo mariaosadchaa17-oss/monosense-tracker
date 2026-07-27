@@ -59,6 +59,39 @@ export async function POST(request: Request) {
         p_fee_currency: body.feeCurrency || null, p_note: String(body.note || "").slice(0, 500),
       });
       break;
+    case "createBudget":
+      result = await supabase.from("budgets").upsert({
+        household_id: householdId, category_id: body.categoryId, month: body.month,
+        limit_amount: Number(body.limitAmount), currency: String(body.currency || "UAH"), created_by: user.id,
+      }, { onConflict: "household_id,category_id,month" }).select().single();
+      break;
+    case "createGoal":
+      result = await supabase.from("goals").insert({
+        household_id: householdId, name: String(body.name).slice(0,100), target_amount:Number(body.targetAmount),
+        current_amount:Number(body.currentAmount)||0, currency:String(body.currency||"UAH"), target_date:body.targetDate||null,
+        color:body.color||"#6558E8", created_by:user.id,
+      }).select().single();
+      break;
+    case "contributeGoal":
+      result = await supabase.rpc("contribute_to_goal",{p_goal_id:body.id,p_amount:Number(body.amount)});
+      break;
+    case "createDebt":
+      result = await supabase.from("debts").insert({
+        household_id:householdId,person:String(body.person).slice(0,100),direction:body.direction==="i_owe"?"i_owe":"owed_to_me",
+        amount:Number(body.amount),currency:String(body.currency||"UAH"),due_date:body.dueDate||null,
+        note:String(body.note||"").slice(0,500),created_by:user.id,
+      }).select().single();
+      break;
+    case "settleDebt":
+      result = await supabase.from("debts").update({settled:true}).eq("id",body.id).eq("household_id",householdId);
+      break;
+    case "createRecurring":
+      result = await supabase.from("recurring_rules").insert({
+        household_id:householdId,account_id:body.accountId,category_id:body.categoryId||null,
+        name:String(body.name).slice(0,100),amount:Number(body.amount),currency:String(body.currency),
+        frequency:body.frequency||"monthly",next_run_at:body.nextRunAt,auto_create:Boolean(body.autoCreate),created_by:user.id,
+      }).select().single();
+      break;
     default:
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   }

@@ -4,6 +4,7 @@
 2. Відкрийте **SQL Editor** і послідовно виконайте:
    - `supabase/migrations/202607270001_initial_finance_schema.sql`;
    - `supabase/migrations/202607270002_atomic_finance_operations.sql`.
+   - `supabase/migrations/202607270003_goals_and_recurring.sql`.
    Друга міграція додає атомарні операції, які одночасно змінюють транзакцію і
    баланс рахунку, а також безпечний переказ та обмін між власними рахунками.
 3. У **Authentication → URL Configuration** додайте production URL Vercel:
@@ -14,6 +15,7 @@
    - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `NEXT_PUBLIC_APP_URL`
+   - `CRON_SECRET`
 5. Запустіть повторний deployment.
 
 Після появи перших двох змінних демо-вхід автоматично вимикається. Головна
@@ -35,6 +37,13 @@
 
 Після підключення бот приймає повідомлення `300 кава` або
 `1250 квитки #відпустка` і створює витрату в першому активному рахунку.
+
+## Регулярні платежі
+
+`vercel.json` запускає `/api/cron/recurring` щодня о 04:15 UTC. Vercel
+автоматично передає `CRON_SECRET` як Bearer-токен. Правила з увімкненим
+«Створювати автоматично» створюють транзакцію, змінюють баланс і переносять
+дату наступного списання в одній PostgreSQL-операції.
 
 ## CSV
 
