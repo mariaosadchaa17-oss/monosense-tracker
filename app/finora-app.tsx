@@ -33,8 +33,8 @@ const budgetRows = [
 
 const formatMoney = (value: number) => new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 0 }).format(Math.abs(value));
 
-export function FinoraApp() {
-  const [loggedIn, setLoggedIn] = useState(false);
+export function FinoraApp({ initialLoggedIn = false }: { initialLoggedIn?: boolean }) {
+  const [loggedIn, setLoggedIn] = useState(initialLoggedIn);
   const [showPassword, setShowPassword] = useState(false);
   const [page, setPage] = useState<Page>("Головна");
   const [dark, setDark] = useState(false);
@@ -112,7 +112,12 @@ export function FinoraApp() {
       {page === "Бюджет" && <BudgetView notify={notify}/>}
       {page === "Рахунки" && <AccountsView accounts={accounts} add={() => setModal("account")} remove={id => { setAccounts(accounts.filter(a => a.id !== id)); notify("Рахунок видалено"); }}/>}
       {page === "Цілі" && <GoalsView notify={notify}/>}
-      {page === "Налаштування" && <SettingsView dark={dark} setDark={setDark} logout={() => setLoggedIn(false)} notify={notify}/>}
+      {page === "Налаштування" && <SettingsView dark={dark} setDark={setDark} logout={async () => {
+        if (initialLoggedIn) {
+          await fetch("/auth/signout", { method: "POST" });
+          window.location.href = "/auth";
+        } else setLoggedIn(false);
+      }} notify={notify}/>}
 
       <nav className="mobile-nav">
         <button className={page === "Головна" ? "active" : ""} onClick={() => setPage("Головна")}><Home/><small>Головна</small></button>
