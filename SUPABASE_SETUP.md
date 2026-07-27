@@ -1,8 +1,11 @@
 # Підключення Supabase
 
 1. Створіть проєкт у Supabase.
-2. Відкрийте **SQL Editor**, вставте вміст
-   `supabase/migrations/202607270001_initial_finance_schema.sql` і виконайте запит.
+2. Відкрийте **SQL Editor** і послідовно виконайте:
+   - `supabase/migrations/202607270001_initial_finance_schema.sql`;
+   - `supabase/migrations/202607270002_atomic_finance_operations.sql`.
+   Друга міграція додає атомарні операції, які одночасно змінюють транзакцію і
+   баланс рахунку, а також безпечний переказ та обмін між власними рахунками.
 3. У **Authentication → URL Configuration** додайте production URL Vercel:
    - Site URL: `https://ваш-домен.vercel.app`
    - Redirect URL: `https://ваш-домен.vercel.app/auth/callback`

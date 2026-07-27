@@ -10,8 +10,8 @@ import {
 } from "lucide-react";
 
 type Page = "Головна" | "Операції" | "Бюджет" | "Рахунки" | "Цілі" | "Налаштування";
-type Transaction = { id: number; title: string; category: string; date: string; amount: number; impulse?: boolean };
-type Account = { id: number; name: string; bank: string; owner: string; currency: string; balance: number; style: string };
+type Transaction = { id: number | string; title: string; category: string; date: string; amount: number; impulse?: boolean };
+type Account = { id: number | string; name: string; bank: string; owner: string; currency: string; balance: number; style: string };
 
 const seedTransactions: Transaction[] = [
   { id: 1, title: "Сільпо", category: "Продукти", date: "Сьогодні, 12:42", amount: -1248 },
@@ -46,11 +46,35 @@ export function FinoraApp({ initialLoggedIn = false }: { initialLoggedIn?: boole
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
   const [rates, setRates] = useState<{currency:string;rate:number;date:string}[]>([]);
+  const [syncing, setSyncing] = useState(initialLoggedIn);
 
   useEffect(() => {
     setDark(localStorage.getItem("finora-theme") === "dark");
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
   }, []);
+  async function refreshFinance() {
+    if (!initialLoggedIn) return;
+    setSyncing(true);
+    try {
+      const response = await fetch("/api/finance", { cache: "no-store" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error);
+      setAccounts((data.accounts || []).map((item: Record<string, unknown>, index: number) => ({
+        id: String(item.id), name: String(item.name), bank: String(item.bank || "Інший"),
+        owner: String(item.owner_label || "Мій"), currency: String(item.currency),
+        balance: Number(item.balance), style: index % 3 === 0 ? "mono" : index % 3 === 1 ? "privat" : "stash",
+      })));
+      setTransactions((data.transactions || []).map((item: Record<string, unknown>) => ({
+        id: String(item.id), title: String(item.note || (item.type === "income" ? "Дохід" : "Витрата")),
+        category: String((item.categories as {name?:string}|null)?.name || "Без категорії"),
+        date: new Intl.DateTimeFormat("uk-UA", { dateStyle: "medium", timeStyle: "short" }).format(new Date(String(item.booked_at))),
+        amount: Number(item.amount) * (item.type === "income" ? 1 : -1), impulse: Boolean(item.is_impulsive),
+      })));
+    } catch (error) {
+      notify(error instanceof Error ? error.message : "Помилка синхронізації");
+    } finally { setSyncing(false); }
+  }
+  useEffect(() => { void refreshFinance(); }, [initialLoggedIn]);
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? "dark" : "light";
     localStorage.setItem("finora-theme", dark ? "dark" : "light");
@@ -68,22 +92,58 @@ export function FinoraApp({ initialLoggedIn = false }: { initialLoggedIn?: boole
   const balance = useMemo(() => accounts.reduce((sum, a) => sum + (a.currency === "USD" ? a.balance * 41 : a.balance), 0), [accounts]);
   const filteredTransactions = transactions.filter(t => `${t.title} ${t.category}`.toLowerCase().includes(search.toLowerCase()));
 
-  function addExpense(e: React.FormEvent) {
+  async function addExpense(e: React.FormEvent) {
     e.preventDefault();
     const value = Number(amount.replace(",", "."));
     if (!value) return;
+    if (initialLoggedIn) {
+      const account = accounts[0];
+      if (!account) return notify("Спочатку створіть рахунок");
+      const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({
+        action:"createTransaction", accountId:account.id, amount:value, currency:account.currency, note, type:"expense",
+      })});
+      const result = await response.json();
+      if (!response.ok) return notify(result.error || "Не вдалося додати витрату");
+      setAmount(""); setNote(""); setModal(null); notify("Витрату збережено");
+      await refreshFinance(); return;
+    }
     setTransactions([{ id: Date.now(), title: note || "Нова витрата", category: "Інше", date: "Щойно", amount: -value }, ...transactions]);
     setAmount(""); setNote(""); setModal(null); notify("Витрату додано");
   }
-  function addAccount(e: React.FormEvent<HTMLFormElement>) {
+  async function addAccount(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
+    if (initialLoggedIn) {
+      const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({
+        action:"createAccount", name:form.get("name"), bank:form.get("bank"), owner:form.get("owner"),
+        currency:form.get("currency"), balance:form.get("balance"),
+      })});
+      const result = await response.json();
+      if (!response.ok) return notify(result.error || "Не вдалося створити рахунок");
+      setModal(null); notify("Рахунок збережено"); await refreshFinance(); return;
+    }
     setAccounts([...accounts, {
       id: Date.now(), name: String(form.get("name") || "Новий рахунок"), bank: String(form.get("bank") || "Інший"),
       owner: String(form.get("owner") || "Мій"), currency: String(form.get("currency") || "UAH"),
       balance: Number(form.get("balance")) || 0, style: "stash",
     }]);
     setModal(null); notify("Рахунок створено");
+  }
+  async function removeAccount(id: number|string) {
+    if (initialLoggedIn) {
+      const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"deleteAccount",id})});
+      const result = await response.json(); if(!response.ok)return notify(result.error||"Помилка видалення");
+      await refreshFinance();
+    } else setAccounts(accounts.filter(a => a.id !== id));
+    notify("Рахунок видалено");
+  }
+  async function removeTransaction(id: number|string) {
+    if (initialLoggedIn) {
+      const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"deleteTransaction",id})});
+      const result = await response.json(); if(!response.ok)return notify(result.error||"Помилка видалення");
+      await refreshFinance();
+    } else setTransactions(transactions.filter(t => t.id !== id));
+    notify("Операцію видалено");
   }
   async function importCsv(file: File) {
     const text = await file.text();
@@ -131,9 +191,9 @@ export function FinoraApp({ initialLoggedIn = false }: { initialLoggedIn?: boole
       </header>
 
       {page === "Головна" && <Dashboard balance={balance} accounts={accounts} transactions={transactions} openPage={setPage} addAccount={() => setModal("account")}/>}
-      {page === "Операції" && <TransactionsView transactions={filteredTransactions} search={search} setSearch={setSearch} remove={id => { setTransactions(transactions.filter(t => t.id !== id)); notify("Операцію видалено"); }} exportCsv={() => exportCsv(transactions, notify)}/>}
+      {page === "Операції" && <TransactionsView transactions={filteredTransactions} search={search} setSearch={setSearch} remove={removeTransaction} exportCsv={() => exportCsv(transactions, notify)}/>}
       {page === "Бюджет" && <BudgetView notify={notify}/>}
-      {page === "Рахунки" && <AccountsView accounts={accounts} rates={rates} add={() => setModal("account")} remove={id => { setAccounts(accounts.filter(a => a.id !== id)); notify("Рахунок видалено"); }}/>}
+      {page === "Рахунки" && <AccountsView accounts={accounts} rates={rates} add={() => setModal("account")} remove={removeAccount}/>}
       {page === "Цілі" && <GoalsView notify={notify}/>}
       {page === "Налаштування" && <SettingsView dark={dark} setDark={setDark} importCsv={importCsv} logout={async () => {
         if (initialLoggedIn) {
@@ -154,6 +214,7 @@ export function FinoraApp({ initialLoggedIn = false }: { initialLoggedIn?: boole
     {modal === "expense" && <ExpenseModal amount={amount} setAmount={setAmount} note={note} setNote={setNote} submit={addExpense} close={() => setModal(null)}/>}
     {modal === "account" && <AccountModal submit={addAccount} close={() => setModal(null)}/>}
     {toast && <div className="toast">{toast}</div>}
+    {syncing && <div className="sync-pill">Синхронізація…</div>}
   </main>;
 }
 
@@ -183,11 +244,11 @@ function Dashboard({ balance, accounts, transactions, openPage, addAccount }: {b
     <div className="dashboard-grid"><section className="panel transactions"><div className="section-title"><div><h2>Останні операції</h2><p>Сьогодні та вчора</p></div><button onClick={() => openPage("Операції")}>Усі операції <ArrowRight/></button></div><TransactionList transactions={transactions.slice(0,4)}/></section><section className="panel budget-panel"><div className="section-title"><div><h2>Бюджет липня</h2><p>13 днів до кінця місяця</p></div><button onClick={() => openPage("Бюджет")}><MoreHorizontal/></button></div><div className="budget-total"><div><small>Витрачено</small><strong>₴ 16 320 <span>з ₴ 27 500</span></strong></div><b>59%</b></div><div className="main-progress"><i/></div><BudgetRows rows={budgetRows.slice(0,3)}/></section></div></>;
 }
 
-function TransactionsView({ transactions, search, setSearch, remove, exportCsv }: {transactions:Transaction[];search:string;setSearch:(s:string)=>void;remove:(id:number)=>void;exportCsv:()=>void}) {
+function TransactionsView({ transactions, search, setSearch, remove, exportCsv }: {transactions:Transaction[];search:string;setSearch:(s:string)=>void;remove:(id:number|string)=>void;exportCsv:()=>void}) {
   return <section className="panel full-view"><div className="view-toolbar"><label className="search-box"><Search/><input placeholder="Пошук за назвою або категорією" value={search} onChange={e=>setSearch(e.target.value)}/></label><button className="secondary"><Tags/> Фільтри</button><button className="secondary" onClick={exportCsv}><Download/> CSV</button></div><div className="data-head"><span>Операція</span><span>Категорія</span><span>Дата</span><span>Сума</span><span/></div>{transactions.map(t=><div className="data-row" key={t.id}><strong>{t.title}{t.impulse&&<em>Імпульсивна</em>}</strong><span>{t.category}</span><span>{t.date}</span><b className={t.amount>0?"income-amount":""}>{t.amount>0?"+":"−"} ₴ {formatMoney(t.amount)}</b><button className="icon-button danger" onClick={()=>remove(t.id)}><Trash2/></button></div>)}{transactions.length===0&&<div className="empty">Нічого не знайдено</div>}</section>;
 }
 function BudgetView({notify}:{notify:(s:string)=>void}) { return <><div className="metric-grid"><article className="metric"><small>Місячний план</small><strong>₴ 27 500</strong><span>59% використано</span></article><article className="metric"><small>Прогноз залишку</small><strong>₴ 11 180</strong><span className="positive">Краще плану на 12%</span></article><article className="metric"><small>Імпульсивні витрати</small><strong>₴ 2 390</strong><span>14.6% усіх витрат</span></article></div><section className="panel full-view"><div className="section-title"><div><h2>Ліміти за категоріями</h2><p>Липень 2026</p></div><button className="small-primary" onClick={()=>notify("Редактор лімітів буде додано наступним кроком")}><Plus/> Додати ліміт</button></div><div className="large-budget"><BudgetRows rows={budgetRows}/></div><div className="alert-card"><Bell/><div><strong>Наближення до ліміту</strong><p>Категорія «Розваги» використана на 87%. Залишилося ₴ 580.</p></div></div></section></>; }
-function AccountsView({accounts,rates,add,remove}:{accounts:Account[];rates:{currency:string;rate:number;date:string}[];add:()=>void;remove:(id:number)=>void}) { const visible=rates.filter(r=>["USD","EUR"].includes(r.currency)); return <section className="panel full-view"><div className="section-title"><div><h2>Усі рахунки</h2><p>UAH, USD та інші валюти</p></div><button className="small-primary" onClick={add}><Plus/> Новий рахунок</button></div><div className="accounts-grid">{accounts.map(a=><div className="account-wrap" key={a.id}><AccountCard account={a}/><button className="remove-account" onClick={()=>remove(a.id)}><Trash2/> Видалити</button></div>)}</div><div className="rate-card"><Landmark/><div><strong>Офіційний курс НБУ</strong><p>{visible.length ? visible.map(r=>`${r.currency} ${r.rate.toFixed(4)}`).join(" · ") : "Оновлення курсів…"}</p></div><span>{visible[0]?.date || "Сьогодні"}</span></div></section>; }
+function AccountsView({accounts,rates,add,remove}:{accounts:Account[];rates:{currency:string;rate:number;date:string}[];add:()=>void;remove:(id:number|string)=>void}) { const visible=rates.filter(r=>["USD","EUR"].includes(r.currency)); return <section className="panel full-view"><div className="section-title"><div><h2>Усі рахунки</h2><p>UAH, USD та інші валюти</p></div><button className="small-primary" onClick={add}><Plus/> Новий рахунок</button></div><div className="accounts-grid">{accounts.map(a=><div className="account-wrap" key={a.id}><AccountCard account={a}/><button className="remove-account" onClick={()=>remove(a.id)}><Trash2/> Видалити</button></div>)}</div><div className="rate-card"><Landmark/><div><strong>Офіційний курс НБУ</strong><p>{visible.length ? visible.map(r=>`${r.currency} ${r.rate.toFixed(4)}`).join(" · ") : "Оновлення курсів…"}</p></div><span>{visible[0]?.date || "Сьогодні"}</span></div></section>; }
 function GoalsView({notify}:{notify:(s:string)=>void}) { const goals=[["Резервний фонд",120000,200000,"#6c5ce7"],["Подорож до Японії",38500,150000,"#19a974"],["Новий ноутбук",42000,70000,"#f4b740"]]; return <section className="panel full-view"><div className="section-title"><div><h2>Фінансові цілі</h2><p>Накопичення та великі покупки</p></div><button className="small-primary" onClick={()=>notify("Нову ціль буде додано в наступному оновленні")}><Plus/> Нова ціль</button></div><div className="goals-grid">{goals.map(g=><article className="goal-card" key={g[0]}><span className="goal-icon"><PiggyBank/></span><small>Ціль</small><h3>{g[0]}</h3><strong>₴ {formatMoney(Number(g[1]))} <span>з ₴ {formatMoney(Number(g[2]))}</span></strong><div><i style={{width:`${Number(g[1])/Number(g[2])*100}%`,background:String(g[3])}}/></div><p>{Math.round(Number(g[1])/Number(g[2])*100)}% накопичено</p><button onClick={()=>notify(`Поповнення цілі «${g[0]}»`)}>Поповнити</button></article>)}</div></section>; }
 function SettingsView({dark,setDark,logout,notify,importCsv}:{dark:boolean;setDark:(v:boolean)=>void;logout:()=>void;notify:(s:string)=>void;importCsv:(file:File)=>void}) { return <div className="settings-grid"><section className="panel settings-card"><h2>Загальні</h2><label>Базова валюта<select defaultValue="UAH"><option>UAH — гривня</option><option>USD — долар</option><option>EUR — євро</option></select></label><label>Власник за замовчуванням<input defaultValue="Мій"/></label><label className="setting-toggle"><span><strong>Темна тема</strong><small>Змінити вигляд застосунку</small></span><input type="checkbox" checked={dark} onChange={e=>setDark(e.target.checked)}/></label><button className="primary" onClick={()=>notify("Налаштування збережено")}>Зберегти</button></section><section className="panel settings-card"><h2>Дані та інтеграції</h2><label className="integration file-integration"><Upload/><span><strong>Імпорт даних</strong><small>CSV до 5 МБ</small></span><ArrowRight/><input type="file" accept=".csv,text/csv" onChange={e=>{const file=e.target.files?.[0];if(file)importCsv(file);e.target.value="";}}/></label><button className="integration" onClick={()=>notify("Додайте Telegram chat ID у профіль Supabase")}><Goal/><span><strong>Telegram-бот</strong><small>Команда: 300 кава #робота</small></span><ArrowRight/></button><button className="logout" onClick={logout}>Вийти з акаунта</button></section></div>; }
 
