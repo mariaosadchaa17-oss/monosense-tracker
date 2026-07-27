@@ -1,0 +1,10 @@
+{
+  "name": "Finora — личные финансы",
+  "short_name": "Finora",
+  "description": "Счета, бюджеты и финансовые цели",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f8fc",
+  "theme_color": "#6c5ce7",
+  "icons": [{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+}
