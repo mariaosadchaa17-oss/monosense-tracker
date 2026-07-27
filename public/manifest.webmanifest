@@ -1,7 +1,7 @@
 {
-  "name": "Finora — личные финансы",
+  "name": "Finora — особисті фінанси",
   "short_name": "Finora",
-  "description": "Счета, бюджеты и финансовые цели",
+  "description": "Рахунки, бюджети та фінансові цілі",
   "start_url": "/",
   "display": "standalone",
   "display_override": ["window-controls-overlay", "standalone"],
