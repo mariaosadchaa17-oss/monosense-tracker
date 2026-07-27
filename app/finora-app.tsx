@@ -57,11 +57,11 @@ const formatMoney = (value: number) => new Intl.NumberFormat("uk-UA", { maximumF
 const currencySymbol=(currency:string)=>({UAH:"₴",USD:"$",EUR:"€",GBP:"£",PLN:"zł"} as Record<string,string>)[currency]||currency;
 const conversionRate=(currency:string,rates:{currency:string;rate:number}[],customRates:{currency:string;rate:number}[])=>currency==="UAH"?1:(customRates.find(rate=>rate.currency===currency)?.rate||rates.find(rate=>rate.currency===currency)?.rate||1);
 
-export function FinoraApp({ initialLoggedIn = false }: { initialLoggedIn?: boolean }) {
+export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolean }) {
   const [loggedIn, setLoggedIn] = useState(initialLoggedIn);
   const [showPassword, setShowPassword] = useState(false);
   const [page, setPage] = useState<Page>("Головна");
-  const [dark, setDark] = useState(()=>typeof window!=="undefined"&&(localStorage.getItem("rivna-theme")||localStorage.getItem("finora-theme"))==="dark");
+  const [dark, setDark] = useState(()=>typeof window!=="undefined"&&localStorage.getItem("rivna-theme")==="dark");
   const [modal, setModal] = useState<"expense" | "account" | "goal" | "debt" | "recurring" | "transfer" | "budget" | "category" | "invite" | "rate" | null>(null);
   const [transactions, setTransactions] = useState(seedTransactions);
   const [accounts, setAccounts] = useState(seedAccounts);
