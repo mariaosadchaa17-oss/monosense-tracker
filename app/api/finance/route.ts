@@ -96,5 +96,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   }
   if (result.error) return NextResponse.json({ error: result.error.message }, { status: 400 });
+  if (body.action === "createTransaction" && result.data?.id && Array.isArray(body.tags)) {
+    for (const rawTag of body.tags.slice(0, 10)) {
+      const name = String(rawTag).replace(/^#/, "").trim().toLowerCase().slice(0, 40);
+      if (!name) continue;
+      const { data: tag } = await supabase.from("tags").upsert(
+        { household_id: householdId, name }, { onConflict: "household_id,name" }
+      ).select("id").single();
+      if (tag) await supabase.from("transaction_tags").insert({ transaction_id: result.data.id, tag_id: tag.id });
+    }
+  }
   return NextResponse.json({ data: result.data });
 }
