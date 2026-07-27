@@ -5,6 +5,7 @@
    - `supabase/migrations/202607270001_initial_finance_schema.sql`;
    - `supabase/migrations/202607270002_atomic_finance_operations.sql`.
    - `supabase/migrations/202607270003_goals_and_recurring.sql`.
+   - `supabase/migrations/202607270004_push_notifications.sql`.
    Друга міграція додає атомарні операції, які одночасно змінюють транзакцію і
    баланс рахунку, а також безпечний переказ та обмін між власними рахунками.
 3. У **Authentication → URL Configuration** додайте production URL Vercel:
@@ -16,6 +17,9 @@
    - `SUPABASE_SERVICE_ROLE_KEY`
    - `NEXT_PUBLIC_APP_URL`
    - `CRON_SECRET`
+   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+   - `VAPID_PRIVATE_KEY`
+   - `VAPID_SUBJECT` — наприклад `mailto:you@example.com`
 5. Запустіть повторний deployment.
 
 Після появи перших двох змінних демо-вхід автоматично вимикається. Головна
@@ -44,6 +48,13 @@
 автоматично передає `CRON_SECRET` як Bearer-токен. Правила з увімкненим
 «Створювати автоматично» створюють транзакцію, змінюють баланс і переносять
 дату наступного списання в одній PostgreSQL-операції.
+
+## Push-сповіщення
+
+Згенеруйте одну пару VAPID-ключів командою `web-push generate-vapid-keys` і
+збережіть її у Vercel. Приватний ключ не можна додавати до `NEXT_PUBLIC_*`.
+Користувач вмикає push самостійно у налаштуваннях Finora. Cron перевіряє
+бюджети кожні три години та надсилає алерти один раз на порогах 80% і 100%.
 
 ## CSV
 

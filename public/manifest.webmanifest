@@ -4,7 +4,16 @@
   "description": "Счета, бюджеты и финансовые цели",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "uk",
+  "categories": ["finance", "productivity"],
   "background_color": "#f7f8fc",
   "theme_color": "#6c5ce7",
-  "icons": [{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}]
+  "icons": [{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}],
+  "shortcuts": [
+    {"name":"Додати витрату","short_name":"Витрата","url":"/?action=expense","icons":[{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml"}]},
+    {"name":"Переглянути бюджет","short_name":"Бюджет","url":"/?section=budget","icons":[{"src":"/favicon.svg","sizes":"any","type":"image/svg+xml"}]}
+  ]
 }
