@@ -5,21 +5,22 @@ export async function GET() {
   const context = await getFinanceContext();
   if (!context) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { supabase, householdId } = context;
-  const [accounts, transactions, categories, budgets, goals, debts, recurring, transfers] = await Promise.all([
+  const [accounts, transactions, categories, budgets, goals, debts, recurring, transfers, audit] = await Promise.all([
     supabase.from("accounts").select("*").eq("household_id", householdId).eq("archived", false).order("created_at"),
-    supabase.from("transactions").select("*,categories(name)").eq("household_id", householdId).order("booked_at", { ascending: false }).limit(200),
+    supabase.from("transactions").select("*,categories(name),accounts(name,owner_label),transaction_tags(tags(name))").eq("household_id", householdId).order("booked_at", { ascending: false }).limit(200),
     supabase.from("categories").select("*").eq("household_id", householdId).order("name"),
     supabase.from("budgets").select("*,categories(name,color,icon)").eq("household_id", householdId),
     supabase.from("goals").select("*").eq("household_id", householdId).order("created_at"),
     supabase.from("debts").select("*").eq("household_id", householdId).eq("settled", false),
     supabase.from("recurring_rules").select("*").eq("household_id", householdId).eq("active", true),
     supabase.from("transfers").select("*").eq("household_id", householdId).order("booked_at", { ascending: false }).limit(100),
+    supabase.from("audit_logs").select("*").eq("household_id",householdId).order("created_at",{ascending:false}).limit(100),
   ]);
-  const error = [accounts, transactions, categories, budgets, goals, debts, recurring, transfers].find(result => result.error)?.error;
+  const error = [accounts, transactions, categories, budgets, goals, debts, recurring, transfers, audit].find(result => result.error)?.error;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({
     accounts: accounts.data, transactions: transactions.data, categories: categories.data,
-    budgets: budgets.data, goals: goals.data, debts: debts.data, recurring: recurring.data, transfers: transfers.data,
+    budgets: budgets.data, goals: goals.data, debts: debts.data, recurring: recurring.data, transfers: transfers.data, audit: audit.data,
   });
 }
 
@@ -91,6 +92,15 @@ export async function POST(request: Request) {
         name:String(body.name).slice(0,100),amount:Number(body.amount),currency:String(body.currency),
         frequency:body.frequency||"monthly",next_run_at:body.nextRunAt,auto_create:Boolean(body.autoCreate),created_by:user.id,
       }).select().single();
+      break;
+    case "createCategory":
+      result = await supabase.from("categories").insert({
+        household_id:householdId,name:String(body.name).slice(0,60),icon:String(body.icon||"CircleDollarSign").slice(0,60),
+        color:String(body.color||"#6558E8").slice(0,20),kind:body.kind==="income"?"income":"expense",created_by:user.id,
+      }).select().single();
+      break;
+    case "deleteCategory":
+      result = await supabase.from("categories").delete().eq("id",body.id).eq("household_id",householdId);
       break;
     default:
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
