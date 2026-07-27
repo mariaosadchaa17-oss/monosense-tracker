@@ -3,6 +3,7 @@ import { CircleDollarSign, LockKeyhole, Sparkles } from "lucide-react";
 import { hasSupabaseConfig } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import { signIn, signUp } from "./actions";
+import { PasskeyButton } from "@/app/components/passkey-button";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,7 @@ export default async function AuthPage({ searchParams }: { searchParams: Promise
         <label>Email<input name="email" type="email" required autoComplete="email" placeholder="you@example.com"/></label>
         <label>Пароль<input name="password" type="password" minLength={8} required autoComplete={register ? "new-password" : "current-password"} placeholder="Щонайменше 8 символів"/></label>
         <button className="primary" type="submit">{register ? "Зареєструватися" : "Увійти"}</button>
+        {!register && <PasskeyButton mode="authenticate"/>}
         <a className="auth-switch" href={register ? "/auth" : "/auth?mode=register"}>{register ? "Вже є акаунт? Увійти" : "Немає акаунта? Створити"}</a>
       </form>
     </section>

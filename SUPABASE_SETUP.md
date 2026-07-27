@@ -6,6 +6,7 @@
    - `supabase/migrations/202607270002_atomic_finance_operations.sql`.
    - `supabase/migrations/202607270003_goals_and_recurring.sql`.
    - `supabase/migrations/202607270004_push_notifications.sql`.
+   - `supabase/migrations/202607270005_passkeys.sql`.
    Друга міграція додає атомарні операції, які одночасно змінюють транзакцію і
    баланс рахунку, а також безпечний переказ та обмін між власними рахунками.
 3. У **Authentication → URL Configuration** додайте production URL Vercel:
@@ -55,6 +56,15 @@
 збережіть її у Vercel. Приватний ключ не можна додавати до `NEXT_PUBLIC_*`.
 Користувач вмикає push самостійно у налаштуваннях Finora. Cron перевіряє
 бюджети кожні три години та надсилає алерти один раз на порогах 80% і 100%.
+
+## Face ID, Touch ID та PIN пристрою
+
+Після входу користувач додає passkey у налаштуваннях. WebAuthn зберігає
+приватний ключ у Secure Enclave, TPM або менеджері паролів пристрою; база
+отримує лише публічний ключ. Наступний вхід можна підтвердити Face ID,
+Touch ID, Windows Hello або системним PIN-кодом. `NEXT_PUBLIC_APP_URL`
+обов’язково має точно відповідати production-домену, оскільки passkey
+прив’язаний до домену.
 
 ## CSV
 

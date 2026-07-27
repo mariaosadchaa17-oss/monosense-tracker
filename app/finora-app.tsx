@@ -8,6 +8,7 @@ import {
   Search, Settings, ShoppingBag, Sparkles, Sun, Target, Tags, Trash2,
   TrendingUp, Upload, Utensils, WalletCards, X, PieChart, HandCoins, Repeat2
 } from "lucide-react";
+import {PasskeyButton} from "./components/passkey-button";
 
 type Page = "Головна" | "Операції" | "Бюджет" | "Рахунки" | "Цілі" | "Аналітика" | "Борги" | "Налаштування";
 type Transaction = { id: number | string; title: string; category: string; date: string; bookedAt?:string; account?:string; owner?:string; tags?:string[]; amount: number; impulse?: boolean };
@@ -262,6 +263,10 @@ export function FinoraApp({ initialLoggedIn = false }: { initialLoggedIn?: boole
           window.location.href = "/auth";
         } else setLoggedIn(false);
       }} notify={notify}/>}
+      {page === "Налаштування" && initialLoggedIn && <section className="panel passkey-panel">
+        <div><strong>Швидкий вхід на цьому пристрої</strong><small>Face ID, Touch ID, Windows Hello або PIN пристрою</small></div>
+        <PasskeyButton mode="register" className="small-primary" onMessage={notify}/>
+      </section>}
 
       <nav className="mobile-nav">
         <button className={page === "Головна" ? "active" : ""} onClick={() => setPage("Головна")}><Home/><small>Головна</small></button>
