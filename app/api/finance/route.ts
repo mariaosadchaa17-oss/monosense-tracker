@@ -27,6 +27,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const context = await getFinanceContext();
   if (!context) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  if (context.role === "viewer") return NextResponse.json({ error: "Роль глядача дозволяє лише перегляд" }, { status: 403 });
   const { supabase, user, householdId } = context;
   const body = await request.json();
   let result;
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
         household_id: householdId, created_by: user.id, name: String(body.name).slice(0, 80),
         bank: String(body.bank || "").slice(0, 80), owner_label: String(body.owner || "").slice(0, 80),
         currency: String(body.currency || "UAH").toUpperCase().slice(0, 3), balance: Number(body.balance) || 0,
+        credit_limit:Number(body.creditLimit)||0,grace_period_end:body.graceEnd||null,
       }).select().single();
       break;
     case "deleteAccount":
