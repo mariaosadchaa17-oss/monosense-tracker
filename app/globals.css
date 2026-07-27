@@ -8,7 +8,7 @@
   --bg:#11121a; --panel:#1b1c27; --text:#f7f6fb; --muted:#999aa8; --line:#2b2d3b;
   --shadow:0 12px 40px rgba(0,0,0,.2);
 }
-*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:var(--font-geist),Arial,sans-serif}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Geist,"Segoe UI",Arial,sans-serif}
 button,input{font:inherit} button{color:inherit}.brand{display:flex;align-items:center;gap:10px;font-size:25px;font-weight:780;letter-spacing:-1px}
 .brand-mark{display:grid;place-items:center;width:36px;height:36px;border-radius:11px;background:var(--purple);color:#fff}.brand-mark svg{width:22px}
 .auth-shell{min-height:100vh;display:grid;grid-template-columns:1.05fr .95fr;background:var(--panel)}

@@ -1,8 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Geist } from "next/font/google";
 import "./globals.css";
-
-const geist = Geist({ variable: "--font-geist", subsets: ["latin", "cyrillic"] });
 
 export const metadata: Metadata = {
   title: "Finora — личные финансы",
@@ -14,5 +11,5 @@ export const metadata: Metadata = {
 export const viewport: Viewport = { themeColor: "#6c5ce7", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="ru" suppressHydrationWarning><body className={geist.variable}>{children}</body></html>;
+  return <html lang="ru" suppressHydrationWarning><body>{children}</body></html>;
 }
