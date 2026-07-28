@@ -1,6 +1,6 @@
 {
   "framework": "nextjs",
-  "buildCommand": "pnpm run build",
+  "buildCommand": "yarn run build",
   "crons": [
     {
       "path": "/api/cron/recurring",
