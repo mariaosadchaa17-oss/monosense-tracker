@@ -145,7 +145,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     }).catch(() => {});
   }, []);
 
-  const balance=useMemo(()=>accounts.reduce((sum,account)=>sum+Math.max(0,account.balance)*conversionRate(account.currency,rates,customRates)/conversionRate(baseCurrency,rates,customRates),0),[accounts,rates,customRates,baseCurrency]);
+  const balance=useMemo(()=>accounts.filter(a=>a.balance>0).reduce((sum,account)=>sum+account.balance*conversionRate(account.currency,rates,customRates)/conversionRate(baseCurrency,rates,customRates),0),[accounts,rates,customRates,baseCurrency]);
   const normalizedTransactions=useMemo(()=>transactions.map(transaction=>({...transaction,baseAmount:transaction.amount*conversionRate(transaction.currency||"UAH",rates,customRates)/conversionRate(baseCurrency,rates,customRates)})),[transactions,rates,customRates,baseCurrency]);
   const filteredTransactions = transactions.filter(t => `${t.title} ${t.category}`.toLowerCase().includes(search.toLowerCase()));
   const allDebts=useMemo(()=>{
@@ -313,7 +313,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       {page === "Операції" && <TransactionsView transactions={filteredTransactions} search={search} setSearch={setSearch} remove={removeTransaction} exportCsv={() => exportCsv(transactions, notify)} exportExcel={()=>exportExcel(transactions,notify)}/>}
       {page === "Бюджет" && (initialLoggedIn?<LiveBudgetView budgets={savedBudgets} transactions={normalizedTransactions} period={planningPeriod} baseCurrency={baseCurrency} add={()=>setModal("budget")}/>:<BudgetView budgets={savedBudgets} transactions={normalizedTransactions} add={()=>setModal("budget")}/>)}
       {page === "Рахунки" && <AccountsView accounts={accounts} rates={rates} customRates={customRates} add={() => {setEditingAccount(null);setModal("account")}} edit={account=>{setEditingAccount(account);setModal("account")}} addRate={()=>setModal("rate")} transfer={()=>setModal("transfer")} remove={removeAccount}/>}
-      {page === "Накопичення" && <GoalsView goals={goals} add={()=>setModal("goal")} contribute={(id,amount)=>financeAction({action:"contributeGoal",id,amount},"Ціль поповнено")} recurring={recurring} addRecurring={()=>setModal("recurring")} remove={id=>financeAction({action:"deleteGoal",id},"Ціль видалено"})}/>}
+      {page === "Накопичення" && <GoalsView goals={goals} add={()=>setModal("goal")} contribute={(id,amount)=>financeAction({action:"contributeGoal",id,amount},"Ціль поповнено")} recurring={recurring} addRecurring={()=>setModal("recurring")} remove={id=>financeAction({action:"deleteGoal",id},"Ціль видалено")}/>}
       {page === "Аналітика" && <AnalyticsView transactions={normalizedTransactions} baseCurrency={baseCurrency}/>}
       {page === "Борги" && <DebtsView debts={allDebts} add={()=>setModal("debt")} settle={id=>financeAction({action:"settleDebt",id},"Борг закрито")}/>}
       {page === "Налаштування" && <SettingsView dark={dark} setDark={setDark} importCsv={importCsv} categories={categories} audit={audit} pushEnabled={pushEnabled} enablePush={enablePush} installApp={installApp} addCategory={()=>setModal("category")} deleteCategory={id=>financeAction({action:"deleteCategory",id},"Категорію видалено")} logout={async () => {
