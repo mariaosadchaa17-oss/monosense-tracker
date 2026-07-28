@@ -21,6 +21,9 @@ const categoryIcons:Record<string,string>={
 export async function POST(request:Request){
   const context=await getFinanceContext();
   if(!context)return NextResponse.json({error:"Unauthorized"},{status:401});
+  const {data:profile}=await context.supabase.from("profiles").select("onboarding_completed").single();
+  if(profile?.onboarding_completed)return NextResponse.json({ok:true,message:"Onboarding already completed"});
+
   const body=await request.json(),admin=createAdminClient();
   const period=body.period==="week"?"week":body.period==="both"?"both":"month",account=body.account||{};
   const username=String(body.username||"").trim().toLowerCase().replace(/^@/,"").replace(/[^a-z0-9_.-]/g,"").slice(0,30)||null;

@@ -10,6 +10,11 @@ const banks=["monobank","ПриватБанк","ПУМБ","Ощадбанк","Р
 const goals=[["reserve","Накопичити фінансову подушку"],["travel","Відпустка або подорож"],["purchase","Велика покупка"],["debt_free","Вийти з боргів"],["control","Просто контролювати витрати"],["custom","Своя ціль"]];
 const suggestedCardColors=['#fecaca', '#a7f3d0', '#bae6fd', '#c7d2fe', '#fbcfe8', '#fef08a', '#bfdbfe', '#e9d5ff', '#fed7aa', '#d9f99d', '#252629'];
 
+const isLight = (hex: string) => {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 150;
+};
+
 export function OnboardingWizard({displayName}:{displayName:string}){
   const [step,setStep]=useState(1),[saving,setSaving]=useState(false),[error,setError]=useState("");
   const [account,setAccount]=useState({name:"Основна картка",bank:"monobank",balance:"",credit_limit:"",currency:"UAH",color:"#252629"});
@@ -37,10 +42,9 @@ export function OnboardingWizard({displayName}:{displayName:string}){
       {step===1&&<div className="wizard-step"><span className="wizard-icon"><CreditCard/></span><small>Вітаємо, {displayName}</small><h1>Додайте перший рахунок</h1><p>Почнемо з картки або готівки. Усе можна змінити пізніше.</p><label>Назва<input value={account.name} onChange={event=>setAccount({...account,name:event.target.value})}/></label><div className="wizard-grid"><label>Поточний баланс<input type="number" inputMode="decimal" value={account.balance} onChange={event=>setAccount({...account,balance:event.target.value})} placeholder="0"/></label><label>Кредитний ліміт<input type="number" inputMode="decimal" value={account.credit_limit} onChange={event=>setAccount({...account,credit_limit:event.target.value})} placeholder="0"/></label></div><div className="wizard-grid"><label>Валюта<select value={account.currency} onChange={event=>setAccount({...account,currency:event.target.value})}><option>UAH</option><option>USD</option><option>EUR</option><option>PLN</option></select></label></div><label>Банк</label><div className="wheel-picker" aria-label="Вибір банку">{banks.map((bank,index)=><button type="button" key={bank} className={index===selectedBank?"selected":""} onClick={()=>setAccount({...account,bank})}>{bank}{index===selectedBank&&<Check/>}</button>)}</div>
         <label>Колір картки</label>
         <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
-          <div style={{display:"flex",gap:"6px"}}>
-            {suggestedCardColors.map(c=><button key={c} type="button" style={{background:c,width:"32px",height:"32px",borderRadius:"50%",border:account.color.toLowerCase()===c.toLowerCase()?"2px solid #6558e8":"2px solid transparent",display:"grid",placeItems:"center",color:"#fff",cursor:"pointer"}} onClick={()=>setAccount({...account,color:c})}>{account.color.toLowerCase()===c.toLowerCase()&&<Check size={16}/>}</button>)}
+          <div style={{display:"flex",gap:"6px", flexWrap: "wrap"}}>
+            {suggestedCardColors.map(c=><button key={c} type="button" style={{background:c,width:"32px",height:"32px",borderRadius:"50%",border:account.color.toLowerCase()===c.toLowerCase()?"2px solid #6558e8":"2px solid transparent",display:"grid",placeItems:"center",color:isLight(c)?"#000":"#fff",cursor:"pointer"}} onClick={()=>setAccount({...account,color:c})}>{account.color.toLowerCase()===c.toLowerCase()&&<Check size={16}/>}</button>)}
           </div>
-          <input className="color-choice" type="color" value={account.color} onChange={event=>setAccount({...account,color:event.target.value})}/>
         </div>
       </div>}
       {step===2&&<div className="wizard-step centered"><span className="wizard-icon"><LayoutGrid/></span><small>Період планування</small><h1>Як зручніше планувати?</h1><p>Rivna адаптує прогнози та ліміти під ваш ритм.</p><div className="choice-cards"><button className={period==="month"?"selected":""} onClick={()=>setPeriod("month")}><strong>Місяць</strong><small>Класичний бюджет від зарплати до зарплати</small></button><button className={period==="week"?"selected":""} onClick={()=>setPeriod("week")}><strong>Тиждень</strong><small>Короткі цикли та швидший контроль</small></button><button className={period==="both"?"selected":""} onClick={()=>setPeriod("both")}><strong>Місяць і тиждень</strong><small>Для максимальної гнучкості</small></button></div></div>}
