@@ -14,7 +14,6 @@ test("uses Ukrainian metadata and application language",async()=>{
   assert.match(app,/Налаштування/);
   assert.match(manifest,/"lang"\s*:\s*"uk"/);
 });
-
 test("keeps critical finance workflows wired",async()=>{
   const [app,finance,settings,invite,xlsx]=await Promise.all([
     read("app/rivna-app.tsx"),read("app/api/finance/route.ts"),read("app/api/settings/route.ts"),
@@ -32,3 +31,4 @@ test("keeps critical finance workflows wired",async()=>{
   assert.match(invite,/inviteUserByEmail/);
   assert.match(xlsx,/sheet_to_json/);
 });
+
