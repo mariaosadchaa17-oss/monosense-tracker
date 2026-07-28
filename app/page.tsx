@@ -1,4 +1,4 @@
-import { RivnaApp } from "./finora-app";
+import { RivnaApp } from "./rivna-app";
 import { redirect } from "next/navigation";
 import { hasSupabaseConfig } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
