@@ -9,7 +9,7 @@ const allowedCategories=[
   "Зв’язок та інтернет","Освіта","Подорожі","Спорт","Кишенькові витрати",
   "Домашні улюбленці","Техніка","Інше",
 ];
-type CategoryChoice={name:string;color?:string;limit?:number};
+type CategoryChoice={name:string;color?:string;week_limit?:number;month_limit?:number};
 const categoryIcons:Record<string,string>={
   "Продукти":"ShoppingCart","Кафе та ресторани":"Coffee","Комуналка":"House","Транспорт":"Bus","Авто":"Car",
   "Здоров’я":"HeartPulse","Краса":"Sparkles","Одяг":"Shirt","Розваги":"Gamepad2","Підписки":"Repeat2",
@@ -22,7 +22,7 @@ export async function POST(request:Request){
   const context=await getFinanceContext();
   if(!context)return NextResponse.json({error:"Unauthorized"},{status:401});
   const body=await request.json(),admin=createAdminClient();
-  const period=body.period==="week"?"week":"month",account=body.account||{};
+  const period=body.period==="week"?"week":body.period==="both"?"both":"month",account=body.account||{};
   const username=String(body.username||"").trim().toLowerCase().replace(/^@/,"").replace(/[^a-z0-9_.-]/g,"").slice(0,30)||null;
   if(!String(account.name||"").trim())return NextResponse.json({error:"Додайте назву першого рахунку"},{status:400});
   if(username){
@@ -32,7 +32,7 @@ export async function POST(request:Request){
   const {error:accountError}=await admin.from("accounts").insert({
     household_id:context.householdId,created_by:context.user.id,name:String(account.name).trim().slice(0,80),
     bank:String(account.bank||"Інший").slice(0,80),owner_label:"Мій",currency:String(account.currency||"UAH").slice(0,3),
-    balance:Number(account.balance)||0,card_color:String(account.color||"#6558e8").slice(0,20),
+    balance:Number(account.balance)||0,credit_limit:Number(account.credit_limit)||0,card_color:String(account.color||"#6558e8").slice(0,20),
   });
   if(accountError)return NextResponse.json({error:accountError.message},{status:400});
   const chosen:CategoryChoice[]=Array.isArray(body.categories)?body.categories.filter((item:CategoryChoice)=>allowedCategories.includes(String(item.name))).slice(0,20):[];
@@ -40,9 +40,16 @@ export async function POST(request:Request){
   if(categoryRows.length)await admin.from("categories").upsert(categoryRows,{onConflict:"household_id,name,kind"});
   const {data:categories}=await admin.from("categories").select("id,name").eq("household_id",context.householdId).eq("kind","expense");
   const now=new Date(),weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-((weekStart.getDay()+6)%7));
-  const periodStart=period==="week"?weekStart.toISOString().slice(0,10):now.toISOString().slice(0,7)+"-01";
+  const monthStart=now.toISOString().slice(0,7)+"-01";
   const categoryIds=new Map((categories||[]).map(item=>[item.name,item.id]));
-  const budgets=chosen.filter(item=>Number(item.limit)>0&&categoryIds.has(item.name)).map(item=>({household_id:context.householdId,category_id:categoryIds.get(item.name),month:periodStart,period_type:period,limit_amount:Number(item.limit),currency:"UAH",created_by:context.user.id}));
+  const budgets:any[]=[];
+  for(const item of chosen){
+    const categoryId=categoryIds.get(item.name);
+    if(!categoryId)continue;
+    const weekLimit=Number(item.week_limit)>0,monthLimit=Number(item.month_limit)>0;
+    if((period==="week"||period==="both")&&weekLimit)budgets.push({household_id:context.householdId,category_id:categoryId,month:weekStart.toISOString().slice(0,10),period_type:"week",limit_amount:Number(item.week_limit),currency:"UAH",created_by:context.user.id});
+    if((period==="month"||period==="both")&&monthLimit)budgets.push({household_id:context.householdId,category_id:categoryId,month:monthStart,period_type:"month",limit_amount:Number(item.month_limit),currency:"UAH",created_by:context.user.id});
+  }
   if(budgets.length)await admin.from("budgets").upsert(budgets,{onConflict:"household_id,category_id,month,period_type"});
   const {error:profileError}=await admin.from("profiles").update({username,onboarding_completed:true,planning_period:period,primary_goal:String(body.goal||"control").slice(0,100),updated_at:new Date().toISOString()}).eq("id",context.user.id);
   if(profileError)return NextResponse.json({error:profileError.message},{status:400});

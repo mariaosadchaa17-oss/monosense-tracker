@@ -11,7 +11,7 @@ create or replace function public.create_finance_transaction(
   p_personal_share numeric default null
 ) returns public.transactions
 language plpgsql
-set search_path = public
+set search_path  = public
 as $$
 declare
   target_account public.accounts;
