@@ -92,6 +92,9 @@ export async function POST(request: Request) {
     case "contributeGoal":
       result = await supabase.rpc("contribute_to_goal",{p_goal_id:body.id,p_amount:Number(body.amount)});
       break;
+    case "deleteGoal":
+      result = await supabase.from("goals").delete().eq("id",body.id).eq("household_id",householdId);
+      break;
     case "createDebt":
       result = await supabase.from("debts").insert({
         household_id:householdId,person:String(body.person).slice(0,100),direction:body.direction==="i_owe"?"i_owe":"owed_to_me",
