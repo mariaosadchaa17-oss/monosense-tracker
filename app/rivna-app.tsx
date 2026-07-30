@@ -86,6 +86,12 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [installPrompt,setInstallPrompt]=useState<Event|null>(null);
   const [pushEnabled,setPushEnabled]=useState(false);
   const [editingAccount,setEditingAccount]=useState<Account|null>(null);
+  const [topProfile,setTopProfile]=useState<{name:string;email:string}|null>(null);
+
+  useEffect(()=>{
+    if(!initialLoggedIn)return;
+    fetch("/api/settings",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(data=>data?.profile&&setTopProfile({name:data.profile.name,email:data.profile.email||""})).catch(()=>{});
+  },[initialLoggedIn]);
 
   useEffect(() => {
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
@@ -300,13 +306,13 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       <nav>{nav.map(([label, icon]) => <button key={label} className={page === label ? "active" : ""} onClick={() => setPage(label)}>{icon}{label}</button>)}</nav>
       <div className="side-bottom">
         <button className={page === "Налаштування" ? "active" : ""} onClick={() => setPage("Налаштування")}><Settings/> Налаштування</button>
-        <button className="profile" onClick={() => setPage("Налаштування")}><span>МО</span><div><strong>Марія</strong><small>maria@example.com</small></div><MoreHorizontal/></button>
+        <button className="profile" onClick={() => setPage("Налаштування")}><span>{(topProfile?.name||"??").slice(0,2).toUpperCase()}</span><div><strong>{topProfile?.name||"Профіль"}</strong><small>{topProfile?.email||""}</small></div><MoreHorizontal/></button>
       </div>
     </aside>
 
     <section className="content">
       <header>
-        <div><p className="hello">Вітаємо, Маріє <span>☀</span></p><h1>{page === "Головна" ? "Ваші фінанси" : page}</h1></div>
+        <div><p className="hello">{topProfile?.name?`Вітаємо, ${topProfile.name}`:"Вітаємо"} <span>☀</span></p><h1>{page === "Головна" ? "Ваші фінанси" : page}</h1></div>
         <div className="header-actions">
           <button className="theme-btn" onClick={() => setDark(!dark)} aria-label="Змінити тему">{dark ? <Sun/> : <Moon/>}</button>
           <button className="theme-btn notification" onClick={() => notify("Нових сповіщень немає")} aria-label="Сповіщення"><Bell/><i/></button>
