@@ -1,11 +1,9 @@
-import Link from "next/link";
 import { redirect } from "next/navigation";
-import { CircleDollarSign, LockKeyhole } from "lucide-react";
 import { hasSupabaseConfig } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import { signIn, signUp } from "./actions";
 import { PasskeySection } from "@/app/components/passkey-section";
-import { Button } from "@/app/components/ui/button";
+import { AuthBackdrop } from "@/app/components/auth-backdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -19,53 +17,33 @@ export default async function AuthPage({ searchParams }: { searchParams: Promise
   const requested = params.next || "/", next = requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
 
   return (
-    <main className="auth-v2">
-      <section className="auth-v2-side">
-        <div className="auth-v2-mark"><CircleDollarSign /> rivna</div>
-        <div className="auth-v2-quote">
-          <span className="auth-v2-num">01</span>
-          <h1>Фінансова ясність<br />починається тут.</h1>
-          <p>Захищений простір для особистих і спільних фінансів — рахунки, бюджети, аналітика в одному місці.</p>
-        </div>
-        <small>Дані захищені Supabase Auth та Row Level Security</small>
-      </section>
+    <main className="auth-v3">
+      <AuthBackdrop />
+      <div className="auth-v3-card">
+        <h1>{register ? "Створити акаунт" : "Увійти"}</h1>
+        <p>{register ? "Почніть керувати фінансами разом" : "Раді бачити знову"}</p>
 
-      <section className="auth-v2-main">
-        <div className="auth-v2-card">
-          <div className="auth-v2-tabs">
-            <a className={register ? "" : "active"} href={`/auth?next=${encodeURIComponent(next)}`}>Вхід</a>
-            <a className={register ? "active" : ""} href={`/auth?mode=register&next=${encodeURIComponent(next)}`}>Реєстрація</a>
-          </div>
+        {params.error && <div className="form-message error">{params.error}</div>}
+        {params.message && <div className="form-message success">{params.message}</div>}
 
-          <form action={register ? signUp : signIn} className="auth-v2-form">
-            <div className="auth-v2-heading">
-              <span className="auth-v2-lock"><LockKeyhole /></span>
-              <div>
-                <h2>{register ? "Створити акаунт" : "З поверненням"}</h2>
-                <p>{register ? "Почніть керувати фінансами разом" : "Увійдіть у свій захищений простір"}</p>
-              </div>
-            </div>
+        <form action={register ? signUp : signIn} className="auth-v3-form">
+          <input type="hidden" name="next" value={next} />
+          {register && <label>Ім&rsquo;я<input name="displayName" required placeholder="Марія" /></label>}
+          <label>Email<input name="email" type="email" required autoComplete="email" placeholder="you@example.com" /></label>
+          <label>Пароль<input name="password" type="password" minLength={8} required autoComplete={register ? "new-password" : "current-password"} placeholder="Щонайменше 8 символів" /></label>
+          {!register && <a className="auth-v3-forgot" href="/auth/forgot-password">Забули пароль?</a>}
 
-            {params.error && <div className="form-message error">{params.error}</div>}
-            {params.message && <div className="form-message success">{params.message}</div>}
+          <button className="auth-v3-primary" type="submit">{register ? "Зареєструватися" : "Увійти"}</button>
 
-            <input type="hidden" name="next" value={next} />
-            {register && <label>Ім&rsquo;я<input name="displayName" required placeholder="Марія" /></label>}
-            <label>Email<input name="email" type="email" required autoComplete="email" placeholder="you@example.com" /></label>
-            <label>Пароль<input name="password" type="password" minLength={8} required autoComplete={register ? "new-password" : "current-password"} placeholder="Щонайменше 8 символів" /></label>
-            {!register && <Link className="auth-v2-forgot" href="/auth/forgot-password">Забули пароль?</Link>}
+          {!register && <PasskeySection redirectTo={next} />}
+        </form>
 
-            <Button className="primary" type="submit">{register ? "Зареєструватися" : "Увійти"}</Button>
-
-            {!register && (
-              <>
-                <div className="auth-v2-divider"><span>або</span></div>
-                <PasskeySection redirectTo={next} />
-              </>
-            )}
-          </form>
-        </div>
-      </section>
+        <p className="auth-v3-switch">
+          {register
+            ? <>Вже є акаунт? <a href={`/auth?next=${encodeURIComponent(next)}`}>Увійти</a></>
+            : <>Немає акаунта? <a href={`/auth?mode=register&next=${encodeURIComponent(next)}`}>Зареєструватися</a></>}
+        </p>
+      </div>
     </main>
   );
 }

@@ -1,9 +1,8 @@
 import { redirect } from "next/navigation";
-import { CircleDollarSign, LockKeyhole } from "lucide-react";
 import { hasSupabaseConfig } from "@/lib/supabase/config";
 import { createClient } from "@/lib/supabase/server";
 import { updatePassword } from "@/app/auth/actions";
-import { Button } from "@/app/components/ui/button";
+import { AuthBackdrop } from "@/app/components/auth-backdrop";
 
 export const dynamic = "force-dynamic";
 
@@ -11,40 +10,22 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
   if (!hasSupabaseConfig) redirect("/");
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
-  if (!data?.claims) redirect("/auth?error=" + encodeURIComponent("Посилання недійсне або застаріле. Спробуйте ще раз");
-  const params = await searchParams;
+  if (!data?.claims) redirect("/auth?error=" + encodeURIComponent("Посилання недійсне або застаріле. Спробуйте ще раз"); const params = await searchParams;
 
   return (
-    <main className="auth-v2">
-      <section className="auth-v2-side">
-        <div className="auth-v2-mark"><CircleDollarSign /> rivna</div>
-        <div className="auth-v2-quote">
-          <span className="auth-v2-num">01</span>
-          <h1>Фінансова ясність<br />починається тут.</h1>
-          <p>Захищений простір для особистих і спільних фінансів — рахунки, бюджети, аналітика в одному місці.</p>
-        </div>
-        <small>Дані захищені Supabase Auth та Row Level Security</small>
-      </section>
+    <main className="auth-v3">
+      <AuthBackdrop />
+      <div className="auth-v3-card">
+        <h1>Новий пароль</h1>
+        <p>Придумайте новий пароль для входу</p>
 
-      <section className="auth-v2-main">
-        <div className="auth-v2-card">
-          <form action={updatePassword} className="auth-v2-form">
-            <div className="auth-v2-heading">
-              <span className="auth-v2-lock"><LockKeyhole /></span>
-              <div>
-                <h2>Новий пароль</h2>
-                <p>Придумайте новий пароль для входу</p>
-              </div>
-            </div>
+        {params.error && <div className="form-message error">{params.error}</div>}
 
-            {params.error && <div className="form-message error">{params.error}</div>}
-
-            <label>Новий пароль<input name="password" type="password" minLength={8} required autoComplete="new-password" placeholder="Щонайменше 8 символів" /></label>
-
-            <Button className="primary" type="submit">Зберегти пароль</Button>
-          </form>
-        </div>
-      </section>
+        <form action={updatePassword} className="auth-v3-form">
+          <label>Новий пароль<input name="password" type="password" minLength={8} required autoComplete="new-password" placeholder="Щонайменше 8 символів" /></label>
+          <button className="auth-v3-primary" type="submit">Зберегти пароль</button>
+        </form>
+      </div>
     </main>
   );
 }
