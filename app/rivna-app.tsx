@@ -66,8 +66,8 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [page, setPage] = useState<Page>("Головна");
   const [dark, setDark] = useState(()=>typeof window!=="undefined"&&localStorage.getItem("rivna-theme")==="dark");
   const [modal, setModal] = useState<"expense" | "account" | "goal" | "debt" | "recurring" | "transfer" | "budget" | "category" | "invite" | "rate" | null>(null);
-  const [transactions, setTransactions] = useState(seedTransactions);
-  const [accounts, setAccounts] = useState(seedAccounts);
+  const [transactions, setTransactions] = useState(initialLoggedIn?[]:seedTransactions);
+  const [accounts, setAccounts] = useState(initialLoggedIn?[]:seedAccounts);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
   const [search, setSearch] = useState("");
