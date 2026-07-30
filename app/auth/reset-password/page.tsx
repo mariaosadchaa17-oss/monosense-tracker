@@ -10,7 +10,8 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
   if (!hasSupabaseConfig) redirect("/");
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
-  if (!data?.claims) redirect("/auth?error=" + encodeURIComponent("Посилання недійсне або застаріле. Спробуйте ще раз"); const params = await searchParams;
+  if (!data?.claims) redirect("/auth?error=" + encodeURIComponent("Посилання недійсне або застаріле. Спробуйте ще раз"));
+  const params = await searchParams;
 
   return (
     <main className="auth-v3">
