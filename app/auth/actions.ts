@@ -14,7 +14,7 @@ export async function signIn(formData: FormData) {
   const password = String(formData.get("password") || "");
   const next=safeNext(formData.get("next"));
   const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) redirect(`/auth?error=${encodeURIComponent("Невірний email або пароль")}`);
+  if (error) redirect(`/auth?error=${encodeURIComponent("Невірний email або пароль")}&next=${encodeURIComponent(next)}`);
   redirect(next);
 }
 
@@ -29,7 +29,7 @@ export async function signUp(formData: FormData) {
     email, password,
     options:{data:{display_name:displayName},emailRedirectTo:`${origin}/auth/callback?next=${encodeURIComponent(next)}`},
   });
-  if (error) redirect(`/auth?error=${encodeURIComponent(error.message)}`);
+  if (error) redirect(`/auth?mode=register&error=${encodeURIComponent(error.message)}&next=${encodeURIComponent(next)}`);
   redirect(`/auth?message=${encodeURIComponent("Перевірте пошту для підтвердження реєстрації")}&next=${encodeURIComponent(next)}`);
 }
 
