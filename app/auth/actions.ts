@@ -38,3 +38,22 @@ export async function signOut() {
   await supabase.auth.signOut();
   redirect("/auth");
 }
+
+export async function requestPasswordReset(formData: FormData) {
+  const supabase = await createClient();
+  const email = String(formData.get("email") || "");
+  const origin = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${origin}/auth/callback?next=${encodeURIComponent("/auth/reset-password")}`,
+  });
+  if (error) redirect(`/auth/forgot-password?error=${encodeURIComponent(error.message)}`);
+  redirect(`/auth/forgot-password?message=${encodeURIComponent("Якщо такий email зареєстровано, ми надіслали лист із посиланням для відновлення пароля")}`);
+}
+
+export async function updatePassword(formData: FormData) {
+  const supabase = await createClient();
+  const password = String(formData.get("password") || "");
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) redirect(`/auth/reset-password?error=${encodeURIComponent(error.message)}`);
+  redirect("/");
+}

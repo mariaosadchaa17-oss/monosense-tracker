@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { CircleDollarSign, LockKeyhole } from "lucide-react";
 import { hasSupabaseConfig } from "@/lib/supabase/config";
@@ -52,6 +53,7 @@ export default async function AuthPage({ searchParams }: { searchParams: Promise
             {register && <label>Ім&rsquo;я<input name="displayName" required placeholder="Марія" /></label>}
             <label>Email<input name="email" type="email" required autoComplete="email" placeholder="you@example.com" /></label>
             <label>Пароль<input name="password" type="password" minLength={8} required autoComplete={register ? "new-password" : "current-password"} placeholder="Щонайменше 8 символів" /></label>
+            {!register && <Link className="auth-v2-forgot" href="/auth/forgot-password">Забули пароль?</Link>}
 
             <Button className="primary" type="submit">{register ? "Зареєструватися" : "Увійти"}</Button>
 
