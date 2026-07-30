@@ -113,6 +113,8 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .auth-v2-divider:before,.auth-v2-divider:after{content:"";flex:1;height:1px;background:var(--line)}
 .passkey-section{display:flex;flex-direction:column;gap:8px}
 .passkey-error{margin:0;font-size:12px;color:#bd3d3d}
+.auth-v2-forgot{align-self:flex-end;margin-top:-8px;font-size:12px;font-weight:650;color:var(--purple);text-decoration:none}
+.auth-switch{text-align:center;color:var(--muted);font-size:12px;font-weight:700;text-decoration:none}
 @media(max-width:820px){.auth-v2{grid-template-columns:1fr}.auth-v2-side{display:none}.auth-v2-main{min-height:100vh;padding:20px}}
 
 .color-picker-container {
