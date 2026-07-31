@@ -1,8 +1,3 @@
--- Missed table in the previous user-deletion fix: exchange_rates.created_by
--- also referenced auth.users(id) without ON DELETE, blocking user deletion
--- whenever that user had saved a custom exchange rate.
-
-alter table public.exchange_rates alter column created_by drop not null;
-alter table public.exchange_rates drop constraint if exists exchange_rates_created_by_fkey;
-alter table public.exchange_rates add constraint exchange_rates_created_by_fkey
-  foreign key (created_by) references auth.users(id) on delete set null;
+-- No-op: exchange_rates has no created_by column, this migration was based
+-- on a misread of the schema and is intentionally left empty.
+select 1;
