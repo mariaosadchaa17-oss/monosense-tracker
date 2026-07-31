@@ -181,9 +181,17 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     if(repayment&&(!selectedDebt||selectedDebt.direction!=="i_owe"))return notify("Оберіть активний борг");
     if(repayment&&value>selectedDebt.amount)return notify("Сума перевищує залишок боргу");
     if (initialLoggedIn) {
-      const account = accounts.find(a=>String(a.id)===String(form.get("account")))||accounts[0];
-      if (!account) return notify("Спочатку створіть рахунок");
-      if(repayment&&account.currency!==selectedDebt.currency)return notify("Валюта рахунку має збігатися з валютою боргу");
+      const selectedDebt = debts.find(debt => debt.id === debtId);
+
+      if (repayment) {
+        if (!selectedDebt || selectedDebt.direction !== "i_owe") {
+          return notify("Оберіть борг");
+        }
+
+        if (value > selectedDebt.amount) {
+          return notify("Сума перевищує залишок боргу");
+        }
+      }
       const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(repayment?{
         action:"repayDebt",debtId,accountId:account.id,categoryId:form.get("category")||null,amount:value,
         note:note||`Погашення боргу: ${selectedDebt.person}`,bookedAt:form.get("date")?new Date(String(form.get("date"))).toISOString():undefined,
