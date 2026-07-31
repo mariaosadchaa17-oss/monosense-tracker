@@ -161,7 +161,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     }).catch(() => {});
   }, []);
 
-  const balance=useMemo(()=>accounts.filter(a=>a.balance>0).reduce((sum,account)=>sum+account.balance*conversionRate(account.currency,rates,customRates)/conversionRate(baseCurrency,rates,customRates),0),[accounts,rates,customRates,baseCurrency]);
+  const balance=useMemo(()=>accounts.reduce((sum,account)=>sum+((account.balance||0)+(account.creditLimit||0))*conversionRate(account.currency,rates,customRates)/conversionRate(baseCurrency,rates,customRates),0),[accounts,rates,customRates,baseCurrency]);
   const normalizedTransactions=useMemo(()=>transactions.map(transaction=>({...transaction,baseAmount:transaction.amount*conversionRate(transaction.currency||"UAH",rates,customRates)/conversionRate(baseCurrency,rates,customRates)})),[transactions,rates,customRates,baseCurrency]);
   const filteredTransactions = transactions.filter(t => `${t.title} ${t.category}`.toLowerCase().includes(search.toLowerCase()));
   const allDebts=useMemo(()=>{
