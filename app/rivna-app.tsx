@@ -169,49 +169,178 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     return [...debts,...creditDebts];
   },[accounts,debts]);
 
-  async function addExpense(e: React.SyntheticEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form=new FormData(e.currentTarget);
-    const value = Number(amount.replace(",", "."));
-    if (!value) return;
-    const operationType=form.get("type")==="income"?"income":"expense",isIncome=operationType==="income";
-    const debtId=String(form.get("debtId")||"");
-    const repayment=!isIncome&&form.get("repayment")==="on"&&debtId;
-    const selectedDebt=debts.find(debt=>debt.id===debtId);
-    if(repayment&&(!selectedDebt||selectedDebt.direction!=="i_owe"))return notify("Оберіть активний борг");
-    if(repayment&&value>selectedDebt.amount)return notify("Сума перевищує залишок боргу");
-    if (initialLoggedIn) {
-      const selectedDebt = debts.find(debt => debt.id === debtId);
+async function addExpense(e: React.SyntheticEvent<HTMLFormElement>) {
+  e.preventDefault();
 
-      if (repayment) {
-        if (!selectedDebt || selectedDebt.direction !== "i_owe") {
-          return notify("Оберіть борг");
-        }
+  const form = new FormData(e.currentTarget);
+  const value = Number(amount.replace(",", "."));
 
-        if (value > selectedDebt.amount) {
-          return notify("Сума перевищує залишок боргу");
-        }
-      }
-      const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(repayment?{
-        action:"repayDebt",debtId,accountId:account.id,categoryId:form.get("category")||null,amount:value,
-        note:note||`Погашення боргу: ${selectedDebt.person}`,bookedAt:form.get("date")?new Date(String(form.get("date"))).toISOString():undefined,
-      }:{
-        action:"createTransaction", accountId:account.id, categoryId:form.get("category")||null, amount:value, currency:account.currency, note, type:operationType,
-        isImpulsive:!isIncome&&form.get("impulse")==="on",splitTotal:isIncome?null:form.get("splitTotal")||null,personalShare:isIncome?null:form.get("personalShare")||null,
-        bookedAt:form.get("date")?new Date(String(form.get("date"))).toISOString():undefined,
-        tags:String(form.get("tags")||"").split(/\s+/).filter(Boolean),splitParticipants:String(form.get("splitParticipants")||"").split(",").map(value=>value.trim()).filter(Boolean),
-        repeat:!isIncome&&form.get("repeat")==="on",repeatFrequency:form.get("repeatFrequency"),repeatDay:form.get("repeatDay"),
-      })});
-      const result = await response.json();
-      if (!response.ok) return notify(result.error || "Не вдалося додати операцію");
-      setAmount(""); setNote(""); setModal(null); notify(repayment?"Борг погашено":isIncome?"Дохід збережено":"Витрату збережено");
-      await refreshFinance(); return;
+  if (!value) return;
+
+  const operationType =
+    form.get("type") === "income" ? "income" : "expense";
+
+  const isIncome = operationType === "income";
+  const debtId = String(form.get("debtId") || "");
+
+  const repayment =
+    !isIncome &&
+    form.get("repayment") === "on" &&
+    Boolean(debtId);
+
+  const selectedDebt = debts.find(debt => debt.id === debtId);
+
+  let repaymentNote = note;
+
+  if (repayment) {
+    if (!selectedDebt || selectedDebt.direction !== "i_owe") {
+      return notify("Оберіть борг");
     }
-    const account=accounts.find(item=>String(item.id)===String(form.get("account")))||accounts[0];
-    setTransactions([{id:Date.now(),title:repayment?(note||`Погашення боргу: ${selectedDebt.person}`):(note||(isIncome?"Новий дохід":"Нова витрата")),category:categories.find(c=>c.id===form.get("category"))?.name||"Інше",date:"Щойно",amount:isIncome?value:-value,currency:account?.currency||"UAH",impulse:!repayment&&!isIncome&&form.get("impulse")==="on"},...transactions]);
-    if(repayment){setDebts(items=>items.flatMap(debt=>debt.id!==debtId?[debt]:debt.amount>value?[{...debt,amount:debt.amount-value}]:[]));setAccounts(items=>items.map(item=>String(item.id)===String(account?.id)?{...item,balance:item.balance-value}:item));}
-    setAmount(""); setNote(""); setModal(null); notify(repayment?"Борг погашено":isIncome?"Дохід додано":"Витрату додано");
+
+    if (value > selectedDebt.amount) {
+      return notify("Сума перевищує залишок боргу");
+    }
+
+    repaymentNote =
+      note || `Погашення боргу: ${selectedDebt.person}`;
   }
+
+  const account =
+    accounts.find(
+      item => String(item.id) === String(form.get("account"))
+    ) || accounts[0];
+
+  if (!account) {
+    return notify("Спочатку створіть рахунок");
+  }
+
+  if (initialLoggedIn) {
+    const response = await fetch("/api/finance", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(
+        repayment
+          ? {
+              action: "repayDebt",
+              debtId,
+              accountId: account.id,
+              categoryId: form.get("category") || null,
+              amount: value,
+              note: repaymentNote,
+              bookedAt: form.get("date")
+                ? new Date(String(form.get("date"))).toISOString()
+                : undefined,
+            }
+          : {
+              action: "createTransaction",
+              accountId: account.id,
+              categoryId: form.get("category") || null,
+              amount: value,
+              currency: account.currency,
+              note,
+              type: operationType,
+              isImpulsive:
+                !isIncome && form.get("impulse") === "on",
+              splitTotal:
+                isIncome ? null : form.get("splitTotal") || null,
+              personalShare:
+                isIncome ? null : form.get("personalShare") || null,
+              bookedAt: form.get("date")
+                ? new Date(String(form.get("date"))).toISOString()
+                : undefined,
+              tags: String(form.get("tags") || "")
+                .split(/\s+/)
+                .filter(Boolean),
+              splitParticipants: String(
+                form.get("splitParticipants") || ""
+              )
+                .split(",")
+                .map(value => value.trim())
+                .filter(Boolean),
+              repeat:
+                !isIncome && form.get("repeat") === "on",
+              repeatFrequency: form.get("repeatFrequency"),
+              repeatDay: form.get("repeatDay"),
+            }
+      ),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return notify(result.error || "Не вдалося додати операцію");
+    }
+
+    setAmount("");
+    setNote("");
+    setModal(null);
+
+    notify(
+      repayment
+        ? "Борг погашено"
+        : isIncome
+          ? "Дохід збережено"
+          : "Витрату збережено"
+    );
+
+    await refreshFinance();
+    return;
+  }
+
+  setTransactions([
+    {
+      id: Date.now(),
+      title: repayment
+        ? repaymentNote
+        : note || (isIncome ? "Новий дохід" : "Нова витрата"),
+      category:
+        categories.find(c => c.id === form.get("category"))?.name ||
+        "Інше",
+      date: "Щойно",
+      amount: isIncome ? value : -value,
+      currency: account.currency,
+      impulse:
+        !repayment &&
+        !isIncome &&
+        form.get("impulse") === "on",
+    },
+    ...transactions,
+  ]);
+
+  if (repayment) {
+    setDebts(items =>
+      items.flatMap(debt =>
+        debt.id !== debtId
+          ? [debt]
+          : debt.amount > value
+            ? [{ ...debt, amount: debt.amount - value }]
+            : []
+      )
+    );
+
+    setAccounts(items =>
+      items.map(item =>
+        String(item.id) === String(account.id)
+          ? { ...item, balance: item.balance - value }
+          : item
+      )
+    );
+  }
+
+  setAmount("");
+  setNote("");
+  setModal(null);
+
+  notify(
+    repayment
+      ? "Борг погашено"
+      : isIncome
+        ? "Дохід додано"
+        : "Витрату додано"
+  );
+}
   async function addAccount(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
