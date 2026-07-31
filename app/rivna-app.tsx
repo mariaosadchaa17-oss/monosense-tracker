@@ -117,12 +117,19 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       const data = await response.json();
       if (!response.ok) return notify(data.error);
       setAccounts((data.accounts || []).map((item: Record<string, unknown>) => ({
-        id: String(item.id), name: String(item.name), bank: String(item.bank || "Інший"),
-        owner: String(item.owner_label || "Мій"), currency: String(item.currency),
-        balance: Number(item.balance), style: bankStyle(String(item.bank || "")),style: bankStyle(String(item.bank||""),index),
-        color:item.card_color?String(item.card_color):undefined,
-        creditLimit:Number(item.credit_limit)||0,graceEnd:item.grace_period_end?String(item.grace_period_end):undefined,
-      })));
+  id: String(item.id),
+  name: String(item.name),
+  bank: String(item.bank || "Інший"),
+  owner: String(item.owner_label || "Мій"),
+  currency: String(item.currency),
+  balance: Number(item.balance),
+  style: bankStyle(String(item.bank || "")),
+  color: item.card_color ? String(item.card_color) : undefined,
+  creditLimit: Number(item.credit_limit) || 0,
+  graceEnd: item.grace_period_end
+    ? String(item.grace_period_end)
+    : undefined,
+})));
       setTransactions((data.transactions || []).map((item: Record<string, unknown>) => ({
         id: String(item.id), title: String(item.note || (item.type === "income" ? "Дохід" : "Витрата")),
         category:String((item.categories as {name?:string}|null)?.name||"Без категорії"),categoryIcon:String((item.categories as {icon?:string}|null)?.icon||"CircleDollarSign"),
