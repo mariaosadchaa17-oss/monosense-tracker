@@ -127,6 +127,9 @@ export async function POST(request: Request) {
     case "deleteCategory":
       result = await supabase.from("categories").delete().eq("id",body.id).eq("household_id",householdId);
       break;
+    case "deleteBudget":
+      result = await supabase.from("budgets").delete().eq("id",body.id).eq("household_id",householdId);
+      break;
     default:
       return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   }
