@@ -115,7 +115,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     try {
       const response = await fetch("/api/finance", { cache: "no-store" });
       const data = await response.json();
-      if (!response.ok) return notify(data.error);
+      if (!response.ok) return notify(data.error); 
       setAccounts((data.accounts || []).map((item: Record<string, unknown>) => ({
   id: String(item.id),
   name: String(item.name),
