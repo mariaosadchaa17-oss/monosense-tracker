@@ -116,10 +116,10 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       const response = await fetch("/api/finance", { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) return notify(data.error);
-      setAccounts((data.accounts || []).map((item: Record<string, unknown>, index: number) => ({
+      setAccounts((data.accounts || []).map((item: Record<string, unknown>) => ({
         id: String(item.id), name: String(item.name), bank: String(item.bank || "Інший"),
         owner: String(item.owner_label || "Мій"), currency: String(item.currency),
-        balance: Number(item.balance), style: bankStyle(String(item.bank||""),index),
+        balance: Number(item.balance), style: bankStyle(String(item.bank || "")),style: bankStyle(String(item.bank||""),index),
         color:item.card_color?String(item.card_color):undefined,
         creditLimit:Number(item.credit_limit)||0,graceEnd:item.grace_period_end?String(item.grace_period_end):undefined,
       })));
