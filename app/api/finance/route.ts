@@ -102,9 +102,18 @@ export async function POST(request: Request) {
         note:String(body.note||"").slice(0,500),created_by:user.id,
       }).select().single();
       break;
-    case "settleDebt":
-      result = await supabase.from("debts").update({settled:true}).eq("id",body.id).eq("household_id",householdId);
+    case "repayDebt":
+      result = await supabase.rpc("repay_debt", {
+        p_debt_id: body.debtId,
+        p_account_id: body.accountId,
+        p_category_id: body.categoryId || null,
+        p_amount: Number(body.amount),
+        p_note: String(body.note || "").slice(0, 500),
+        p_booked_at: body.bookedAt || new Date().toISOString(),
+      });
       break;
+    case "settleDebt":
+      return NextResponse.json({ error: "Закривайте борг через погашення у витратах" }, { status: 400 });
     case "createRecurring":
       result = await supabase.from("recurring_rules").insert({
         household_id:householdId,account_id:body.accountId,category_id:body.categoryId||null,
