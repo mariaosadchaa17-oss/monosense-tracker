@@ -530,9 +530,9 @@ function AccountCard({account}:{account:Account}) {
     <h3>{currencySymbol(account.currency)} {formatMoney(available)} <small>доступно</small></h3>
     <div style={{fontSize: '10px', color: isLight(account.color) ? 'rgba(0,0,0,.7)' : 'rgba(255,255,255,.7)', marginTop: '4px', display: 'grid', gap: '4px'}}>
       <span>
-        {account.balance >= 0
-          ? `Власні: ${formatMoney(account.balance)}`
-          : `Використано: ${formatMoney(account.balance)} з ${formatMoney(account.creditLimit ?? 0)}`
+        {(account.creditLimit||0) > 0
+          ? `Використано: ${formatMoney(Math.min(0,account.balance))} з ${formatMoney(account.creditLimit ?? 0)}`
+          : `Власні: ${formatMoney(account.balance)}`
         }
       </span>
     </div>
