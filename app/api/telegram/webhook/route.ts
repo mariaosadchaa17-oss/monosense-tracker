@@ -3,15 +3,24 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 async function sendTelegramMessage(chatId: string, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  if (!token) return;
+  if (!token) {
+    console.error("[telegram] TELEGRAM_BOT_TOKEN is not set, cannot send message");
+    return;
+  }
   try {
-    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: chatId, text }),
     });
-  } catch {
-    // Best-effort reply; failure to notify shouldn't crash the webhook.
+    const body = await res.text();
+    if (!res.ok) {
+      console.error("[telegram] sendMessage failed", res.status, body);
+    } else {
+      console.log("[telegram] sendMessage ok", body);
+    }
+  } catch (err) {
+    console.error("[telegram] sendMessage threw", err);
   }
 }
 
@@ -21,24 +30,36 @@ export async function POST(request: Request) {
   // requests to this URL can't fabricate transactions.
   const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
   if (expectedSecret && request.headers.get("x-telegram-bot-api-secret-token") !== expectedSecret) {
+    console.error("[telegram] webhook secret mismatch");
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const update = await request.json().catch(() => null);
+  const update = await request.json().catch((err) => {
+    console.error("[telegram] failed to parse update json", err);
+    return null;
+  });
+  console.log("[telegram] received update", JSON.stringify(update));
+
   const message = update?.message;
   const chatId = message?.chat?.id ? String(message.chat.id) : null;
   const text = typeof message?.text === "string" ? message.text.trim() : "";
-  if (!chatId) return NextResponse.json({ ok: true }); // Not a message we care about (edited_message, etc.)
+  if (!chatId) {
+    console.log("[telegram] no chatId on update, ignoring");
+    return NextResponse.json({ ok: true }); // Not a message we care about (edited_message, etc.)
+  }
 
   const admin = createAdminClient();
 
   if (text === "/start") {
+    console.log("[telegram] handling /start for chatId", chatId);
     await sendTelegramMessage(chatId, `Вітаю! Ваш chat ID: ${chatId}\nВставте це число в Rivna → Налаштування → Telegram chat ID, щоб зв'язати акаунт.`);
     return NextResponse.json({ ok: true });
   }
 
-  const { data: preference } = await admin.from("notification_preferences").select("user_id").eq("telegram_chat_id", chatId).maybeSingle();
+  const { data: preference, error: prefError } = await admin.from("notification_preferences").select("user_id").eq("telegram_chat_id", chatId).maybeSingle();
+  if (prefError) console.error("[telegram] preference lookup error", prefError);
   if (!preference) {
+    console.log("[telegram] no linked preference for chatId", chatId);
     await sendTelegramMessage(chatId, "Цей chat ID ще не прив'язаний до акаунта Rivna. Вставте його в Налаштуваннях застосунку.");
     return NextResponse.json({ ok: true });
   }
@@ -83,6 +104,7 @@ export async function POST(request: Request) {
   });
 
   if (error) {
+    console.error("[telegram] create_finance_transaction error", error);
     await sendTelegramMessage(chatId, `Не вдалося зберегти витрату: ${error.message}`);
     return NextResponse.json({ ok: true });
   }
