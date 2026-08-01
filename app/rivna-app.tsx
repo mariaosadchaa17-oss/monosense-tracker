@@ -11,7 +11,7 @@ import {
 import {PasskeyButton} from "./components/passkey-button";
 
 type Page = "Головна" | "Операції" | "Бюджет" | "Рахунки" | "Накопичення" | "Аналітика" | "Борги" | "Налаштування";
-type Transaction = { id: number | string; title: string; category: string;categoryIcon?:string; date: string; bookedAt?:string; account?:string; owner?:string; tags?:string[]; amount: number;currency?:string;baseAmount?:number; impulse?: boolean };
+type Transaction = { id: number | string; title: string; category: string;categoryIcon?:string; date: string; bookedAt?:string; account?:string; owner?:string; tags?:string[]; amount: number;currency?:string;baseAmount?:number; impulse?: boolean; kind?:string };
 type Account = { id: number | string; name: string; bank: string; owner: string; currency: string; balance: number; style: string;color?:string;creditLimit?:number;graceEnd?:string };
 type GoalItem = {id:string;name:string;target:number;current:number;currency:string;date?:string;color:string};
 type DebtItem = {id:string;person:string;direction:"owed_to_me"|"i_owe";amount:number;currency:string;due?:string;note?:string;isVirtual?:boolean;accountId?:string};
@@ -79,6 +79,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [goals, setGoals] = useState<GoalItem[]>(initialLoggedIn?[]:seedGoals);
   const [debts, setDebts] = useState<DebtItem[]>([]);
   const [recurring, setRecurring] = useState<RecurringItem[]>([]);
+  const [transfers, setTransfers] = useState<{id:string;fromTransactionId:string|null;toTransactionId:string|null}[]>([]);
   const [categories, setCategories] = useState<CategoryItem[]>(initialLoggedIn?[]:seedCategories);
   const [savedBudgets, setSavedBudgets] = useState<BudgetItem[]>([]);
   const [planningPeriod,setPlanningPeriod]=useState<"month"|"week">("month");
@@ -129,11 +130,12 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
         bookedAt:String(item.booked_at),account:String((item.accounts as {name?:string}|null)?.name||""),
         owner:String((item.accounts as {owner_label?:string}|null)?.owner_label||""),
         tags:((item.transaction_tags as {tags?:{name?:string}|null}[]|null)||[]).map(link=>String(link.tags?.name||"")).filter(Boolean),
-        amount:Number(item.amount)*(item.type==="income"?1:-1),currency:String(item.currency||"UAH"),impulse:Boolean(item.is_impulsive),
+        amount:Number(item.amount)*(item.type==="income"?1:-1),currency:String(item.currency||"UAH"),impulse:Boolean(item.is_impulsive),kind:String(item.type||"expense"),
       })));
       setGoals((data.goals||[]).map((item:Record<string,unknown>)=>({id:String(item.id),name:String(item.name),target:Number(item.target_amount),current:Number(item.current_amount),currency:String(item.currency),date:item.target_date?String(item.target_date):undefined,color:String(item.color||"#6558E8")})));
       setDebts((data.debts||[]).map((item:Record<string,unknown>)=>({id:String(item.id),person:String(item.person),direction:item.direction==="i_owe"?"i_owe":"owed_to_me",amount:Number(item.amount),currency:String(item.currency),due:item.due_date?String(item.due_date):undefined,note:String(item.note||"")})));
       setRecurring((data.recurring||[]).map((item:Record<string,unknown>)=>({id:String(item.id),name:String(item.name),amount:Number(item.amount),currency:String(item.currency),frequency:String(item.frequency),next:String(item.next_run_at),auto:Boolean(item.auto_create)})));
+      setTransfers((data.transfers||[]).map((item:Record<string,unknown>)=>({id:String(item.id),fromTransactionId:item.from_transaction_id?String(item.from_transaction_id):null,toTransactionId:item.to_transaction_id?String(item.to_transaction_id):null})));
       setCategories((data.categories||[]).map((item:Record<string,unknown>)=>({id:String(item.id),name:String(item.name),kind:String(item.kind),color:String(item.color||"#6558E8"),icon:String(item.icon||"CircleDollarSign")})));
       setSavedBudgets((data.budgets||[]).map((item:Record<string,unknown>)=>({id:String(item.id),categoryId:String(item.category_id),name:String((item.categories as {name?:string}|null)?.name||"Категорія"),icon:String((item.categories as {icon?:string}|null)?.icon||"CircleDollarSign"),limit:Number(item.limit_amount),currency:String(item.currency),month:String(item.month),period:item.period_type==="week"?"week":"month",color:String((item.categories as {color?:string}|null)?.color||"#6558E8")})));
       setPlanningPeriod(data.planningPeriod==="week"?"week":"month");
@@ -226,10 +228,18 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   }
   async function removeTransaction(id: number|string) {
     if (initialLoggedIn) {
-      const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"deleteTransaction",id})});
+      const transaction=transactions.find(t=>String(t.id)===String(id));
+      const isTransferLike=transaction?.kind==="transfer"||transaction?.kind==="exchange";
+      const linkedTransfer=isTransferLike?transfers.find(tr=>tr.fromTransactionId===String(id)||tr.toTransactionId===String(id)):undefined;
+      const action=linkedTransfer?"deleteTransfer":"deleteTransaction";
+      const targetId=linkedTransfer?linkedTransfer.id:id;
+      const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action,id:targetId})});
       const result = await response.json(); if(!response.ok)return notify(result.error||"Помилка видалення");
       await refreshFinance();
-    } else setTransactions(transactions.filter(t => t.id !== id));
+      notify(linkedTransfer?"Переказ видалено":"Операцію видалено");
+      return;
+    }
+    setTransactions(transactions.filter(t => t.id !== id));
     notify("Операцію видалено");
   }
   async function financeAction(payload:Record<string,unknown>, success:string) {
@@ -574,7 +584,7 @@ function ExpenseModal({amount,setAmount,note,setNote,accounts,categories,submit,
     <DateWheelField name="date"/>
     <label>Нотатка<input placeholder={type==="income"?"Наприклад, зарплата":"Наприклад, кава"} value={note} onChange={event=>setNote(event.target.value)}/></label>
     <label>Теги<input name="tags" placeholder="#відпустка #робота"/></label>
-    {type==="expense"&&<><details className="split-details"><summary>Розділити чек</summary><div className="form-two"><label>Загальна сума<input name="splitTotal" type="number" min="0" step=".01"/></label><label>Моя частка<input name="personalShare" type="number" min="0" step=".01"/></label></div><label>Учасники<input name="splitParticipants" placeholder="Діма, Оля, Андрій"/></label><small className="field-help">Залишок буде порівну розподілений між учасниками, а з балансу спишеться лише ваша частка.</small></details><details className="split-details"><summary>Повторювати витрату</summary><label className="check impulse"><input name="repeat" type="checkbox"/> Створити регулярне нагадування</label><div className="form-two"><label>Період<select name="repeatFrequency"><option value="weekly">Щотижня</option><option value="monthly">Щомісяця</option><option value="yearly">Щороку</option></select></label><label>Число місяця<input name="repeatDay" type="number" min="1" max="28" placeholder="Наприклад, 5"/></label></div></details><label className="check impulse"><input name="impulse" type="checkbox"/> Імпульсивна витрата</label></>}
+    {type==="expense"&&<><details className="split-details"><summary>Розділити чек</summary><div className="form-two"><label>Загальна сума<input name="splitTotal" type="number" min="0" step=".01"/></label><label>Моя частка<input name="personalShare" type="number" min="0" step=".01"/></label></div></div><label>Учасники<input name="splitParticipants" placeholder="Діма, Оля, Андрій"/></label><small className="field-help">Залишок буде порівну розподілений між учасниками, а з балансу спишеться лише ваша частка.</small></details><details className="split-details"><summary>Повторювати витрату</summary><label className="check impulse"><input name="repeat" type="checkbox"/> Створити регулярне нагадування</label><div className="form-two"><label>Період<select name="repeatFrequency"><option value="weekly">Щотижня</option><option value="monthly">Щомісяця</option><option value="yearly">Щороку</option></select></label><label>Число місяця<input name="repeatDay" type="number" min="1" max="28" placeholder="Наприклад, 5"/></label></div></details><label className="check impulse"><input name="impulse" type="checkbox"/> Імпульсивна витрата</label></>}
     <button className="primary">{type==="income"?"Додати дохід":"Додати витрату"}</button>
   </form></div>;
 }
