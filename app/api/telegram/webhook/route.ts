@@ -1,67 +1,104 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { parseQuickExpense } from "@/lib/finance/quick-command";
 
-type TelegramUpdate = { message?: { chat: { id: number }; text?: string; from?: { first_name?: string } } };
-
-async function reply(chatId: number, text: string) {
+async function sendTelegramMessage(chatId: string, text: string) {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return;
-  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text }),
-  });
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+  } catch {
+    // Best-effort reply; failure to notify shouldn't crash the webhook.
+  }
 }
 
 export async function POST(request: Request) {
+  // Telegram allows setting a secret token on setWebhook, delivered back on
+  // this header. If configured, reject anything that doesn't match so random
+  // requests to this URL can't fabricate transactions.
   const expectedSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
-  const receivedSecret = request.headers.get("x-telegram-bot-api-secret-token");
-  if (!expectedSecret || receivedSecret !== expectedSecret) {
+  if (expectedSecret && request.headers.get("x-telegram-bot-api-secret-token") !== expectedSecret) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
-  const update = await request.json() as TelegramUpdate;
-  const chatId = update.message?.chat.id;
-  const text = update.message?.text;
-  if (!chatId || !text) return NextResponse.json({ ok: true });
+
+  const update = await request.json().catch(() => null);
+  const message = update?.message;
+  const chatId = message?.chat?.id ? String(message.chat.id) : null;
+  const text = typeof message?.text === "string" ? message.text.trim() : "";
+  if (!chatId) return NextResponse.json({ ok: true }); // Not a message we care about (edited_message, etc.)
+
+  const admin = createAdminClient();
+
   if (text === "/start") {
-    await reply(chatId, `Ваш Telegram chat ID: ${chatId}\nДодайте його у налаштуваннях Rivna, а потім надсилайте витрати: 300 кава #робота`);
+    await sendTelegramMessage(chatId, `Вітаю! Ваш chat ID: ${chatId}\nВставте це число в Rivna → Налаштування → Telegram chat ID, щоб зв'язати акаунт.`);
     return NextResponse.json({ ok: true });
   }
-  const expense = parseQuickExpense(text);
-  if (!expense) {
-    await reply(chatId, "Не вдалося розпізнати витрату. Приклад: 300 кава #робота");
-    return NextResponse.json({ ok: true });
-  }
-  const supabase = createAdminClient();
-  const { data: preference } = await supabase.from("notification_preferences").select("user_id").eq("telegram_chat_id", String(chatId)).maybeSingle();
+
+  const { data: preference } = await admin.from("notification_preferences").select("user_id").eq("telegram_chat_id", chatId).maybeSingle();
   if (!preference) {
-    await reply(chatId, `Спочатку додайте chat ID ${chatId} у налаштуваннях Rivna.`);
+    await sendTelegramMessage(chatId, "Цей chat ID ще не прив'язаний до акаунта Rivna. Вставте його в Налаштуваннях застосунку.");
     return NextResponse.json({ ok: true });
   }
-  const {data:profile}=await supabase.from("profiles").select("active_household_id").eq("id",preference.user_id).maybeSingle();
-  const membershipQuery=supabase.from("household_members").select("household_id,role").eq("user_id",preference.user_id);
-  const {data:membership}=profile?.active_household_id
-    ?await membershipQuery.eq("household_id",profile.active_household_id).maybeSingle()
-    :await membershipQuery.order("joined_at").limit(1).maybeSingle();
-  if (!membership) return NextResponse.json({ error: "Household not found" }, { status: 422 });
-  if(membership.role==="viewer"){await reply(chatId,"У цьому бюджеті у вас доступ лише для перегляду.");return NextResponse.json({ok:true})}
-  const [{ data: account }, { data: category }] = await Promise.all([
-    supabase.from("accounts").select("id,currency").eq("household_id", membership.household_id).eq("archived", false).limit(1).single(),
-    supabase.from("categories").select("id").eq("household_id", membership.household_id).eq("kind", "expense").ilike("name", `%${expense.note}%`).limit(1).maybeSingle(),
-  ]);
+
+  // "300 кава #робота" -> amount=300, note="кава", tags=["робота"]
+  const match = text.match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/);
+  if (!match) {
+    await sendTelegramMessage(chatId, "Не зрозуміла формат. Напишіть так: 300 кава #робота");
+    return NextResponse.json({ ok: true });
+  }
+  const amount = Number(match[1].replace(",", "."));
+  const rest = match[2] || "";
+  const tags = [...rest.matchAll(/#(\S+)/g)].map(m => m[1]);
+  const note = rest.replace(/#\S+/g, "").trim().slice(0, 500) || "Telegram";
+
+  const { data: profile } = await admin.from("profiles").select("active_household_id").eq("id", preference.user_id).maybeSingle();
+  const householdId = profile?.active_household_id;
+  if (!householdId) {
+    await sendTelegramMessage(chatId, "Не вдалося визначити ваш бюджет у Rivna.");
+    return NextResponse.json({ ok: true });
+  }
+
+  const { data: account } = await admin.from("accounts").select("id,currency,name").eq("household_id", householdId).eq("archived", false).order("created_at").limit(1).maybeSingle();
   if (!account) {
-    await reply(chatId, "У Rivna ще немає рахунку. Створіть його перед додаванням витрат.");
+    await sendTelegramMessage(chatId, "Спочатку додайте хоча б один рахунок у Rivna.");
     return NextResponse.json({ ok: true });
   }
-  const {data:transaction,error}=await supabase.rpc("create_service_finance_transaction",{
-    p_user_id:preference.user_id,p_account_id:account.id,p_category_id:category?.id||null,
-    p_amount:expense.amount,p_note:expense.note,p_booked_at:new Date().toISOString(),
-  });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  for (const tagName of expense.tags) {
-    const { data: tag } = await supabase.from("tags").upsert({ household_id: membership.household_id, name: tagName }, { onConflict: "household_id,name" }).select("id").single();
-    if (tag&&transaction) await supabase.from("transaction_tags").insert({ transaction_id: transaction.id, tag_id: tag.id });
+
+  let categoryId: string | null = null;
+  if (tags.length || note) {
+    const { data: categories } = await admin.from("categories").select("id,name").eq("household_id", householdId).eq("kind", "expense");
+    const lowerNote = note.toLowerCase();
+    const found = (categories || []).find(category => lowerNote.includes(category.name.toLowerCase()));
+    categoryId = found?.id || null;
   }
-  await reply(chatId, `✅ Додано: ${expense.amount.toFixed(2)} ${account.currency} · ${expense.note}`);
+
+  const { error } = await admin.rpc("create_finance_transaction", {
+    p_account_id: account.id, p_category_id: categoryId, p_type: "expense",
+    p_amount: amount, p_currency: account.currency, p_note: note,
+    p_booked_at: new Date().toISOString(), p_is_impulsive: false,
+    p_split_total: null, p_personal_share: null,
+  });
+
+  if (error) {
+    await sendTelegramMessage(chatId, `Не вдалося зберегти витрату: ${error.message}`);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (tags.length) {
+    const { data: transaction } = await admin.from("transactions").select("id").eq("household_id", householdId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+    if (transaction) {
+      for (const rawTag of tags.slice(0, 10)) {
+        const name = rawTag.trim().toLowerCase().slice(0, 40);
+        if (!name) continue;
+        const { data: tag } = await admin.from("tags").upsert({ household_id: householdId, name }, { onConflict: "household_id,name" }).select("id").single();
+        if (tag) await admin.from("transaction_tags").insert({ transaction_id: transaction.id, tag_id: tag.id });
+      }
+    }
+  }
+
+  await sendTelegramMessage(chatId, `✅ Записано: ${amount} · ${note}${tags.length ? " · " + tags.map(t => "#" + t).join(" ") : ""} (${account.name})`);
   return NextResponse.json({ ok: true });
 }
