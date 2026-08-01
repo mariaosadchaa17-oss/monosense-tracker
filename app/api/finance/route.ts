@@ -83,6 +83,7 @@ export async function POST(request: Request) {
         household_id: householdId, category_id: body.categoryId, month: body.month,
         period_type:body.periodType==="week"?"week":"month",limit_amount:Number(body.limitAmount),
         currency:String(body.currency||"UAH"),alert_80_sent:false,alert_100_sent:false,created_by:user.id,
+        icon:String(body.icon||"CircleDollarSign").slice(0,60),color:String(body.color||"#6558E8").slice(0,20),
       }, { onConflict: "household_id,category_id,month,period_type" }).select().single();
       break;
     case "createGoal":
