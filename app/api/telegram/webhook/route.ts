@@ -34,6 +34,18 @@ function inlineKeyboard(rows: { text: string; data: string }[][]) {
   return { reply_markup: { inline_keyboard: rows.map(row => row.map(b => ({ text: b.text, callback_data: b.data }))) } };
 }
 
+const NEW_EXPENSE_LABEL = "＋ Витрата";
+
+// Persistent keyboard shown under the message input, so the person can tap
+// instead of typing a trigger phrase each time.
+const mainKeyboard = {
+  reply_markup: {
+    keyboard: [[{ text: NEW_EXPENSE_LABEL }]],
+    resize_keyboard: true,
+    is_persistent: true,
+  },
+};
+
 async function startDraft(admin: ReturnType<typeof createAdminClient>, chatId: string, userId: string, householdId: string) {
   const { data: accounts } = await admin.from("accounts").select("id,name").eq("household_id", householdId).eq("archived", false).order("created_at");
   if (!accounts || accounts.length === 0) {
@@ -47,6 +59,12 @@ async function startDraft(admin: ReturnType<typeof createAdminClient>, chatId: s
   await sendMessage(chatId, "Оберіть картку:", inlineKeyboard(
     accounts.map(a => [{ text: a.name, data: `acc:${a.id}` }])
   ));
+}
+
+async function ensureMainKeyboard(chatId: string) {
+  // Telegram only (re)renders a reply keyboard when it's attached to a
+  // message, so nudge it once per /start; harmless if sent again.
+  await sendMessage(chatId, `Тисніть «${NEW_EXPENSE_LABEL}» знизу, щоб додати витрату.`, mainKeyboard);
 }
 
 async function handleCallback(admin: ReturnType<typeof createAdminClient>, update: any) {
@@ -152,6 +170,7 @@ export async function POST(request: Request) {
 
   if (text === "/start") {
     await sendMessage(chatId, `Вітаю! Ваш chat ID: ${chatId}\nВставте це число в Rivna → Налаштування → Telegram chat ID, щоб зв'язати акаунт.`);
+    await ensureMainKeyboard(chatId);
     return NextResponse.json({ ok: true });
   }
 
@@ -175,9 +194,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  // No draft in progress (or stuck on account/category without a text
-  // reply expected) -> start a fresh flow with this message ignored as the
-  // trigger, and re-prompt with the account keyboard.
-  await startDraft(admin, chatId, preference.user_id, householdId);
+  if (text === NEW_EXPENSE_LABEL) {
+    await startDraft(admin, chatId, preference.user_id, householdId);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (existingDraft?.step === "account" || existingDraft?.step === "category") {
+    await sendMessage(chatId, "Спершу оберіть варіант на кнопках вище ⬆️");
+    return NextResponse.json({ ok: true });
+  }
+
+  // No draft at all and not the trigger button: show the keyboard so they
+  // know how to start next time.
+  await ensureMainKeyboard(chatId);
   return NextResponse.json({ ok: true });
 }
