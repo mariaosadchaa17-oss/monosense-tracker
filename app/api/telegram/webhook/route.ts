@@ -35,6 +35,7 @@ function inlineKeyboard(rows: { text: string; data: string }[][]) {
 }
 
 const NEW_EXPENSE_LABEL = "＋ Витрата";
+const SKIP_NAME_DATA = "name:skip";
 
 // Persistent keyboard shown under the message input, so the person can tap
 // instead of typing a trigger phrase each time.
@@ -54,7 +55,7 @@ async function startDraft(admin: ReturnType<typeof createAdminClient>, chatId: s
   }
   await admin.from("telegram_drafts").upsert({
     telegram_chat_id: chatId, user_id: userId, household_id: householdId,
-    account_id: null, category_id: null, step: "account", updated_at: new Date().toISOString(),
+    account_id: null, category_id: null, amount: null, step: "account", updated_at: new Date().toISOString(),
   });
   await sendMessage(chatId, "Оберіть картку:", inlineKeyboard(
     accounts.map(a => [{ text: a.name, data: `acc:${a.id}` }])
@@ -67,6 +68,19 @@ async function ensureMainKeyboard(chatId: string) {
   await sendMessage(chatId, `Тисніть «${NEW_EXPENSE_LABEL}» знизу, щоб додати витрату.`, mainKeyboard);
 }
 
+async function promptCategory(admin: ReturnType<typeof createAdminClient>, chatId: string, householdId: string) {
+  const { data: categories } = await admin.from("categories").select("id,name").eq("household_id", householdId).eq("kind", "expense").order("name");
+  if (!categories || categories.length === 0) {
+    await admin.from("telegram_drafts").update({ category_id: null, step: "amount", updated_at: new Date().toISOString() }).eq("telegram_chat_id", chatId);
+    await sendMessage(chatId, "Введіть суму, наприклад: 300");
+    return;
+  }
+  await sendMessage(chatId, "Оберіть категорію:", inlineKeyboard([
+    ...chunk(categories.map(c => ({ text: c.name, data: `cat:${c.id}` })), 2),
+    [{ text: "Без категорії", data: "cat:none" }],
+  ]));
+}
+
 async function handleCallback(admin: ReturnType<typeof createAdminClient>, update: any) {
   const cq = update.callback_query;
   const chatId = String(cq.message?.chat?.id);
@@ -75,30 +89,26 @@ async function handleCallback(admin: ReturnType<typeof createAdminClient>, updat
 
   const { data: draft } = await admin.from("telegram_drafts").select("*").eq("telegram_chat_id", chatId).maybeSingle();
   if (!draft) {
-    await sendMessage(chatId, "Сесія застаріла. Напишіть суму ще раз, наприклад: 300 кава #робота");
+    await sendMessage(chatId, "Сесія застаріла. Натисніть «＋ Витрата», щоб почати знову.");
     return;
   }
 
   if (data.startsWith("acc:") && draft.step === "account") {
     const accountId = data.slice(4);
-    const { data: categories } = await admin.from("categories").select("id,name").eq("household_id", draft.household_id).eq("kind", "expense").order("name");
     await admin.from("telegram_drafts").update({ account_id: accountId, step: "category", updated_at: new Date().toISOString() }).eq("telegram_chat_id", chatId);
-    if (!categories || categories.length === 0) {
-      await admin.from("telegram_drafts").update({ step: "amount" }).eq("telegram_chat_id", chatId);
-      await sendMessage(chatId, "Введіть суму та нотатку, наприклад: 300 кава");
-      return;
-    }
-    await sendMessage(chatId, "Оберіть категорію:", inlineKeyboard([
-      ...chunk(categories.map(c => ({ text: c.name, data: `cat:${c.id}` })), 2),
-      [{ text: "Без категорії", data: "cat:none" }],
-    ]));
+    await promptCategory(admin, chatId, draft.household_id);
     return;
   }
 
   if (data.startsWith("cat:") && draft.step === "category") {
     const categoryId = data === "cat:none" ? null : data.slice(4);
     await admin.from("telegram_drafts").update({ category_id: categoryId, step: "amount", updated_at: new Date().toISOString() }).eq("telegram_chat_id", chatId);
-    await sendMessage(chatId, "Введіть суму та нотатку, наприклад: 300 кава #робота");
+    await sendMessage(chatId, "Введіть суму, наприклад: 300");
+    return;
+  }
+
+  if (data === SKIP_NAME_DATA && draft.step === "name") {
+    await finalizeTransaction(admin, chatId, draft, null);
     return;
   }
 }
@@ -109,20 +119,17 @@ function chunk<T>(arr: T[], size: number): T[][] {
   return out;
 }
 
-async function finalizeTransaction(admin: ReturnType<typeof createAdminClient>, chatId: string, text: string) {
-  const { data: draft } = await admin.from("telegram_drafts").select("*").eq("telegram_chat_id", chatId).maybeSingle();
-  if (!draft || draft.step !== "amount" || !draft.account_id) {
-    await sendMessage(chatId, "Спершу оберіть картку. Напишіть будь-яке повідомлення, щоб почати.");
+async function finalizeTransaction(
+  admin: ReturnType<typeof createAdminClient>,
+  chatId: string,
+  draft: { user_id: string; account_id: string | null; category_id: string | null; amount: number | null },
+  rawName: string | null,
+) {
+  if (!draft.account_id || draft.amount === null) {
+    await sendMessage(chatId, "Щось пішло не так. Натисніть «＋ Витрата», щоб почати знову.");
+    await admin.from("telegram_drafts").delete().eq("telegram_chat_id", chatId);
     return;
   }
-
-  const match = text.match(/^(\d+(?:[.,]\d+)?)\s*(.*)$/);
-  if (!match) {
-    await sendMessage(chatId, "Не зрозуміла формат. Напишіть так: 300 кава");
-    return;
-  }
-  const amount = Number(match[1].replace(",", "."));
-  const note = (match[2] || "").trim().slice(0, 500) || "Telegram";
 
   const { data: account } = await admin.from("accounts").select("id,currency,name").eq("id", draft.account_id).maybeSingle();
   if (!account) {
@@ -131,10 +138,18 @@ async function finalizeTransaction(admin: ReturnType<typeof createAdminClient>, 
     return;
   }
 
+  let categoryName: string | null = null;
+  if (draft.category_id) {
+    const { data: category } = await admin.from("categories").select("name").eq("id", draft.category_id).maybeSingle();
+    categoryName = category?.name ?? null;
+  }
+
+  const note = (rawName || "").trim().slice(0, 500) || categoryName || "Витрата";
+
   const { error } = await admin.rpc("create_finance_transaction_admin", {
     p_user_id: draft.user_id,
     p_account_id: account.id, p_category_id: draft.category_id, p_type: "expense",
-    p_amount: amount, p_currency: account.currency, p_note: note,
+    p_amount: draft.amount, p_currency: account.currency, p_note: note,
     p_booked_at: new Date().toISOString(), p_is_impulsive: false,
     p_split_total: null, p_personal_share: null,
   });
@@ -146,7 +161,30 @@ async function finalizeTransaction(admin: ReturnType<typeof createAdminClient>, 
   }
 
   await admin.from("telegram_drafts").delete().eq("telegram_chat_id", chatId);
-  await sendMessage(chatId, `✅ Записано: ${amount} · ${note} (${account.name})`);
+  await sendMessage(chatId, `✅ Записано: ${draft.amount} · ${note} (${account.name})`);
+}
+
+async function handleTextStep(admin: ReturnType<typeof createAdminClient>, chatId: string, draft: any, text: string) {
+  if (draft.step === "amount") {
+    const normalized = text.replace(",", ".").trim();
+    const amount = Number(normalized);
+    if (!normalized || Number.isNaN(amount) || amount <= 0) {
+      await sendMessage(chatId, "Введіть суму числом, наприклад: 300");
+      return;
+    }
+    await admin.from("telegram_drafts").update({ amount, step: "name", updated_at: new Date().toISOString() }).eq("telegram_chat_id", chatId);
+    await sendMessage(chatId, "Введіть назву витрати (або натисніть «Пропустити»):", inlineKeyboard([
+      [{ text: "Пропустити", data: SKIP_NAME_DATA }],
+    ]));
+    return;
+  }
+
+  if (draft.step === "name") {
+    await finalizeTransaction(admin, chatId, draft, text);
+    return;
+  }
+
+  await sendMessage(chatId, "Спершу оберіть варіант на кнопках вище ⬆️");
 }
 
 export async function POST(request: Request) {
@@ -187,19 +225,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true });
   }
 
-  const { data: existingDraft } = await admin.from("telegram_drafts").select("step").eq("telegram_chat_id", chatId).maybeSingle();
-
-  if (existingDraft?.step === "amount") {
-    await finalizeTransaction(admin, chatId, text);
-    return NextResponse.json({ ok: true });
-  }
-
   if (text === NEW_EXPENSE_LABEL) {
     await startDraft(admin, chatId, preference.user_id, householdId);
     return NextResponse.json({ ok: true });
   }
 
-  if (existingDraft?.step === "account" || existingDraft?.step === "category") {
+  const { data: draft } = await admin.from("telegram_drafts").select("*").eq("telegram_chat_id", chatId).maybeSingle();
+
+  if (draft && (draft.step === "amount" || draft.step === "name")) {
+    await handleTextStep(admin, chatId, draft, text);
+    return NextResponse.json({ ok: true });
+  }
+
+  if (draft && (draft.step === "account" || draft.step === "category")) {
     await sendMessage(chatId, "Спершу оберіть варіант на кнопках вище ⬆️");
     return NextResponse.json({ ok: true });
   }
