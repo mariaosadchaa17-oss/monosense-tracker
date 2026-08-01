@@ -5,6 +5,10 @@ import {useRouter} from "next/navigation";
 import {ArrowLeft,ArrowRight,Check,CircleDollarSign,CreditCard,Goal,HeartHandshake,LayoutGrid,Sparkles} from "lucide-react";
 
 const categoryNames=["Продукти","Кафе та ресторани","Комуналка","Транспорт","Авто","Здоров’я","Краса","Одяг","Розваги","Підписки","Подарунки","Дім і затишок","Зв’язок та інтернет","Освіта","Подорожі","Спорт","Кишенькові витрати","Домашні улюбленці","Техніка","Інше"];
+// Порядок в categoryNames уже задаёт приоритет (частота использования у большинства людей).
+// PRIMARY_CATEGORY_COUNT — сколько карточек показывать до сворачивания, подобрано так,
+// чтобы блок помещался на экран без скролла (2 колонки на мобильном, 4 на десктопе).
+const PRIMARY_CATEGORY_COUNT=6;
 const categoryColors=["#ff7a66","#f0a94a","#6558e8","#4c91e8","#39495e","#28a879","#e874a6","#8875d1","#ef7d53","#4f73d9","#ec6b87","#a57a5a","#42a7a2","#6574c4","#28a879","#ef7658","#d3a032","#9b6b51","#66717d","#878b86"];
 const banks=["monobank","ПриватБанк","ПУМБ","Ощадбанк","Райффайзен Банк","Готівка"];
 const goals=[["reserve","Накопичити фінансову подушку"],["travel","Відпустка або подорож"],["purchase","Велика покупка"],["debt_free","Вийти з боргів"],["control","Просто контролювати витрати"],["custom","Своя ціль"]];
@@ -19,7 +23,8 @@ export function OnboardingWizard({displayName}:{displayName:string}){
   const [step,setStep]=useState(1),[saving,setSaving]=useState(false),[error,setError]=useState("");
   const [account,setAccount]=useState({name:"Основна картка",bank:"monobank",balance:"",credit_limit:"",currency:"UAH",color:"#252629"});
   const [period,setPeriod]=useState<"month"|"week"|"both">("month"),[goal,setGoal]=useState("control"),[customGoal,setCustomGoal]=useState(""),[partner,setPartner]=useState(""),[username,setUsername]=useState("");
-  const [categories,setCategories]=useState(categoryNames.map((name,index)=>({name,color:categoryColors[index],selected:index<8,week_limit:"",month_limit:""})));
+  const [categories,setCategories]=useState(categoryNames.map((name,index)=>({name,color:categoryColors[index],selected:index<PRIMARY_CATEGORY_COUNT,week_limit:"",month_limit:""})));
+  const [showAllCategories,setShowAllCategories]=useState(false);
   const selectedBank=banks.indexOf(account.bank);
   const router=useRouter();
   async function finish(){
@@ -48,11 +53,15 @@ export function OnboardingWizard({displayName}:{displayName:string}){
         </div>
       </div>}
       {step===2&&<div className="wizard-step centered"><span className="wizard-icon"><LayoutGrid/></span><small>Період планування</small><h1>Як зручніше планувати?</h1><p>Rivna адаптує прогнози та ліміти під ваш ритм.</p><div className="choice-cards"><button className={period==="month"?"selected":""} onClick={()=>setPeriod("month")}><strong>Місяць</strong><small>Класичний бюджет від зарплати до зарплати</small></button><button className={period==="week"?"selected":""} onClick={()=>setPeriod("week")}><strong>Тиждень</strong><small>Короткі цикли та швидший контроль</small></button><button className={period==="both"?"selected":""} onClick={()=>setPeriod("both")}><strong>Місяць і тиждень</strong><small>Для максимальної гнучкості</small></button></div></div>}
-      {step===3&&<div className="wizard-step categories-step"><span className="wizard-icon"><LayoutGrid/></span><small>Категорії та ліміти</small><h1>Оберіть важливе</h1><p>Увімкніть потрібні категорії та за бажанням одразу задайте ліміт.</p><div className="onboarding-categories">{categories.map((item,index)=><div key={item.name} className={item.selected?"selected":""}><button type="button" onClick={()=>setCategories(values=>values.map((value,i)=>i===index?{...value,selected:!value.selected}:value))}><i style={{background:item.color}}>{item.selected&&<Check/>}</i><span>{item.name}</span></button>
+      {step===3&&<div className="wizard-step categories-step"><span className="wizard-icon"><LayoutGrid/></span><small>Категорії та ліміти</small><h1>Оберіть важливе</h1><p>Увімкніть потрібні категорії та за бажанням одразу задайте ліміт.</p><div className="onboarding-categories">{(showAllCategories?categories:categories.slice(0,PRIMARY_CATEGORY_COUNT)).map((item)=>{const index=categories.indexOf(item);return <div key={item.name} className={item.selected?"selected":""}><button type="button" onClick={()=>setCategories(values=>values.map((value,i)=>i===index?{...value,selected:!value.selected}:value))}><i style={{background:item.color}}>{item.selected&&<Check/>}</i><span>{item.name}</span></button>
         <div className="limit-inputs">
           {(period==="week"||period==="both")&&<input type="number" inputMode="numeric" disabled={!item.selected} value={item.week_limit} onChange={event=>{const newWeekValue=event.target.value;const calculatedMonthValue=Number(newWeekValue)*4;setCategories(values=>values.map((value,i)=>i===index?{...value,week_limit:newWeekValue,month_limit:calculatedMonthValue>0?String(calculatedMonthValue):""}:value))}} placeholder="Тиждень, ₴"/>}
           {(period==="month"||period==="both")&&<input type="number" inputMode="numeric" disabled={!item.selected} value={item.month_limit} onChange={event=>setCategories(values=>values.map((value,i)=>i===index?{...value,month_limit:event.target.value}:value))} placeholder="Місяць, ₴"/>}
-        </div></div>)}</div></div>}
+        </div></div>})}
+        {!showAllCategories&&categories.length>PRIMARY_CATEGORY_COUNT&&<button type="button" className="onboarding-category-more" onClick={()=>setShowAllCategories(true)}><i className="more-icon"><LayoutGrid/></i><span>Ще {categories.length-PRIMARY_CATEGORY_COUNT}</span></button>}
+      </div>
+      {showAllCategories&&categories.length>PRIMARY_CATEGORY_COUNT&&<button type="button" className="onboarding-categories-collapse" onClick={()=>setShowAllCategories(false)}>Згорнути список</button>}
+      </div>}
       {step===4&&<div className="wizard-step centered"><span className="wizard-icon"><Goal/></span><small>Головна мета</small><h1>Що для вас найважливіше?</h1><p>Це допоможе Rivna робити підказки доречнішими.</p><div className="goal-options">{goals.map(([value,label])=><button type="button" key={value} className={goal===value?"selected":""} onClick={()=>setGoal(value)}>{label}{goal===value&&<Check/>}</button>)}</div>{goal==="custom"&&<input autoFocus value={customGoal} onChange={event=>setCustomGoal(event.target.value)} placeholder="Опишіть вашу ціль"/>}</div>}
       {step===5&&<div className="wizard-step centered"><span className="wizard-icon"><HeartHandshake/></span><small>Спільний бюджет</small><h1>Планувати разом?</h1><p>Запросіть партнера зараз або пропустіть цей крок.</p><label>Ваш унікальний username<input value={username} onChange={event=>setUsername(event.target.value.toLowerCase().replace(/[^a-z0-9_.-]/g,""))} placeholder="maria"/></label><label>Email або username партнера<input value={partner} onChange={event=>setPartner(event.target.value)} placeholder="partner@example.com або @partner"/></label><div className="invite-note"><Sparkles/> Якщо людина ще не зареєстрована, буде створене invite‑посилання й скопійоване після завершення.</div></div>}
     </div>
