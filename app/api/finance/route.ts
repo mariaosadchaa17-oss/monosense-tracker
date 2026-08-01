@@ -67,6 +67,9 @@ export async function POST(request: Request) {
     case "deleteTransaction":
       result = await supabase.rpc("delete_finance_transaction", { p_transaction_id: body.id });
       break;
+    case "deleteTransfer":
+      result = await supabase.rpc("delete_account_transfer", { p_transfer_id: body.id });
+      break;
     case "createTransfer":
       result = await supabase.rpc("create_account_transfer", {
         p_from_account_id: body.fromAccountId, p_to_account_id: body.toAccountId,
