@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import {
   ArrowDownLeft, ArrowRight, ArrowUpRight, BarChart3, Bell, Check,
-  ChevronDown, CircleDollarSign, CreditCard, Download, Eye, EyeOff,
+  ChevronDown, CircleDollarSign, Download, Eye, EyeOff,
   Fingerprint, Goal, Home, Landmark, Moon, MoreHorizontal, PiggyBank, Plus,
   Search, Settings, ShoppingBag, Sparkles, Sun, Target, Trash2,
   Upload, Utensils, WalletCards, X, PieChart, HandCoins, Repeat2
 } from "lucide-react";
 import {PasskeyButton} from "./components/passkey-button";
+import { BANK_CATALOG, OTHER_BANK_ID, getBankById, getBankDefinition } from "./bank-catalog";
 
 type Page = "Головна" | "Операції" | "Бюджет" | "Рахунки" | "Накопичення" | "Аналітика" | "Борги" | "Налаштування";
 type Transaction = { id: number | string; title: string; category: string;categoryIcon?:string; date: string; bookedAt?:string; account?:string; owner?:string; tags?:string[]; amount: number;currency?:string;baseAmount?:number; impulse?: boolean };
@@ -52,7 +54,7 @@ const seedGoals:GoalItem[]=[
 ];
 
 const formatMoney = (value: number) => new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 0 }).format(Math.abs(value));
-const currencySymbol=(currency:string)=>({UAH:"₴",USD:"$",EUR:"€",GBP:"£",PLN:"zł"} as Record<string,string>)[currency]||currency;
+const currencySymbol=(currency:string)=>({UAH:"₴",USD:"$",EUR:"€",GBP:"£",PLN:"zł",CAD:"C$",AUD:"A$",JPY:"¥"} as Record<string,string>)[currency]||currency;
 const conversionRate=(currency:string,rates:{currency:string;rate:number}[],customRates:{currency:string;rate:number}[])=>currency==="UAH"?1:(customRates.find(rate=>rate.currency===currency)?.rate||rates.find(rate=>rate.currency===currency)?.rate||1);
 const isLight = (hex: string | undefined) => {
   if (typeof hex !== 'string' || hex.length < 7) return false; // Ensure hex is a string before accessing length or slice
@@ -113,14 +115,21 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     try {
       const response = await fetch("/api/finance", { cache: "no-store" });
       const data = await response.json();
-      if (!response.ok) return notify(data.error);
-      setAccounts((data.accounts || []).map((item: Record<string, unknown>, index: number) => ({
-        id: String(item.id), name: String(item.name), bank: String(item.bank || "Інший"),
-        owner: String(item.owner_label || "Мій"), currency: String(item.currency),
-        balance: Number(item.balance), style: bankStyle(String(item.bank||""),index),
-        color:item.card_color?String(item.card_color):undefined,
-        creditLimit:Number(item.credit_limit)||0,graceEnd:item.grace_period_end?String(item.grace_period_end):undefined,
-      })));
+      if (!response.ok) return notify(data.error); 
+      setAccounts((data.accounts || []).map((item: Record<string, unknown>) => ({
+  id: String(item.id),
+  name: String(item.name),
+  bank: String(item.bank || "Інший"),
+  owner: String(item.owner_label || "Мій"),
+  currency: String(item.currency),
+  balance: Number(item.balance),
+  style: bankStyle(String(item.bank || "")),
+  color: item.card_color ? String(item.card_color) : undefined,
+  creditLimit: Number(item.credit_limit) || 0,
+  graceEnd: item.grace_period_end
+    ? String(item.grace_period_end)
+    : undefined,
+})));
       setTransactions((data.transactions || []).map((item: Record<string, unknown>) => ({
         id: String(item.id), title: String(item.note || (item.type === "income" ? "Дохід" : "Витрата")),
         category:String((item.categories as {name?:string}|null)?.name||"Без категорії"),categoryIcon:String((item.categories as {icon?:string}|null)?.icon||"CircleDollarSign"),
@@ -169,31 +178,182 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     return [...debts,...creditDebts];
   },[accounts,debts]);
 
-  async function addExpense(e: React.SyntheticEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form=new FormData(e.currentTarget);
-    const value = Number(amount.replace(",", "."));
-    if (!value) return;
-    const operationType=form.get("type")==="income"?"income":"expense",isIncome=operationType==="income";
-    if (initialLoggedIn) {
-      const account = accounts.find(a=>String(a.id)===String(form.get("account")))||accounts[0];
-      if (!account) return notify("Спочатку створіть рахунок");
-      const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({
-        action:"createTransaction", accountId:account.id, categoryId:form.get("category")||null, amount:value, currency:account.currency, note, type:operationType,
-        isImpulsive:!isIncome&&form.get("impulse")==="on",splitTotal:isIncome?null:form.get("splitTotal")||null,personalShare:isIncome?null:form.get("personalShare")||null,
-        bookedAt:form.get("date")?new Date(String(form.get("date"))).toISOString():undefined,
-        tags:String(form.get("tags")||"").split(/\s+/).filter(Boolean),splitParticipants:String(form.get("splitParticipants")||"").split(",").map(value=>value.trim()).filter(Boolean),
-        repeat:!isIncome&&form.get("repeat")==="on",repeatFrequency:form.get("repeatFrequency"),repeatDay:form.get("repeatDay"),
-      })});
-      const result = await response.json();
-      if (!response.ok) return notify(result.error || "Не вдалося додати операцію");
-      setAmount(""); setNote(""); setModal(null); notify(isIncome?"Дохід збережено":"Витрату збережено");
-      await refreshFinance(); return;
+async function addExpense(e: React.SyntheticEvent<HTMLFormElement>) {
+  e.preventDefault();
+
+  const form = new FormData(e.currentTarget);
+  const value = Number(amount.replace(",", "."));
+
+  if (!value) return;
+
+  const operationType =
+    form.get("type") === "income" ? "income" : "expense";
+
+  const isIncome = operationType === "income";
+  const debtId = String(form.get("debtId") || "");
+
+  const repayment =
+    !isIncome &&
+    form.get("repayment") === "on" &&
+    Boolean(debtId);
+
+  const selectedDebt = debts.find(debt => debt.id === debtId);
+
+  let repaymentNote = note;
+
+  if (repayment) {
+    if (!selectedDebt || selectedDebt.direction !== "i_owe") {
+      return notify("Оберіть борг");
     }
-    const account=accounts.find(item=>String(item.id)===String(form.get("account")))||accounts[0];
-    setTransactions([{id:Date.now(),title:note||(isIncome?"Новий дохід":"Нова витрата"),category:categories.find(c=>c.id===form.get("category"))?.name||"Інше",date:"Щойно",amount:isIncome?value:-value,currency:account?.currency||"UAH",impulse:!isIncome&&form.get("impulse")==="on"},...transactions]);
-    setAmount(""); setNote(""); setModal(null); notify(isIncome?"Дохід додано":"Витрату додано");
+
+    if (value > selectedDebt.amount) {
+      return notify("Сума перевищує залишок боргу");
+    }
+
+    repaymentNote =
+      note || `Погашення боргу: ${selectedDebt.person}`;
   }
+
+  const account =
+    accounts.find(
+      item => String(item.id) === String(form.get("account"))
+    ) || accounts[0];
+
+  if (!account) {
+    return notify("Спочатку створіть рахунок");
+  }
+
+  if (repayment && selectedDebt && account.currency !== selectedDebt.currency) {
+    return notify("Валюта рахунку має збігатися з валютою боргу");
+  }
+
+  if (initialLoggedIn) {
+    const response = await fetch("/api/finance", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(
+        repayment
+          ? {
+              action: "repayDebt",
+              debtId,
+              accountId: account.id,
+              categoryId: form.get("category") || null,
+              amount: value,
+              note: repaymentNote,
+              bookedAt: form.get("date")
+                ? new Date(String(form.get("date"))).toISOString()
+                : undefined,
+            }
+          : {
+              action: "createTransaction",
+              accountId: account.id,
+              categoryId: form.get("category") || null,
+              amount: value,
+              currency: account.currency,
+              note,
+              type: operationType,
+              isImpulsive:
+                !isIncome && form.get("impulse") === "on",
+              splitTotal:
+                isIncome ? null : form.get("splitTotal") || null,
+              personalShare:
+                isIncome ? null : form.get("personalShare") || null,
+              bookedAt: form.get("date")
+                ? new Date(String(form.get("date"))).toISOString()
+                : undefined,
+              tags: String(form.get("tags") || "")
+                .split(/\s+/)
+                .filter(Boolean),
+              splitParticipants: String(
+                form.get("splitParticipants") || ""
+              )
+                .split(",")
+                .map(value => value.trim())
+                .filter(Boolean),
+              repeat:
+                !isIncome && form.get("repeat") === "on",
+              repeatFrequency: form.get("repeatFrequency"),
+              repeatDay: form.get("repeatDay"),
+            }
+      ),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      return notify(result.error || "Не вдалося додати операцію");
+    }
+
+    setAmount("");
+    setNote("");
+    setModal(null);
+
+    notify(
+      repayment
+        ? "Борг погашено"
+        : isIncome
+          ? "Дохід збережено"
+          : "Витрату збережено"
+    );
+
+    await refreshFinance();
+    return;
+  }
+
+  setTransactions([
+    {
+      id: Date.now(),
+      title: repayment
+        ? repaymentNote
+        : note || (isIncome ? "Новий дохід" : "Нова витрата"),
+      category:
+        categories.find(c => c.id === form.get("category"))?.name ||
+        "Інше",
+      date: "Щойно",
+      amount: isIncome ? value : -value,
+      currency: account.currency,
+      impulse:
+        !repayment &&
+        !isIncome &&
+        form.get("impulse") === "on",
+    },
+    ...transactions,
+  ]);
+
+  if (repayment) {
+    setDebts(items =>
+      items.flatMap(debt =>
+        debt.id !== debtId
+          ? [debt]
+          : debt.amount > value
+            ? [{ ...debt, amount: debt.amount - value }]
+            : []
+      )
+    );
+
+    setAccounts(items =>
+      items.map(item =>
+        String(item.id) === String(account.id)
+          ? { ...item, balance: item.balance - value }
+          : item
+      )
+    );
+  }
+
+  setAmount("");
+  setNote("");
+  setModal(null);
+
+  notify(
+    repayment
+      ? "Борг погашено"
+      : isIncome
+        ? "Дохід додано"
+        : "Витрату додано"
+  );
+}
   async function addAccount(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = new FormData(e.currentTarget);
@@ -333,7 +493,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       {page === "Рахунки" && <AccountsView accounts={accounts} rates={rates} customRates={customRates} add={() => {setEditingAccount(null);setModal("account")}} edit={account=>{setEditingAccount(account);setModal("account")}} addRate={()=>setModal("rate")} transfer={()=>setModal("transfer")} remove={removeAccount}/>}
       {page === "Накопичення" && <GoalsView goals={goals} authenticated={initialLoggedIn} add={()=>setModal("goal")} contribute={(id,amount)=>financeAction({action:"contributeGoal",id,amount},"Ціль поповнено")} recurring={recurring} addRecurring={()=>setModal("recurring")} remove={id=>financeAction({action:"deleteGoal",id},"Ціль видалено")}/>}
       {page === "Аналітика" && <AnalyticsView transactions={normalizedTransactions} baseCurrency={baseCurrency}/>}
-      {page === "Борги" && <DebtsView debts={allDebts} add={()=>setModal("debt")} settle={id=>financeAction({action:"settleDebt",id},"Борг закрито")}/>}
+      {page === "Борги" && <DebtsView debts={allDebts} add={()=>setModal("debt")} repay={()=>setModal("expense")}/>}
       {page === "Налаштування" && <SettingsView dark={dark} setDark={setDark} skin={skin} setSkin={setSkin} importCsv={importCsv} categories={categories} audit={audit} pushEnabled={pushEnabled} enablePush={enablePush} installApp={installApp} addCategory={()=>setModal("category")} deleteCategory={id=>financeAction({action:"deleteCategory",id},"Категорію видалено")} logout={async () => {
         if (initialLoggedIn) {
           await fetch("/auth/signout", { method: "POST" });
@@ -365,7 +525,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       </nav>
     </section>
 
-    {modal === "expense" && <ExpenseModal amount={amount} setAmount={setAmount} note={note} setNote={setNote} accounts={accounts} categories={categories} submit={addExpense} close={() => setModal(null)}/>}
+    {modal === "expense" && <ExpenseModal amount={amount} setAmount={setAmount} note={note} setNote={setNote} accounts={accounts} categories={categories} debts={debts.filter(debt=>debt.direction==="i_owe")} submit={addExpense} close={() => setModal(null)}/>}
     {modal === "account" && <AccountModal account={editingAccount} submit={addAccount} close={() => {setEditingAccount(null);setModal(null)}}/>}
     {modal === "goal" && <GoalModal submit={addGoal} close={()=>setModal(null)}/>}
     {modal === "debt" && <DebtModal submit={addDebt} close={()=>setModal(null)}/>}
@@ -401,18 +561,43 @@ function Login({ dark, setDark, showPassword, setShowPassword, login }: {dark:bo
 
 function Dashboard({ balance, baseCurrency, accounts, transactions, goals, authenticated, openPage, addAccount }: {balance:number;baseCurrency:string;accounts:Account[];transactions:Transaction[];goals:GoalItem[];authenticated:boolean;openPage:(p:Page)=>void;addAccount:()=>void}) {
   const [renderedAt]=useState(()=>Date.now()),now=new Date(renderedAt),month=now.getMonth(),year=now.getFullYear();
+  const [balanceHidden,setBalanceHidden]=useState(()=>typeof window!=="undefined"&&localStorage.getItem("rivna-hide-balance")==="true");
   const realDates=transactions.some(transaction=>Boolean(transaction.bookedAt));
   const currentTransactions=realDates?transactions.filter(transaction=>{const date=new Date(transaction.bookedAt!);return date.getMonth()===month&&date.getFullYear()===year}):transactions;
   const previousTransactions=transactions.filter(transaction=>{if(!transaction.bookedAt)return false;const date=new Date(transaction.bookedAt),previous=new Date(year,month-1,1);return date.getMonth()===previous.getMonth()&&date.getFullYear()===previous.getFullYear()});
   const income=currentTransactions.filter(transaction=>transaction.amount>0).reduce((sum,transaction)=>sum+(transaction.baseAmount??transaction.amount),0),expense=currentTransactions.filter(transaction=>transaction.amount<0).reduce((sum,transaction)=>sum+Math.abs(transaction.baseAmount??transaction.amount),0);
   const previousExpense=previousTransactions.filter(transaction=>transaction.amount<0).reduce((sum,transaction)=>sum+Math.abs(transaction.baseAmount??transaction.amount),0),difference=previousExpense?Math.round((expense-previousExpense)/previousExpense*100):0;
-  const daysInMonth=new Date(year,month+1,0).getDate(),forecast=Math.round(expense/Math.max(1,now.getDate())*daysInMonth),projectedBalance=balance-Math.max(0,forecast-expense),monthLabel=new Intl.DateTimeFormat("uk-UA",{month:"long"}).format(now);
+  const daysInMonth=new Date(year,month+1,0).getDate(),elapsedDays=Math.max(1,now.getDate()),remainingDays=Math.max(0,daysInMonth-elapsedDays);
+  const expectedIncome=Math.round(income/elapsedDays*remainingDays),expectedExpense=Math.round(expense/elapsedDays*remainingDays),forecast=Math.round(expense+expectedExpense),projectedBalance=balance+expectedIncome-expectedExpense,monthLabel=new Intl.DateTimeFormat("uk-UA",{month:"long"}).format(now);
   const primaryGoal=goals[0]||(authenticated?null:{id:"demo-goal",name:"Резервний фонд",target:200000,current:120000,currency:"UAH",color:"#6558E8"}),goalProgress=primaryGoal?Math.min(100,Math.round(primaryGoal.current/Math.max(1,primaryGoal.target)*100)):0;
-  const symbol=currencySymbol(baseCurrency);
-  return <><div className="summary-grid"><article className="balance-card"><div className="card-top"><span>Загальний баланс</span><button onClick={()=>openPage("Рахунки")}>{baseCurrency} <ChevronDown/></button></div><h2>{symbol} {formatMoney(balance)}<small>.00</small></h2><div className="balance-meta"><span><ArrowUpRight/> +{symbol} {formatMoney(income)} <small>доходи</small></span><span><ArrowDownLeft/> −{symbol} {formatMoney(expense)} <small>витрати</small></span></div><div className="balance-footer"><span>За {monthLabel}</span><span className={difference>0?"negative":"positive"}>{previousExpense?`${difference>0?"+":""}${difference}% до минулого місяця`:"Перший період"}</span></div></article>
-    <article className="forecast-card"><div className="card-heading"><div><span>Прогноз на кінець місяця</span><h3>{symbol} {formatMoney(projectedBalance)}</h3></div><span className="forecast-icon"><Sparkles/></span></div><div className="forecast-line"><i style={{width:`${Math.min(100,now.getDate()/daysInMonth*100)}%`}}/><b/></div><p>За поточного темпу витрат · прогноз витрат {symbol} {formatMoney(forecast)}</p><div className="insight"><Sparkles/> {previousExpense?`Темп витрат ${Math.abs(difference)}% ${difference<=0?"нижчий":"вищий"} за минулий місяць`:"Прогноз уточнюється з кожною операцією"}</div></article></div>
+  const symbol=currencySymbol(baseCurrency),masked="••••••";
+  const currencyBreakdown=Object.entries(accounts.reduce<Record<string,number>>((groups,account)=>{groups[account.currency]=(groups[account.currency]||0)+(account.balance||0)+(account.creditLimit||0);return groups;},{})).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1]));
+  const forecastMax=Math.max(1,Math.abs(balance),expectedIncome,expectedExpense,Math.abs(projectedBalance));
+  const forecastHeight=(value:number)=>`${Math.max(16,Math.round(Math.abs(value)/forecastMax*100))}%`;
+  const showMoney=(value:number,currency=baseCurrency,sign="")=>balanceHidden?masked:`${sign}${value<0?"−":""}${currencySymbol(currency)} ${formatMoney(value)}`;
+  function toggleBalance(){const next=!balanceHidden;setBalanceHidden(next);localStorage.setItem("rivna-hide-balance",String(next));}
+  return <><div className="summary-grid">
+    <article className={`balance-card balance-hero ${balance<0?"is-negative":""}`}>
+      <div className="balance-head"><div><span>Загальний баланс</span><small>Доступно на всіх рахунках</small></div><div className="balance-tools"><button className="currency-pill" onClick={()=>openPage("Рахунки")}>{baseCurrency} · {symbol}<ChevronDown/></button><button className="balance-visibility" onClick={toggleBalance} aria-label={balanceHidden?"Показати баланс":"Приховати баланс"}>{balanceHidden?<Eye/>:<EyeOff/>}</button></div></div>
+      <div className="balance-focus"><h2>{balanceHidden?masked:<>{balance<0?"−":""}{symbol} {formatMoney(balance)}</>}</h2><span className={balance<0?"balance-state negative":"balance-state positive"}>{balance<0?"Від’ємний доступний баланс":"Баланс у плюсі"}</span></div>
+      <div className="balance-breakdown" aria-label="Структура балансу за валютами">
+        {currencyBreakdown.length?currencyBreakdown.slice(0,3).map(([currency,value])=><div key={currency}><span>{currency}</span><strong>{showMoney(value,currency)}</strong><small>{accounts.filter(account=>account.currency===currency).length} рах.</small></div>):<div className="balance-empty"><span>Немає рахунків</span><strong>Додайте перший рахунок</strong></div>}
+      </div>
+      <div className="balance-footer"><span>За {monthLabel}</span><span className={difference>0?"negative":"positive"}>{previousExpense?`${difference>0?"+":""}${difference}% витрат до минулого місяця`:"Перший період"}</span></div>
+    </article>
+    <article className={`forecast-card forecast-waterfall ${projectedBalance<0?"is-deficit":""}`}>
+      <div className="forecast-summary"><div><span>Прогноз на кінець місяця</span><h3>{showMoney(projectedBalance)}</h3></div><span className={projectedBalance<0?"forecast-status deficit":"forecast-status positive"}>{projectedBalance<0?"Можливий дефіцит":"Позитивний прогноз"}</span></div>
+      <div className="forecast-bars" aria-label="Розрахунок прогнозу">
+        <div className="forecast-step current"><strong>{showMoney(balance)}</strong><span><i style={{height:forecastHeight(balance)}}/></span><small>Зараз</small></div>
+        <div className="forecast-step income"><strong>{showMoney(expectedIncome,baseCurrency,"+")}</strong><span><i style={{height:forecastHeight(expectedIncome)}}/></span><small>Очікувані доходи</small></div>
+        <div className="forecast-step expense"><strong>{showMoney(expectedExpense,baseCurrency,"−")}</strong><span><i style={{height:forecastHeight(expectedExpense)}}/></span><small>Очікувані витрати</small></div>
+        <div className={`forecast-step result ${projectedBalance<0?"negative":""}`}><strong>{showMoney(projectedBalance)}</strong><span><i style={{height:forecastHeight(projectedBalance)}}/></span><small>Прогноз</small></div>
+      </div>
+      <p className="forecast-basis"><Sparkles/> На основі середнього темпу доходів і витрат за {elapsedDays} {elapsedDays===1?"день":"днів"} поточного місяця. Прогноз витрат: {showMoney(forecast)}.</p>
+    </article>
+  </div>
     <section className="accounts"><div className="section-title"><div><h2>Мої рахунки</h2><p>Баланс усіх активів</p></div><button onClick={() => openPage("Рахунки")}>Усі рахунки <ArrowRight/></button></div><div className="account-row">{accounts.slice(0,3).map(a => <AccountCard key={a.id} account={a}/>) }<button className="new-account" onClick={addAccount}><Plus/><span>Додати рахунок</span></button></div></section>
-    <div className="dashboard-grid"><section className="panel transactions"><div className="section-title"><div><h2>Останні операції</h2><p>Найновіші записи</p></div><button onClick={() => openPage("Операції")}>Усі операції <ArrowRight/></button></div><TransactionList transactions={transactions.slice(0,4)}/></section><section className="panel budget-panel"><div className="section-title"><div><h2>Бюджет: {monthLabel}</h2><p>{daysInMonth-now.getDate()} днів до кінця місяця</p></div><button onClick={() => openPage("Бюджет")}><MoreHorizontal/></button></div><div className="budget-total"><div><small>Витрачено цього місяця</small><strong>{symbol} {formatMoney(expense)}</strong></div><b>{forecast?Math.round(expense/forecast*100):0}% часу</b></div><div className="main-progress"><i style={{width:`${Math.min(100,now.getDate()/daysInMonth*100)}%`}}/></div><button className="budget-open" onClick={()=>openPage("Бюджет")}>Переглянути ліміти категорій <ArrowRight/></button></section></div>
+    <div className="dashboard-grid"><section className="panel transactions"><div className="section-title"><div><h2>Останні операції</h2><p>Найновіші записи</p></div><button onClick={() => openPage("Операції")}>Усі операції <ArrowRight/></button></div><TransactionList transactions={transactions.slice(0,4)}/></section><section className="panel budget-panel"><div className="section-title"><div><h2>Бюджет: {monthLabel}</h2><p>{daysInMonth-now.getDate()} днів до кінця місяця</p></div><button onClick={() => openPage("Бюджет")}><MoreHorizontal/></button></div><div className="budget-total"><div><small>Витрачено цього місяця</small><strong>{symbol} {formatMoney(expense)}</strong></div><b>{forecast?Math.round(expense/forecast*100):0}% прогнозу</b></div><div className="main-progress"><i style={{width:`${Math.min(100,expense/Math.max(1,forecast)*100)}%`}}/></div><button className="budget-open" onClick={()=>openPage("Бюджет")}>Переглянути ліміти категорій <ArrowRight/></button></section></div>
     {primaryGoal && <button className="panel dashboard-goal" onClick={()=>openPage("Накопичення")}><span className="goal-icon"><PiggyBank/></span><div><small>Головна фінансова ціль</small><strong>{primaryGoal.name}</strong><span><i style={{width:`${goalProgress}%`,background:primaryGoal.color}}/></span><p>{goalProgress}% · {primaryGoal.currency} {formatMoney(primaryGoal.current)} з {formatMoney(primaryGoal.target)}</p></div><ArrowRight/></button>}</>;
 }
 
@@ -463,7 +648,8 @@ function LiveBudgetView({budgets,transactions,period,baseCurrency,add,remove}:{b
     </section>
   </>;
 }
-function AccountsView({accounts,rates,customRates,add,edit,addRate,transfer,remove}:{accounts:Account[];rates:{currency:string;rate:number;date:string}[];customRates:{currency:string;rate:number;date:string}[];add:()=>void;edit:(account:Account)=>void;addRate:()=>void;transfer:()=>void;remove:(id:number|string)=>void}) { const visible=rates.filter(r=>["USD","EUR"].includes(r.currency)); return <section className="panel full-view"><div className="section-title"><div><h2>Усі рахунки</h2><p>UAH, USD та інші валюти</p></div><div className="title-actions"><button className="secondary" onClick={transfer}><ArrowRight/> Переказ / обмін</button><button className="small-primary" onClick={add}><Plus/> Новий рахунок</button></div></div><div className="accounts-grid">{accounts.map(a=><div className="account-wrap" key={a.id}><AccountCard account={a}/><div className="account-actions"><button className="remove-account edit-account" onClick={()=>edit(a)}><Settings/> Редагувати</button><button className="remove-account" onClick={()=>remove(a.id)}><Trash2/> Видалити</button></div></div>)}</div><div className="rate-card"><Landmark/><div><strong>Офіційний курс НБУ</strong><p>{visible.length ? visible.map(r=>`${r.currency} ${r.rate.toFixed(4)}`).join(" · ") : "Оновлення курсів…"}{customRates.length?` · Власний: ${customRates.slice(0,3).map(r=>`${r.currency} ${r.rate}`).join(", ")}`:""}</p></div><button className="secondary" onClick={addRate}>Власний курс</button></div></section>; }
+function AccountsView({accounts,rates,customRates,add,edit,addRate,transfer,remove}:{accounts:Account[];rates:{currency:string;rate:number;date:string}[];customRates:{currency:string;rate:number;date:string}[];add:()=>void;edit:(account:Account)=>void;addRate:()=>void;transfer:()=>void;remove:(id:number|string)=>void}) { const visible=rates.filter(r=>["USD","EUR"].includes(r.currency)); return <section className="panel full-view"><div className="section-title"><div><h2>Усі рахунки</h2><p>Банківські, валютні та готівкові активи</p></div><div className="title-actions"><button className="secondary" onClick={transfer}><ArrowRight/> Переказ / обмін</button><button className="small-primary" onClick={add}><Plus/> Новий рахунок</button></div></div><div className="accounts-grid">{accounts.map(a=><div className="account-wrap" key={a.id}><AccountCard account={a}/><div className="account-actions"><button className="remove-account edit-account" onClick={()=>edit(a)}><Settings/> Редагувати</button><button className="remove-account" onClick={()=>remove(a.id)}><Trash2/> Видалити</button></div></div>)}</div><p className="bank-brand-note">Назви та візуальні ознаки банків використовуються лише для зручного розпізнавання рахунків. Rivna не є офіційним застосунком і не представляє жоден із зазначених банків або платіжних сервісів.</p><div className="rate-card"><Landmark/><div><strong>Офіційний курс НБУ</strong><p>{visible.length ? visible.map(r=>`${r.currency} ${r.rate.toFixed(4)}`).join(" · ") : "Оновлення курсів…"}{customRates.length?` · Власний: ${customRates.slice(0,3).map(r=>`${r.currency} ${r.rate}`).join(", ")}`:""}</p></div><button className="secondary" onClick={addRate}>Власний курс</button></div></section>; }
+
 function GoalsView({goals,authenticated,add,contribute,recurring,addRecurring,remove}:{goals:GoalItem[];authenticated:boolean;add:()=>void;contribute:(id:string,amount:number)=>void;recurring:RecurringItem[];addRecurring:()=>void;remove:(id:string)=>void}) { const shown=goals.length?goals:(authenticated?[]:[{id:"demo1",name:"Резервний фонд",target:200000,current:120000,currency:"UAH",color:"#6558E8"},{id:"demo2",name:"Подорож до Японії",target:150000,current:38500,currency:"UAH",color:"#159B70"}]); return <><section className="panel full-view"><div className="section-title"><div><h2>Фінансові цілі</h2><p>Накопичення та великі покупки</p></div><button className="small-primary" onClick={add}><Plus/> Нова ціль</button></div><div className="goals-grid">{shown.map(g=>{const percent=Math.min(100,Math.round(g.current/g.target*100)),symbol=currencySymbol(g.currency);return <article className="goal-card" key={g.id}><span className="goal-icon"><PiggyBank/></span><small>{g.date?`До ${new Date(g.date).toLocaleDateString("uk-UA")}`:"Фінансова ціль"}</small><h3>{g.name}</h3><strong>{symbol} {formatMoney(g.current)} <span>з {formatMoney(g.target)}</span></strong><div><i style={{width:`${percent}%`,background:g.color}}/></div><p>{percent}% накопичено</p><button onClick={()=>contribute(g.id,1000)}>Поповнити на {symbol} 1 000</button><button className="remove-account" onClick={()=>remove(g.id)}><Trash2/> Видалити</button></article>})}</div></section><section className="panel recurring-panel"><div className="section-title"><div><h2>Регулярні платежі</h2><p>Підписки, оренда та комунальні</p></div><button className="small-primary" onClick={addRecurring}><Plus/> Додати</button></div><div className="recurring-list">{recurring.length?recurring.map(r=><div key={r.id}><span className="recurring-icon"><Repeat2/></span><strong>{r.name}</strong><small>{r.frequency} · наступний {new Date(r.next).toLocaleDateString("uk-UA")}</small><b>{r.currency} {formatMoney(r.amount)}</b><em>{r.auto?"Автоматично":"Нагадування"}</em></div>):<p className="empty-inline">Регулярних платежів поки немає</p>}</div></section></>; }
 function AnalyticsView({transactions,baseCurrency}:{transactions:Transaction[];baseCurrency:string}) {
   const [period,setPeriod]=useState<"month"|"week">("month"),[renderedAt]=useState(()=>Date.now()),now=new Date(renderedAt);
@@ -479,7 +665,7 @@ function AnalyticsView({transactions,baseCurrency}:{transactions:Transaction[];b
     <section className="panel monthly-panel"><div className="section-title"><div><h2>Динаміка витрат</h2><p>{period==="month"?"Останні шість місяців":"Останні вісім тижнів"}</p></div><span className={delta>0?"comparison negative":"comparison positive"}>{previous?`${delta>0?"+":""}${delta}% до попереднього періоду`:"Ще немає порівняння"}</span></div><div className="monthly-chart">{buckets.map(bucket=><div key={bucket.key}><strong>{bucket.value?`${symbol}${formatMoney(bucket.value)}`:"—"}</strong><span><i style={{height:`${Math.max(bucket.value?8:2,bucket.value/maxValue*100)}%`}}/></span><small>{bucket.label}</small></div>)}</div></section>
     <div className="analytics-grid"><section className="panel"><div className="section-title"><div><h2>Витрати за категоріями</h2><p>Розподіл поточного періоду</p></div></div><div className="category-chart">{grouped.length?grouped.map(([name,value],index)=><div key={name}><span style={{background:`hsl(${250-index*34} 72% ${58+index*3}%)`}}/><strong>{name}</strong><i><b style={{width:`${value/(grouped[0]?.[1]||1)*100}%`}}/></i><em>{Math.round(value/total*100)}%</em></div>):<p className="empty-inline">Додайте операції для аналітики</p>}</div></section><section className="panel impulse-report"><span className="wizard-icon"><Sparkles/></span><h2>Звіт про імпульсивні витрати</h2><strong>{expenses.filter(transaction=>transaction.impulse).length} покупок</strong><p>Позначайте незаплановані покупки під час створення операції. Rivna покаже їхню частку та вплив на план.</p><div className="donut" style={{"--percent":`${total?impulsive/total*100:0}%`} as React.CSSProperties}><span>{total?Math.round(impulsive/total*100):0}%</span></div></section></div></>;
 }
-function DebtsView({debts,add,settle}:{debts:DebtItem[];add:()=>void;settle:(id:string)=>void}) { const mine=debts.filter(d=>d.direction==="owed_to_me");const owe=debts.filter(d=>d.direction==="i_owe");return <section className="panel full-view"><div className="section-title"><div><h2>Борги та кредити</h2><p>Хто винен мені та кому винна я</p></div><button className="small-primary" onClick={add}><Plus/> Додати борг</button></div><div className="debt-summary"><article><ArrowDownLeft/><div><small>Мені винні</small><strong>{currencySymbol("UAH")} {formatMoney(mine.reduce((s,d)=>s+d.amount,0))}</strong></div></article><article><ArrowUpRight/><div><small>Я винна</small><strong>{currencySymbol("UAH")} {formatMoney(owe.reduce((s,d)=>s+d.amount,0))}</strong></div></article></div><div className="debt-list">{debts.map(d=><div key={d.id}><span className={d.direction==="owed_to_me"?"debt-in":"debt-out"}>{d.direction==="owed_to_me"?<ArrowDownLeft/>:<ArrowUpRight/>}</span><div><strong>{d.person}</strong><small>{d.note||"Без нотатки"}{d.due?` · до ${new Date(d.due).toLocaleDateString("uk-UA")}`:""}</small></div><b>{d.currency} {formatMoney(d.amount)}</b>{d.isVirtual?<span className="debt-virtual-label">Кредит</span>:<button onClick={()=>settle(d.id)}>Закрити</button>}</div>)}{!debts.length&&<p className="empty">Активних боргів немає</p>}</div></section>; }
+function DebtsView({debts,add,repay}:{debts:DebtItem[];add:()=>void;repay:()=>void}) { const mine=debts.filter(d=>d.direction==="owed_to_me");const owe=debts.filter(d=>d.direction==="i_owe");return <section className="panel full-view"><div className="section-title"><div><h2>Борги та кредити</h2><p>Хто винен мені та кому винна я</p></div><button className="small-primary" onClick={add}><Plus/> Додати борг</button></div><div className="debt-summary"><article><ArrowDownLeft/><div><small>Мені винні</small><strong>{currencySymbol("UAH")} {formatMoney(mine.reduce((s,d)=>s+d.amount,0))}</strong></div></article><article><ArrowUpRight/><div><small>Я винна</small><strong>{currencySymbol("UAH")} {formatMoney(owe.reduce((s,d)=>s+d.amount,0))}</strong></div></article></div><div className="debt-list">{debts.map(d=><div key={d.id}><span className={d.direction==="owed_to_me"?"debt-in":"debt-out"}>{d.direction==="owed_to_me"?<ArrowDownLeft/>:<ArrowUpRight/>}</span><div><strong>{d.person}</strong><small>{d.note||"Без нотатки"}{d.due?` · до ${new Date(d.due).toLocaleDateString("uk-UA")}`:""}</small></div><b>{d.currency} {formatMoney(d.amount)}</b>{d.isVirtual?<span className="debt-virtual-label">Кредит</span>:d.direction==="i_owe"?<button onClick={repay}>Погасити</button>:null}</div>)}{!debts.length&&<p className="empty">Активних боргів немає</p>}</div></section>; }
 function SettingsView({dark,setDark,skin,setSkin,logout,notify,importCsv,categories,audit,addCategory,deleteCategory,pushEnabled,enablePush,installApp}:{dark:boolean;setDark:(v:boolean)=>void;skin:string;setSkin:(v:string)=>void;logout:()=>void;notify:(s:string)=>void;importCsv:(file:File)=>void;categories:CategoryItem[];audit:AuditItem[];addCategory:()=>void;deleteCategory:(id:string)=>void;pushEnabled:boolean;enablePush:()=>void;installApp:()=>void}) {
   return <><div className="settings-grid"><ProfileSettings dark={dark} setDark={setDark} skin={skin} setSkin={setSkin} notify={notify}/><section className="panel settings-card"><h2>Застосунок та інтеграції</h2><button className="integration" onClick={installApp}><Download/><span><strong>Встановити Rivna</strong><small>На домашній екран iOS, Android або ПК</small></span><ArrowRight/></button><button className="integration" onClick={enablePush}><Bell/><span><strong>{pushEnabled?"Сповіщення увімкнено":"Увімкнути сповіщення"}</strong><small>Алерти 80% і 100% бюджету</small></span><ArrowRight/></button><label className="integration file-integration"><Upload/><span><strong>Імпорт даних</strong><small>CSV до 5 МБ</small></span><ArrowRight/><input type="file" accept=".csv,text/csv" onChange={event=>{const file=event.target.files?.[0];if(file)importCsv(file);event.target.value=""}}/></label><button className="integration" onClick={()=>notify("Telegram chat ID зберігається у блоці «Загальні»")}><Goal/><span><strong>Telegram-бот</strong><small>Команда: 300 кава #робота</small></span><ArrowRight/></button><button className="logout" onClick={logout}>Вийти з акаунта</button></section></div>
     <div className="settings-lower"><section className="panel"><div className="section-title"><div><h2>Категорії</h2><p>Власні назви, кольори та Lucide-іконки</p></div><button className="small-primary" onClick={addCategory}><Plus/> Категорія</button></div><div className="category-manager">{categories.map(category=><div key={category.id}><span style={{background:category.color}}/><strong>{category.name}</strong><small>{category.kind==="income"?"Дохід":"Витрата"}</small><button onClick={()=>deleteCategory(category.id)}><Trash2/></button></div>)}</div></section><section className="panel"><div className="section-title"><div><h2>Історія змін</h2><p>Останні ключові дії</p></div></div><div className="audit-list">{audit.slice(0,12).map(item=><div key={item.id}><span>{item.action==="insert"?"+":item.action==="delete"?"−":"↻"}</span><div><strong>{translateEntity(item.entity)}</strong><small>{translateAction(item.action)} · {new Date(item.created).toLocaleString("uk-UA")}</small></div></div>)}{!audit.length&&<p className="empty-inline">Історія з’явиться після змін у Supabase</p>}</div></section></div></>
@@ -536,50 +722,79 @@ function GuideFeedback({notify,authenticated}:{notify:(message:string)=>void;aut
   return <section className="guide-grid"><div className="panel guide-card"><div className="section-title"><div><h2>Короткий довідник</h2><p>Як швидко почати роботу з Rivna</p></div></div><ol><li><span>1</span><div><strong>Додайте рахунки</strong><small>Картки, готівку та валютні заощадження.</small></div></li><li><span>2</span><div><strong>Записуйте витрати</strong><small>Теги, поділ чека та повторення доступні в одній формі.</small></div></li><li><span>3</span><div><strong>Встановіть ліміти</strong><small>Rivna попередить на 80% та 100% бюджету.</small></div></li><li><span>4</span><div><strong>Підключіть Telegram</strong><small>Збережіть chat ID і пишіть боту: «300 кава».</small></div></li><li><span>5</span><div><strong>Залиште відгук</strong><small>Допоможіть зробити Rivna кращою.</small></div></li></ol></div><form className="panel feedback-card" onSubmit={submit}><span className="wizard-icon"><Sparkles/></span><h2>Допоможіть зробити Rivna кращою</h2><p>Що зручно, а що варто змінити?</p><div className="rating-row">{[1,2,3,4,5].map(value=><button type="button" key={value} className={value<=rating?"active":""} onClick={()=>setRating(value)}>★</button>)}</div><textarea value={message} onChange={event=>setMessage(event.target.value)} placeholder="Ваш відгук…" required minLength={3}/><button className="primary" disabled={sending}>{sending?"Надсилаємо…":"Надіслати відгук"}</button></form></section>
 }
 
+function bankCardStyle(bankName:string,color?:string):CSSProperties {
+  const bank=getBankDefinition(bankName),primary=color||bank.primary;
+  return {
+    "--bank-primary":primary,
+    "--bank-secondary":bank.secondary,
+    "--bank-accent":bank.accent,
+    "--bank-text":bank.text==="dark"?"#171717":"#ffffff",
+  } as CSSProperties;
+}
 function AccountCard({account}:{account:Account}) {
   const [renderedAt]=useState(()=>Date.now()),days=account.graceEnd?Math.ceil((new Date(account.graceEnd).getTime()-renderedAt)/86400000):null;
-  const available = (account.balance||0) + (account.creditLimit || 0);
-  return <article className={`account ${bankStyle(account.bank)}`} style={account.color?{background:account.color, color: isLight(account.color) ? '#000' : '#fff'}:undefined}>
-    <div><BankMark bank={account.bank}/>{days!==null&&<em className={days<=7?"grace urgent":"grace"}>{days>=0?`${days} дн. грейсу`:"Грейс минув"}</em>}</div>
+  const available = (account.balance||0) + (account.creditLimit || 0),bank=getBankDefinition(account.bank),darkText=bank.text==="dark"||(Boolean(account.color)&&isLight(account.color));
+  return <article className={`account bank-card pattern-${bank.pattern} bank-${bank.id}`} style={bankCardStyle(account.bank,account.color)}>
+    <div className="account-card-head"><BankMark bank={account.bank}/>{days!==null&&<em className={days<=7?"grace urgent":"grace"}>{days>=0?`${days} дн. грейсу`:"Грейс минув"}</em>}</div>
     <p>{account.name}</p>
-    <h3>{currencySymbol(account.currency)} {formatMoney(available)} <small>доступно</small></h3>
-    <div style={{fontSize: '10px', color: isLight(account.color) ? 'rgba(0,0,0,.7)' : 'rgba(255,255,255,.7)', marginTop: '4px', display: 'grid', gap: '4px'}}>
-      <span>
-        {(account.creditLimit||0) > 0
-          ? `Використано: ${formatMoney(Math.min(0,account.balance))} з ${formatMoney(account.creditLimit ?? 0)}`
-          : `Власні: ${formatMoney(account.balance)}`
-        }
-      </span>
+    <h3>{available<0?"−":""}{currencySymbol(account.currency)} {formatMoney(available)} <small>доступно</small></h3>
+    <div className="account-balance-details">
+      <span>{(account.creditLimit||0)>0?`Власні: ${currencySymbol(account.currency)} ${formatMoney(account.balance)} · Ліміт: ${formatMoney(account.creditLimit||0)}`:`Власні кошти: ${currencySymbol(account.currency)} ${formatMoney(account.balance)}`}</span>
     </div>
-    <small style={{marginTop: '10px', color: isLight(account.color) ? 'rgba(0,0,0,.55)' : 'rgba(255,255,255,.55)'}}>{account.bank} · {account.owner}</small>
+    <small className={darkText?"account-bank-meta dark":"account-bank-meta"}>{account.bank} · {account.owner} · {account.currency}</small>
   </article>;
 }
-function BankMark({bank}:{bank:string}){const value=bank.toLowerCase();if(value.includes("mono"))return <span className="bank-logo mono-logo">mono</span>;if(value.includes("приват")||value.includes("privat"))return <span className="bank-logo privat-logo">П</span>;if(value.includes("пумб")||value.includes("pumb"))return <span className="bank-logo pumb-logo">ПУМБ</span>;if(value.includes("ощад"))return <span className="bank-logo oschad-logo">О</span>;if(value.includes("готів"))return <span className="bank-icon"><Landmark/></span>;return <span className="bank-icon">{bank.slice(0,1).toUpperCase()||<CreditCard/>}</span>}
-function bankStyle(bank:string,index=2){const value=bank.toLowerCase();if(value.includes("mono"))return "mono";if(value.includes("приват")||value.includes("privat"))return "privat";if(value.includes("пумб")||value.includes("pumb"))return "pumb";if(value.includes("ощад"))return "oschad";return index%3===0?"mono":index%3===1?"privat":"stash"}
+function BankMark({bank}:{bank:string}){const definition=getBankDefinition(bank),mark=definition.id===OTHER_BANK_ID&&bank&&bank!==definition.name?bank.trim().slice(0,1).toUpperCase():definition.mark;return <span className={`bank-logo bank-logo-${definition.id} kind-${definition.markKind}`} aria-label={bank||definition.name}>{definition.id==="payoneer"&&<i className="payoneer-halo"/>}{mark}</span>}
+function bankStyle(bank:string){return `bank-${getBankDefinition(bank).id}`}
+
 function TransactionList({transactions}:{transactions:Transaction[]}) { return <div className="tx-list">{transactions.map(t=><div className="tx" key={t.id}><span className={`tx-icon ${t.amount>0?"income":"shop"}`}>{t.amount>0?<ArrowDownLeft/>:<ShoppingBag/>}</span><div className="tx-info"><strong>{t.title}{t.impulse&&<em>Імпульсивна</em>}</strong><small>{t.category} · {t.date}</small></div><strong className={t.amount>0?"income-amount":""}>{t.amount>0?"+":"−"} {currencySymbol(t.currency||"UAH")} {formatMoney(t.amount)}</strong></div>)}</div>; }
-function ExpenseModal({amount,setAmount,note,setNote,accounts,categories,submit,close}:{amount:string;setAmount:(s:string)=>void;note:string;setNote:(s:string)=>void;accounts:Account[];categories:CategoryItem[];submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}) {
-  const [type,setType]=useState<"expense"|"income">("expense"),[accountId,setAccountId]=useState(String(accounts[0]?.id||"")),[categoryId,setCategoryId]=useState("");
+function ExpenseModal({amount,setAmount,note,setNote,accounts,categories,debts,submit,close}:{amount:string;setAmount:(s:string)=>void;note:string;setNote:(s:string)=>void;accounts:Account[];categories:CategoryItem[];debts:DebtItem[];submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}) {
+  const [type,setType]=useState<"expense"|"income">("expense"),[accountId,setAccountId]=useState(String(accounts[0]?.id||"")),[categoryId,setCategoryId]=useState(""),[repayment,setRepayment]=useState(false),[debtId,setDebtId]=useState(String(debts[0]?.id||""));
+  const selectedDebt=debts.find(debt=>debt.id===debtId)||debts[0];
   const account=accounts.find(item=>String(item.id)===accountId)||accounts[0];
   const accountOptions=accounts.map(item=>({value:String(item.id),label:`${item.name} · ${item.currency}`}));
   const categoryOptions=[{value:"",label:"Без категорії"},...categories.filter(category=>category.kind===type).map(category=>({value:category.id,label:category.name}))];
-  function changeType(next:"expense"|"income"){setType(next);setCategoryId("")}
+  const debtOptions=debts.map(debt=>({value:debt.id,label:`${debt.person} · ${debt.currency} ${formatMoney(debt.amount)}`}));
+  function changeType(next:"expense"|"income"){setType(next);setCategoryId("");if(next==="income")setRepayment(false)}
+  function repayFully(){if(selectedDebt)setAmount(String(selectedDebt.amount))}
   return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal tall-modal" onSubmit={submit} onMouseDown={event=>event.stopPropagation()}>
-    <ModalHead label="Деталізація операції" title={type==="income"?"Новий дохід":"Нова витрата"} close={close}/>
+    <ModalHead label="Деталізація операції" title={repayment?"Погашення боргу":type==="income"?"Новий дохід":"Нова витрата"} close={close}/>
     <div className="operation-type"><button type="button" className={type==="expense"?"active":""} onClick={()=>changeType("expense")}><ArrowUpRight/> Витрата</button><button type="button" className={type==="income"?"active":""} onClick={()=>changeType("income")}><ArrowDownLeft/> Дохід</button></div>
     <input type="hidden" name="type" value={type}/>
+    {type==="expense"&&debts.length>0&&<label className="check impulse"><input name="repayment" type="checkbox" checked={repayment} onChange={event=>setRepayment(event.target.checked)}/> Погашення наявного боргу</label>}
+    {repayment&&<><WheelField name="debtId" label="Борг" options={debtOptions} value={debtId} onChange={value=>{setDebtId(value);const debt=debts.find(item=>item.id===value);const matching=accounts.find(item=>item.currency===debt?.currency);if(matching)setAccountId(String(matching.id))}}/><div className="form-message success">Залишок: {selectedDebt?.currency} {formatMoney(selectedDebt?.amount||0)}</div></>}
     <label className="amount-field"><span>{currencySymbol(account?.currency||"UAH")}</span><input autoFocus required inputMode="decimal" placeholder="0" value={amount} onChange={event=>setAmount(event.target.value)}/></label>
+    {repayment&&<button type="button" className="small-primary" onClick={repayFully}>Погасити повністю</button>}
     <div className="form-two"><WheelField name="account" label="Рахунок" options={accountOptions} value={accountId} onChange={setAccountId}/><WheelField name="category" label="Категорія" options={categoryOptions} value={categoryId} onChange={setCategoryId}/></div>
     <label>Валюта<input name="currency" value={account?.currency||"UAH"} readOnly/></label>
     <DateWheelField name="date"/>
-    <label>Нотатка<input placeholder={type==="income"?"Наприклад, зарплата":"Наприклад, кава"} value={note} onChange={event=>setNote(event.target.value)}/></label>
-    <label>Теги<input name="tags" placeholder="#відпустка #робота"/></label>
-    {type==="expense"&&<><details className="split-details"><summary>Розділити чек</summary><div className="form-two"><label>Загальна сума<input name="splitTotal" type="number" min="0" step=".01"/></label><label>Моя частка<input name="personalShare" type="number" min="0" step=".01"/></label></div><label>Учасники<input name="splitParticipants" placeholder="Діма, Оля, Андрій"/></label><small className="field-help">Залишок буде порівну розподілений між учасниками, а з балансу спишеться лише ваша частка.</small></details><details className="split-details"><summary>Повторювати витрату</summary><label className="check impulse"><input name="repeat" type="checkbox"/> Створити регулярне нагадування</label><div className="form-two"><label>Період<select name="repeatFrequency"><option value="weekly">Щотижня</option><option value="monthly">Щомісяця</option><option value="yearly">Щороку</option></select></label><label>Число місяця<input name="repeatDay" type="number" min="1" max="28" placeholder="Наприклад, 5"/></label></div></details><label className="check impulse"><input name="impulse" type="checkbox"/> Імпульсивна витрата</label></>}
-    <button className="primary">{type==="income"?"Додати дохід":"Додати витрату"}</button>
+    <label>Нотатка<input placeholder={repayment?`Погашення боргу: ${selectedDebt?.person||""}`:type==="income"?"Наприклад, зарплата":"Наприклад, кава"} value={note} onChange={event=>setNote(event.target.value)}/></label>
+    {!repayment&&<label>Теги<input name="tags" placeholder="#відпустка #робота"/></label>}
+    {type==="expense"&&!repayment&&<><details className="split-details"><summary>Розділити чек</summary><div className="form-two"><label>Загальна сума<input name="splitTotal" type="number" min="0" step=".01"/></label><label>Моя частка<input name="personalShare" type="number" min="0" step=".01"/></label></div><label>Учасники<input name="splitParticipants" placeholder="Діма, Оля, Андрій"/></label><small className="field-help">Залишок буде порівну розподілений між учасниками, а з балансу спишеться лише ваша частка.</small></details><details className="split-details"><summary>Повторювати витрату</summary><label className="check impulse"><input name="repeat" type="checkbox"/> Створити регулярне нагадування</label><div className="form-two"><label>Період<select name="repeatFrequency"><option value="weekly">Щотижня</option><option value="monthly">Щомісяця</option><option value="yearly">Щороку</option></select></label><label>Число місяця<input name="repeatDay" type="number" min="1" max="28" placeholder="Наприклад, 5"/></label></div></details><label className="check impulse"><input name="impulse" type="checkbox"/> Імпульсивна витрата</label></>}
+    <button className="primary">{repayment?"Погасити борг":type==="income"?"Додати дохід":"Додати витрату"}</button>
   </form></div>;
 }
 function WheelField({name,label,options,value:controlled,onChange,defaultValue}:{name:string;label:string;options:{value:string;label:string}[];value?:string;onChange?:(value:string)=>void;defaultValue?:string}){const [internal,setInternal]=useState(defaultValue??options[0]?.value??""),value=controlled===undefined?internal:controlled,selected=options.find(option=>option.value===value);function select(next:string){if(controlled===undefined)setInternal(next);onChange?.(next)}return <label className="picker-label">{label}<details className="compact-picker"><summary>{selected?.label||"Оберіть"}</summary><div className="picker-wheel">{options.map(option=><button type="button" key={`${name}-${option.value}`} className={option.value===value?"selected":""} onClick={event=>{select(option.value);event.currentTarget.closest("details")?.removeAttribute("open")}}>{option.label}{option.value===value&&<Check/>}</button>)}</div></details><input type="hidden" name={name} value={value}/></label>}
 function DateWheelField({name}:{name:string}){const [renderedAt]=useState(()=>Date.now()),options=Array.from({length:38},(_,index)=>{const date=new Date(renderedAt);date.setDate(date.getDate()+index-7);const value=date.toISOString().slice(0,10);return {value,label:new Intl.DateTimeFormat("uk-UA",{weekday:"short",day:"numeric",month:"long"}).format(date)}});return <WheelField name={name} label="Дата" options={options} defaultValue={options[7]?.value}/>}
-function AccountModal({account,submit,close}:{account:Account|null;submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}) { const banks=["monobank","ПриватБанк","ПУМБ","Ощадбанк","Райффайзен Банк","Готівка","Інший"],selected=banks.includes(account?.bank||"")?account?.bank:"Інший";return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal" onSubmit={submit} onMouseDown={e=>e.stopPropagation()}><ModalHead label={account?"Редагування активу":"Новий актив"} title={account?"Змінити рахунок":"Додати рахунок"} close={close}/><label>Назва<input name="name" defaultValue={account?.name} placeholder="Наприклад, Зарплатна картка" required/></label><div className="form-two"><label>Банк<select name="bank" defaultValue={selected}>{banks.map(bank=><option key={bank}>{bank}</option>)}</select></label><label>Власник<input name="owner" defaultValue={account?.owner} placeholder="Мій"/></label></div><div className="form-two"><label>Валюта<select name="currency" defaultValue={account?.currency||"UAH"}><option>UAH</option><option>USD</option><option>EUR</option><option>GBP</option><option>PLN</option></select></label><label>Баланс<input name="balance" type="number" step=".01" defaultValue={account?.balance} placeholder="0"/></label></div><label>Колір картки<input name="cardColor" type="color" defaultValue={account?.color||"#252629"}/></label><details className="split-details" open={Boolean(account?.creditLimit||account?.graceEnd)}><summary>Кредитна картка</summary><div className="form-two"><label>Кредитний ліміт<input name="creditLimit" type="number" min="0" defaultValue={account?.creditLimit} placeholder="0"/></label><label>Кінець грейс-періоду<input name="graceEnd" type="date" defaultValue={account?.graceEnd?.slice(0,10)}/></label></div></details><button className="primary">{account?"Зберегти зміни":"Створити рахунок"}</button></form></div>; }
+function AccountModal({account,submit,close}:{account:Account|null;submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}) {
+  const initialDefinition=account?getBankDefinition(account.bank):BANK_CATALOG[0],initialCustom=account&&initialDefinition.id===OTHER_BANK_ID?account.bank:"";
+  const [bankId,setBankId]=useState(initialDefinition.id),[customBank,setCustomBank]=useState(initialCustom),[currency,setCurrency]=useState(account?.currency||initialDefinition.currencies[0]||"UAH"),[cardColor,setCardColor]=useState(account?.color||initialDefinition.primary);
+  const bank=getBankById(bankId),displayBank=bankId===OTHER_BANK_ID?(customBank.trim()||bank.name):bank.name;
+  function selectBank(nextId:string){const next=getBankById(nextId);setBankId(nextId);setCardColor(next.primary);if(!next.currencies.includes(currency))setCurrency(next.currencies[0]||"UAH")}
+  return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal account-modal" onSubmit={submit} onMouseDown={e=>e.stopPropagation()}><ModalHead label={account?"Редагування активу":"Новий актив"} title={account?"Змінити рахунок":"Додати рахунок"} close={close}/>
+    <div className={`bank-card-preview pattern-${bank.pattern}`} style={bankCardStyle(displayBank,cardColor)}><div><BankMark bank={displayBank}/><span>{currency}</span></div><strong>{account?.name||"Назва рахунку"}</strong><small>{bank.description}</small></div>
+    <label>Назва рахунку<input name="name" defaultValue={account?.name} placeholder="Наприклад, Зарплатна картка" required/></label>
+    <div className="form-two"><label>Банк<select value={bankId} onChange={event=>selectBank(event.target.value)}>{BANK_CATALOG.map(option=><option key={option.id} value={option.id}>{option.name}</option>)}</select></label><label>Власник<input name="owner" defaultValue={account?.owner} placeholder="Мій"/></label></div>
+    {bankId===OTHER_BANK_ID&&<label>Назва іншого банку<input value={customBank} onChange={event=>setCustomBank(event.target.value)} placeholder="Введіть назву вручну" required/></label>}
+    <input type="hidden" name="bank" value={displayBank}/>
+    <div className="form-two"><label>Валюта<select name="currency" value={currency} onChange={event=>setCurrency(event.target.value)}>{bank.currencies.map(option=><option key={option}>{option}</option>)}</select><small className="field-hint">Типові валюти для {bank.name}</small></label><label>Баланс<input name="balance" type="number" step=".01" defaultValue={account?.balance} placeholder="0"/></label></div>
+    <label>Колір картки<div className="bank-color-field"><input name="cardColor" type="color" value={cardColor} onChange={event=>setCardColor(event.target.value)}/><span>{cardColor.toUpperCase()}</span><button type="button" onClick={()=>setCardColor(bank.primary)}>Фірмовий</button></div></label>
+    <details className="split-details" open={Boolean(account?.creditLimit||account?.graceEnd)}><summary>Кредитна картка</summary><div className="form-two"><label>Кредитний ліміт<input name="creditLimit" type="number" min="0" defaultValue={account?.creditLimit} placeholder="0"/></label><label>Кінець грейс-періоду<input name="graceEnd" type="date" defaultValue={account?.graceEnd?.slice(0,10)}/></label></div></details>
+    <p className="asset-note">Використовується локальна впізнавана стилізація без завантаження логотипів із зовнішніх URL. Це не офіційна банківська картка.</p>
+    <button className="primary">{account?"Зберегти зміни":"Створити рахунок"}</button>
+  </form></div>;
+}
+
 function GoalModal({submit,close}:{submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}) { return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal" onSubmit={submit} onMouseDown={e=>e.stopPropagation()}><ModalHead label="Накопичення" title="Нова фінансова ціль" close={close}/><label>Назва<input name="name" required placeholder="Резервний фонд"/></label><div className="form-two"><label>Цільова сума<input name="target" type="number" min="1" required/></label><label>Вже накопичено<input name="current" type="number" min="0" defaultValue="0"/></label></div><div className="form-two"><label>Валюта<select name="currency"><option>UAH</option><option>USD</option><option>EUR</option></select></label><label>Повернути до<input name="date" type="date"/></label></div><button className="primary">Створити ціль</button></form></div>; }
 function DebtModal({submit,close}:{submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}) { return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal" onSubmit={submit} onMouseDown={e=>e.stopPropagation()}><ModalHead label="Облік зобов’язань" title="Новий борг" close={close}/><label>Людина або організація<input name="person" required placeholder="Олексій"/></label><div className="form-two"><label>Напрям<select name="direction"><option value="owed_to_me">Мені винні</option><option value="i_owe">Я винна</option></select></label><label>Сума<input name="amount" type="number" min="1" required/></label></div><div className="form-two"><label>Валюта<select name="currency"><option>UAH</option><option>USD</option><option>EUR</option></select></label><label>Повернути до<input name="date" type="date"/></label></div><label>Нотатка<input name="note" placeholder="За квитки"/></label><button className="primary">Додати борг</button></form></div>; }
 function RecurringModal({accounts,categories,submit,close}:{accounts:Account[];categories:CategoryItem[];submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}) { return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal" onSubmit={submit} onMouseDown={e=>e.stopPropagation()}><ModalHead label="Автоматизація" title="Регулярний платіж" close={close}/><label>Назва<input name="name" required placeholder="Netflix"/></label><div className="form-two"><label>Рахунок<select name="account" required>{accounts.map(account=><option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></label><label>Категорія<select name="category"><option value="">Без категорії</option>{categories.filter(category=>category.kind==="expense").map(category=><option key={category.id} value={category.id}>{category.name}</option>)}</select></label></div><div className="form-two"><label>Сума<input name="amount" type="number" min=".01" step=".01" required/></label><label>Період<select name="frequency"><option value="monthly">Щомісяця</option><option value="weekly">Щотижня</option><option value="yearly">Щороку</option></select></label></div><label>Наступна дата<input name="date" type="datetime-local" required/></label><label className="check impulse"><input name="auto" type="checkbox"/> Створювати операцію автоматично</label><button className="primary">Зберегти платіж</button></form></div>; }
