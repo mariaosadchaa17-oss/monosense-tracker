@@ -96,7 +96,8 @@ export async function POST(request: Request) {
     categoryId = found?.id || null;
   }
 
-  const { error } = await admin.rpc("create_finance_transaction", {
+  const { error } = await admin.rpc("create_finance_transaction_admin", {
+    p_user_id: preference.user_id,
     p_account_id: account.id, p_category_id: categoryId, p_type: "expense",
     p_amount: amount, p_currency: account.currency, p_note: note,
     p_booked_at: new Date().toISOString(), p_is_impulsive: false,
