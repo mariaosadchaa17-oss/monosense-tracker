@@ -24,7 +24,7 @@ function BudgetIcon({name, size}: {name?: string; size?: number}) {
 }
 // Фиксированная палитра — цвета подобраны так, чтобы хорошо смотреться с
 // текущим интерфейсом (тот же тон насыщенности, что и у акцентного цвета) и
-// давать достаточный контраст текста при использовании как фон иконки (15% alpha).
+// давать достаточний контраст текста при використанні як фон іконки (15% alpha).
 const BUDGET_COLORS = ["#6558e8","#ff7a66","#f0a94a","#28a879","#4c91e8","#e874a6","#8875d1","#42a7a2","#d3a032","#66717d"];
 
 type Page = "Головна" | "Операції" | "Бюджет" | "Рахунки" | "Накопичення" | "Аналітика" | "Борги" | "Налаштування";
@@ -69,6 +69,7 @@ const seedGoals:GoalItem[]=[
 ];
 
 const formatMoney = (value: number) => new Intl.NumberFormat("uk-UA", { maximumFractionDigits: 0 }).format(Math.abs(value));
+const cardSuffix = (id: number | string) => { const str = String(id); let hash = 0; for (let i = 0; i < str.length; i++) { hash = (hash * 31 + str.charCodeAt(i)) >>> 0; } return String(1000 + (hash % 9000)); };
 const currencySymbol=(currency:string)=>({UAH:"₴",USD:"$",EUR:"€",GBP:"£",PLN:"zł"} as Record<string,string>)[currency]||currency;
 const conversionRate=(currency:string,rates:{currency:string;rate:number}[],customRates:{currency:string;rate:number}[])=>currency==="UAH"?1:(customRates.find(rate=>rate.currency===currency)?.rate||rates.find(rate=>rate.currency===currency)?.rate||1);
 const isLight = (hex: string | undefined) => {
@@ -567,19 +568,25 @@ function GuideFeedback({notify,authenticated}:{notify:(message:string)=>void;aut
 function AccountCard({account}:{account:Account}) {
   const [renderedAt]=useState(()=>Date.now()),days=account.graceEnd?Math.ceil((new Date(account.graceEnd).getTime()-renderedAt)/86400000):null;
   const available = (account.balance||0) + (account.creditLimit || 0);
-  return <article className={`account ${bankStyle(account.bank)}`} style={account.color?{background:account.color, color: isLight(account.color) ? '#000' : '#fff'}:undefined}>
-    <div><BankMark bank={account.bank}/>{days!==null&&<em className={days<=7?"grace urgent":"grace"}>{days>=0?`${days} дн. грейсу`:"Грейс минув"}</em>}</div>
-    <p>{account.name}</p>
-    <h3>{currencySymbol(account.currency)} {formatMoney(available)} <small>доступно</small></h3>
-    <div style={{fontSize: '10px', color: isLight(account.color) ? 'rgba(0,0,0,.7)' : 'rgba(255,255,255,.7)', marginTop: '4px', display: 'grid', gap: '4px'}}>
-      <span>
-        {(account.creditLimit||0) > 0
-          ? `Використано: ${formatMoney(Math.min(0,account.balance))} з ${formatMoney(account.creditLimit ?? 0)}`
-          : `Власні: ${formatMoney(account.balance)}`
-        }
-      </span>
+  const light=isLight(account.color);
+  const ink=account.color?(light?'#000':'#fff'):'#fff';
+  const muted=account.color?(light?'rgba(0,0,0,.6)':'rgba(255,255,255,.6)'):undefined;
+  return <article className={`account ${bankStyle(account.bank)}`} style={account.color?{background:account.color, color: ink}:undefined}>
+    <div className="card-top">
+      <BankMark bank={account.bank}/>
+      <div className="card-top-right">
+        {days!==null&&<em className={days<=7?"grace urgent":"grace"}>{days>=0?`${days} дн. грейсу`:"Грейс минув"}</em>}
+        <span className="card-contactless"><Wifi/></span>
+      </div>
     </div>
-    <small style={{marginTop: '10px', color: isLight(account.color) ? 'rgba(0,0,0,.55)' : 'rgba(255,255,255,.55)'}}>{account.bank} · {account.owner}</small>
+    <div className="card-chip"/>
+    <div className="card-number">•••• •••• •••• {cardSuffix(account.id)}</div>
+    <div className="card-footer">
+      <div><small style={muted?{color:muted}:undefined}>Власник</small><strong>{account.owner||"—"}</strong></div>
+      <div className="card-balance"><small style={muted?{color:muted}:undefined}>Доступно</small><strong className="card-amount">{currencySymbol(account.currency)} {formatMoney(available)}</strong></div>
+    </div>
+    {(account.creditLimit||0) > 0 && <div className="card-credit" style={muted?{color:muted}:undefined}>Використано: {formatMoney(Math.min(0,account.balance))} з {formatMoney(account.creditLimit ?? 0)}</div>}
+    <div className="card-nickname" style={muted?{color:muted}:undefined}>{account.name} · {account.bank}</div>
   </article>;
 }
 function BankMark({bank}:{bank:string}){const value=bank.toLowerCase();if(value.includes("mono"))return <span className="bank-logo mono-logo">mono</span>;if(value.includes("приват")||value.includes("privat"))return <span className="bank-logo privat-logo">П</span>;if(value.includes("пумб")||value.includes("pumb"))return <span className="bank-logo pumb-logo">ПУМБ</span>;if(value.includes("ощад"))return <span className="bank-logo oschad-logo">О</span>;if(value.includes("готів"))return <span className="bank-icon"><Landmark/></span>;return <span className="bank-icon">{bank.slice(0,1).toUpperCase()||<CreditCard/>}</span>}
