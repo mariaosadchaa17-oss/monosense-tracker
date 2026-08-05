@@ -504,6 +504,7 @@ function Login({ dark, setDark, showPassword, setShowPassword, login }: {dark:bo
   </main>;
 }
 function Dashboard({ balance, baseCurrency, accounts, transactions, goals, authenticated, openPage, addAccount, changeCurrency, monthlyFees, plannedIncome }: {balance:number;baseCurrency:string;accounts:Account[];transactions:Transaction[];goals:GoalItem[];authenticated:boolean;openPage:(p:Page)=>void;addAccount:()=>void;changeCurrency:(c:string)=>void;monthlyFees:number;plannedIncome:number}) {
+  const [renderedAt]=useState(()=>Date.now()),now=new Date(renderedAt),month=now.getMonth(),year=now.getFullYear();
   const realDates=transactions.some(transaction=>Boolean(transaction.bookedAt));
   const currentTransactions=realDates?transactions.filter(transaction=>{const date=new Date(transaction.bookedAt!);return date.getMonth()===month&&date.getFullYear()===year}):transactions;
   const previousTransactions=transactions.filter(transaction=>{if(!transaction.bookedAt)return false;const date=new Date(transaction.bookedAt),previous=new Date(year,month-1,1);return date.getMonth()===previous.getMonth()&&date.getFullYear()===previous.getFullYear()});
