@@ -7,7 +7,8 @@ import {
   Search, Settings, ShoppingBag, Sparkles, Sun, Target, Trash2,
   Upload, Utensils, WalletCards, X, PieChart, HandCoins, Repeat2,
   ShoppingCart, Coffee, Bus, House, HeartPulse, Gamepad2, Car, Fuel,
-  Shirt, Plane, Dumbbell, Wifi, GraduationCap, Gift, PawPrint, Smartphone, Wallet
+  Shirt, Plane, Dumbbell, Wifi, GraduationCap, Gift, PawPrint, Smartphone, Wallet,
+  Music, BookOpen, Baby, Palette, Bike, Train, Stethoscope, Cat
 } from "lucide-react";
 import {PasskeyButton} from "./components/passkey-button";
 const APP_VERSION = "2026.08.05-8";
@@ -15,8 +16,9 @@ const APP_VERSION = "2026.08.05-8";
 // Фиксированный набор иконок для лимитов — вынесен в конфиг, чтобы можно было
 // расширять без правки логики компонентов.
 const BUDGET_ICONS: Record<string, React.ComponentType<{size?:number}>> = {
-  CircleDollarSign, ShoppingCart, Coffee, Bus, Car, Fuel, House, HeartPulse,
+  CircleDollarSign, ShoppingCart, ShoppingBag, Coffee, Bus, Car, Fuel, House, HeartPulse,
   Gamepad2, Shirt, Plane, Dumbbell, Wifi, GraduationCap, Gift, PawPrint, Smartphone, Wallet, Utensils,
+  Sparkles, Music, BookOpen, Baby, Palette, Bike, Train, Stethoscope, Cat,
 };
 const BUDGET_ICON_NAMES = Object.keys(BUDGET_ICONS);
 function BudgetIcon({name, size}: {name?: string; size?: number}) {
@@ -1011,7 +1013,26 @@ function BudgetModal({categories,period,initialDate,baseCurrency,submit,close}:{
     <button className="primary">Зберегти ліміт</button>
   </form></div>;
 }
-function CategoryModal({submit,close}:{submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}) { return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal" onSubmit={submit} onMouseDown={e=>e.stopPropagation()}><ModalHead label="Персоналізація" title="Нова категорія" close={close}/><label>Назва<input name="name" required placeholder="Домашні улюбленці"/></label><div className="form-two"><label>Тип<select name="kind"><option value="expense">Витрата</option><option value="income">Дохід</option></select></label><label>Lucide-іконка<select name="icon"><option>CircleDollarSign</option><option>ShoppingBag</option><option>Utensils</option><option>Car</option><option>House</option><option>HeartPulse</option><option>Sparkles</option></select></label></div><label>Колір<input name="color" type="color" defaultValue="#6558e8"/></label><button className="primary">Створити категорію</button></form></div>; }
+function CategoryModal({submit,close}:{submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}) {
+  const [icon,setIcon]=useState(BUDGET_ICON_NAMES[0]);
+  const [color,setColor]=useState(BUDGET_COLORS[0]);
+  return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal" onSubmit={submit} onMouseDown={e=>e.stopPropagation()}>
+    <ModalHead label="Персоналізація" title="Нова категорія" close={close}/>
+    <label>Назва<input name="name" required placeholder="Домашні улюбленці"/></label>
+    <label>Тип<select name="kind"><option value="expense">Витрата</option><option value="income">Дохід</option></select></label>
+    <input type="hidden" name="icon" value={icon}/>
+    <input type="hidden" name="color" value={color}/>
+    <label>Іконка</label>
+    <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+      {BUDGET_ICON_NAMES.map(name=><button key={name} type="button" onClick={()=>setIcon(name)} style={{width:"34px",height:"34px",borderRadius:"10px",border:icon===name?"2px solid var(--purple)":"1px solid var(--line)",background:icon===name?"color-mix(in srgb,var(--purple) 10%,var(--panel))":"var(--panel)",display:"grid",placeItems:"center",color:icon===name?"var(--purple)":"var(--muted)",cursor:"pointer"}}><BudgetIcon name={name} size={15}/></button>)}
+    </div>
+    <label>Колір</label>
+    <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
+      {BUDGET_COLORS.map(hex=><button key={hex} type="button" onClick={()=>setColor(hex)} style={{width:"30px",height:"30px",borderRadius:"50%",background:hex,border:color===hex?"2px solid var(--text)":"2px solid transparent",display:"grid",placeItems:"center",cursor:"pointer"}}>{color===hex&&<Check size={14} color="#fff"/>}</button>)}
+    </div>
+    <button className="primary">Створити категорію</button>
+  </form></div>;
+}
 function InviteModal({submit,close}:{submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}) { return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal" onSubmit={submit} onMouseDown={e=>e.stopPropagation()}><ModalHead label="Спільне планування" title="Запросити учасника" close={close}/><label>Email або username<input name="identifier" required placeholder="partner@example.example.com або @partner"/></label><label>Роль<select name="role"><option value="member">Учасник — може редагувати фінанси</option><option value="viewer">Глядач — лише перегляд</option><option value="admin">Адміністратор — може запрошувати</option></select></label><div className="form-message success">Email-запрошення буде надіслано автоматически. Одноразове посилання также діятиме 7 днів и скопіюється в буфер.</div><button className="primary">Надіслати запрошення</button></form></div>; }
 function CustomRateModal({submit,close}:{submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}){return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal" onSubmit={submit} onMouseDown={event=>event.stopPropagation()}><ModalHead label="Готівковий або власний курс" title="Додати курс валюти" close={close}/><div className="form-two"><label>Валюта<select name="currency"><option>USD</option><option>EUR</option><option>GBP</option><option>PLN</option></select></label><label>Курс до UAH<input name="rate" type="number" min=".000001" step=".000001" required/></label></div><label>Дата<input name="date" type="date" defaultValue={new Date().toISOString().slice(0,10)} required/></label><button className="primary">Зберегти власний курс</button></form></div>}
 function ModalHead({label,title,close}:{label:string;title:string;close:()=>void}) { return <div className="modal-head"><div><span className="eyebrow">{label}</span><h2>{title}</h2></div><button type="button" onClick={close}><X/></button></div>; }
