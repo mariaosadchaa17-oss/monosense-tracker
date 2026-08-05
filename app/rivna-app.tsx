@@ -752,7 +752,7 @@ function LiveBudgetView({
               <div key={b.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative group">
                 <div className="flex justify-between items-start mb-3">
                   <div>
-                    <h3 className="font-semibold text-slate-800">{b.categoryName || b.categoryId}</h3>
+                    <h3 className="font-semibold text-slate-800">{b.name}</h3>
                     <p className="text-xs text-slate-400">
                       Витрачено: {spent.toLocaleString()} {baseCurrency} з {limit.toLocaleString()} {baseCurrency}
                     </p>
