@@ -704,14 +704,15 @@ function LiveBudgetView({
   remove: (id: string) => void;
 }) {
   const { periodStart, periodEnd } = budgetPeriodBounds(periodType, anchor);
+  const isCurrent = new Date() >= periodStart && new Date() < periodEnd;
   const currentMonthKey = `${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, "0")}`;
 
   type DisplayBudget = BudgetItem & { sourceIds: string[] };
 
   const periodTransactions = transactions.filter((t) => {
-    if (!t.bookedAt) return false;
-    const transactionDate = new Date(t.bookedAt);
-    return transactionDate >= periodStart && transactionDate < periodEnd;
+    if (!t.bookedAt) return isCurrent;
+    const date = new Date(t.bookedAt);
+    return date >= periodStart && date < periodEnd;
   });
 
   const periodBudgets = budgets.filter((b) => {
@@ -720,10 +721,9 @@ function LiveBudgetView({
       const budgetDate = new Date(`${b.month}T00:00:00`);
       return budgetDate >= periodStart && budgetDate < periodEnd;
     }
-
     const budgetDate = new Date(`${b.month}T00:00:00`);
     return (
-      (b.period === "month" && b.month === currentMonthKey) ||
+      (b.period === "month" && b.month === `${currentMonthKey}-01`) ||
       (b.period === "week" && budgetDate >= periodStart && budgetDate < periodEnd)
     );
   });
@@ -734,12 +734,7 @@ function LiveBudgetView({
           periodBudgets.reduce<Record<string, DisplayBudget>>((map, budget) => {
             const key = `${budget.categoryId || budget.name}::${budget.name}`;
             if (!map[key]) {
-              map[key] = {
-                ...budget,
-                id: `agg-${currentMonthKey}-${budget.categoryId || budget.name}`,
-                period: "month",
-                sourceIds: [budget.id],
-              };
+              map[key] = { ...budget, id: `agg-${currentMonthKey}-${budget.categoryId || budget.name}`, period: "month", sourceIds: [budget.id] };
               map[key].limit = 0;
             } else {
               map[key].sourceIds.push(budget.id);
@@ -750,132 +745,79 @@ function LiveBudgetView({
         )
       : periodBudgets.map((budget) => ({ ...budget, sourceIds: [budget.id] }));
 
-  const periodLabel =
-    periodType === "month"
-      ? `Поточний місяць: ${new Intl.DateTimeFormat("uk-UA", { month: "long", year: "numeric" }).format(periodStart)}`
-      : `Поточний тиждень: ${periodStart.toLocaleDateString("uk-UA")} – ${new Date(periodEnd.getTime() - 1).toLocaleDateString("uk-UA")}`;
+  const spentBy = periodTransactions
+    .filter((t) => t.amount < 0 && t.kind !== "transfer" && t.kind !== "exchange")
+    .reduce<Record<string, number>>((sum, t) => {
+      sum[t.category] = (sum[t.category] || 0) + Math.abs(t.baseAmount ?? t.amount);
+      return sum;
+    }, {});
 
-  const movePeriod = (direction: number) => {
-    const next = new Date(periodStart);
-    if (periodType === "week") {
-      next.setDate(next.getDate() + direction * 7);
-    } else {
-      next.setMonth(next.getMonth() + direction);
-    }
-    setAnchor(next.toISOString().slice(0, 10));
+  const plan = activeBudgets.reduce((sum, b) => sum + b.limit, 0);
+  const spent = Object.values(spentBy).reduce((sum, v) => sum + v, 0);
+  const totalDays = Math.round((periodEnd.getTime() - periodStart.getTime()) / 86400000);
+  const elapsedDays = isCurrent ? Math.min(totalDays, Math.floor((Date.now() - periodStart.getTime()) / 86400000) + 1) : totalDays;
+  const forecast = Math.round((spent / Math.max(1, elapsedDays)) * totalDays);
+  const periodLabel = periodType === "week" ? "тиждень" : "місяць";
+  const planLabel = periodType === "week" ? "Тижневий план" : "Місячний план";
+  const symbol = currencySymbol(baseCurrency);
+  const periodEndInclusive = new Date(periodEnd.getTime() - 86400000);
+  const rangeLabel =
+    periodType === "week"
+      ? `${periodStart.getDate()} – ${periodEndInclusive.getDate()} ${new Intl.DateTimeFormat("uk-UA", { month: "long" }).format(periodStart)} ${periodStart.getFullYear()}`
+      : new Intl.DateTimeFormat("uk-UA", { month: "long", year: "numeric" }).format(periodStart);
+
+  const goNext = () => setAnchor(toDateKey(periodEnd));
+  const goPrev = () => {
+    const d = new Date(periodStart);
+    d.setDate(d.getDate() - 1);
+    setAnchor(toDateKey(d));
   };
+  const goToday = () => setAnchor(toDateKey(new Date()));
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">Бюджети за категоріями</h2>
-          <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-slate-500">
-            <button
-              type="button"
-              onClick={() => movePeriod(-1)}
-              className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"
-              aria-label="Попередній період"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </button>
-            <span>{periodLabel}</span>
-            <button
-              type="button"
-              onClick={() => movePeriod(1)}
-              className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"
-              aria-label="Наступний період"
-            >
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
+    <>
+      <div className="period-note">
+        <div className="period-toggle">
+          <button type="button" className={periodType === "month" ? "active" : ""} onClick={() => { setPeriodType("month"); goToday(); }}>Місяць</button>
+          <button type="button" className={periodType === "week" ? "active" : ""} onClick={() => { setPeriodType("week"); goToday(); }}>Тиждень</button>
         </div>
-
-        <div className="flex items-center gap-3">
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl">
-            <button
-              onClick={() => setPeriodType("month")}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
-                periodType === "month" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              Місяць
-            </button>
-            <button
-              onClick={() => setPeriodType("week")}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition ${
-                periodType === "week" ? "bg-white text-slate-800 shadow-sm" : "text-slate-500 hover:text-slate-800"
-              }`}
-            >
-              Тиждень
-            </button>
-          </div>
-
-          <button
-            onClick={add}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-sm transition"
-          >
-            <Plus className="w-4 h-4" /> Додати ліміт
-          </button>
+        <div className="period-label">{rangeLabel}{isCurrent && <em className="period-current">поточний</em>}</div>
+        <div className="period-nav-row">
+          <button type="button" className="period-nav-btn" onClick={goPrev}>← Назад</button>
+          {!isCurrent && <button type="button" className="period-nav-btn today" onClick={goToday}>Сьогодні</button>}
+          <button type="button" className="period-nav-btn" onClick={goNext}>Вперед →</button>
         </div>
       </div>
-
-      {activeBudgets.length === 0 ? (
-        <div className="bg-white rounded-2xl p-8 text-center border border-slate-100 shadow-sm">
-          <p className="text-slate-400 text-sm">У цьому періоді немає бюджетів. Натисніть «Додати ліміт», щоб створити перший.</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {activeBudgets.map((b) => {
-            const spent = periodTransactions
-              .filter((t) => t.category === b.name && t.amount < 0)
-              .reduce((sum, t) => sum + Math.abs(t.amount), 0);
-            const limit = b.limit ?? 0;
-            const percent = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
-            const isOver = spent > limit;
-
+      <div className="metric-grid">
+        <article className="metric"><small>{planLabel}</small><strong>{symbol} {formatMoney(plan)}</strong><span>{plan ? Math.round((spent / plan) * 100) : 0}% використано</span></article>
+        <article className="metric"><small>Прогноз витрат</small><strong>{symbol} {formatMoney(forecast)}</strong><span className={plan && forecast > plan ? "negative" : "positive"}>{!plan ? "Додайте перший ліміт" : forecast > plan ? "Можливий перерозхід" : "У межах плану"}</span></article>
+        <article className="metric"><small>Очікувана економія</small><strong>{symbol} {formatMoney(Math.max(0, plan - forecast))}</strong><span>За поточного темпу</span></article>
+      </div>
+      <section className="panel full-view">
+        <div className="section-title"><div><h2>Ліміти за категоріями</h2><p>{isCurrent ? `Поточний ${periodLabel}` : rangeLabel}</p></div><button className="small-primary" onClick={add}><Plus /> Додати ліміт</button></div>
+        {activeBudgets.length ? (
+          <div className="large-budget"><div className="budget-list">{activeBudgets.map((budget) => {
+            const used = spentBy[budget.name] || 0;
+            const percent = Math.round((used / budget.limit) * 100);
             return (
-              <div key={b.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm relative group">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <h3 className="font-semibold text-slate-800">{b.name}</h3>
-                    <p className="text-xs text-slate-400">
-                      Витрачено: {spent.toLocaleString()} {baseCurrency} з {limit.toLocaleString()} {baseCurrency}
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      if (!confirm("Видалити цей ліміт?")) return;
-                      b.sourceIds.forEach((id) => remove(id));
-                    }}
-                    className="text-slate-400 hover:text-rose-600 p-2 rounded-lg hover:bg-rose-50 transition flex items-center gap-2"
-                    title="Видалити ліміт"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    <span>Видалити</span>
-                  </button>
+              <div className="budget-item" key={budget.id}>
+                <span className="budget-icon" style={{ color: budget.color, background: `${budget.color}15` }}><BudgetIcon name={budget.icon} /></span>
+                <div>
+                  <div><strong>{budget.name}</strong><small>{symbol} {formatMoney(used)} / {formatMoney(budget.limit)} · {percent}%{budget.sourceIds.length > 1 ? ` · ${budget.sourceIds.length} тиж.` : ""}</small></div>
+                  <span><i style={{ width: `${Math.min(100, percent)}%`, background: percent >= 100 ? "#e05252" : percent >= 80 ? "#f4b740" : budget.color }} /></span>
                 </div>
-
-                <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mb-2">
-                  <div
-                    className={`h-full transition-all duration-300 ${isOver ? "bg-rose-500" : "bg-emerald-500"}`}
-                    style={{ width: `${percent}%` }}
-                  />
-                </div>
-
-                <div className="flex justify-between items-center text-xs font-medium">
-                  <span className={isOver ? "text-rose-600 font-semibold" : "text-slate-500"}>
-                    {isOver ? `Перевищення на ${(spent - limit).toLocaleString()} ${baseCurrency}` : `${100 - percent}% залишилось`}
-                  </span>
-                  <span className="text-slate-400">{percent}%</span>
-                </div>
+                <button className="icon-button danger" onClick={() => { if (window.confirm("Видалити цей ліміт?")) budget.sourceIds.forEach((id) => remove(id)); }} aria-label="Видалити ліміт"><Trash2 /></button>
               </div>
             );
-          })}
-        </div>
-      )}
-    </div>
+          })}</div></div>
+        ) : (
+          <p className="empty-inline">Лімітів на цей {periodLabel} ще немає.</p>
+        )}
+        {activeBudgets.some((budget) => (spentBy[budget.name] || 0) / budget.limit >= 0.8) && (
+          <div className="alert-card"><Bell /><div><strong>Наближення до ліміту</strong><p>Одна або кілька категорій використані більш ніж на 80%.</p></div></div>
+        )}
+      </section>
+    </>
   );
 }
 function AccountsView({accounts,rates,customRates,add,edit,addRate,transfer,remove}:{accounts:Account[];rates:{currency:string;rate:number;date:string}[];customRates:{currency:string;rate:number;date:string}[];add:()=>void;edit:(account:Account)=>void;addRate:()=>void;transfer:()=>void;remove:(id:number|string)=>void}) { const visible=rates.filter(r=>["USD","EUR"].includes(r.currency)); return <section className="panel full-view"><div className="section-title"><div><h2>Усі рахунки</h2><p>UAH, USD та інші валюти</p></div><div className="title-actions"><button className="secondary" onClick={transfer}><ArrowRight/> Переказ / обмін</button><button className="small-primary" onClick={add}><Plus/> Новий рахунок</button></div></div><div className="accounts-grid">{accounts.map(a=><div className="account-wrap" key={a.id}><AccountCard account={a}/><div className="account-actions"><button className="remove-account edit-account" onClick={()=>edit(a)}><Settings/> Редагувати</button><button className="remove-account" onClick={()=>remove(a.id)}><Trash2/> Видалити</button></div></div>)}</div><div className="rate-card"><Landmark/><div><strong>Офіційний курс НБУ</strong><p>{visible.length ? visible.map(r=>`${r.currency} ${r.rate.toFixed(4)}`).join(" · ") : "Оновлення курсів…"}{customRates.length?` · Власний: ${customRates.slice(0,3).map(r=>`${r.currency} ${r.rate}`).join(", ")}`:""}</p></div><button className="secondary" onClick={addRate}>Власний курс</button></div></section>; }
