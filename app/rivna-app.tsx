@@ -742,7 +742,7 @@ function LiveBudgetView({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {budgets.map((b) => {
             const spent = transactions
-  .filter(t => t.categoryId === b.categoryId && t.amount < 0)
+  .filter(t => t.category === b.name && t.amount < 0)
   .reduce((sum, t) => sum + Math.abs(t.amount), 0);
             const limit = b.limit ?? 0;
             const percent = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
