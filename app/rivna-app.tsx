@@ -336,16 +336,19 @@ async function addTransfer(e:React.SyntheticEvent<HTMLFormElement>){
       const base=new Date(`${raw}T00:00:00`);
       const year=base.getFullYear(),month=base.getMonth();
       const daysInMonth=new Date(year,month+1,0).getDate();
-      const weeks:string[]=[];
+      const dailyRate=Number(f.get("limit"))/7;
+      const weeks:{date:string;limit:number}[]=[];
       for(let day=1;day<=daysInMonth;day+=7){
-        weeks.push(new Date(year,month,day).toISOString().slice(0,10));
+        const weekDays=Math.min(7,daysInMonth-day+1);
+        const weekLimit=Math.round(dailyRate*weekDays*100)/100;
+        weeks.push({date:new Date(year,month,day).toISOString().slice(0,10),limit:weekLimit});
       }
       let failed=false;
       for(const week of weeks){
-        const response=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"createBudget",categoryId:f.get("category"),month:week,periodType:"week",limitAmount:Number(f.get("limit")),currency:baseCurrency,icon:String(f.get("icon")||"CircleDollarSign"),color:String(f.get("color")||"#6558e8")})});
+        const response=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"createBudget",categoryId:f.get("category"),month:week.date,periodType:"week",limitAmount:week.limit,currency:baseCurrency,icon:String(f.get("icon")||"CircleDollarSign"),color:String(f.get("color")||"#6558e8")})});
         if(!response.ok)failed=true;
       }
-      notify(failed?"Частину лімітів не вдалося зберегти":`Ліміт застосовано на ${weeks.length} тижнів`);
+      notify(failed?"Частину лімітів не вдалося зберегти":`Ліміт застосовано на ${weeks.length} тижнів (з урахуванням довжини кожного)`);
       await refreshFinance();
       if(!failed)setModal(null);
       return;
