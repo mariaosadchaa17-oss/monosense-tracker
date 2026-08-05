@@ -72,6 +72,7 @@ export async function POST(request: Request) {
     if (error) console.error("transfer lookup error", column, error.message);
     return data?.[0]?.id as string | undefined;
   };
+
   const linkedTransferId =
     (await search("from_transaction_id", true)) ||
     (await search("to_transaction_id", true)) ||
