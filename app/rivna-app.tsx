@@ -758,7 +758,6 @@ function LiveBudgetView({
                     </p>
                   </div>
 
-                  {/* КНОПКА ВИДАЛЕННЯ */}
                   <button
                     onClick={() => {
                       if (confirm("Видалити цей ліміт?")) {
