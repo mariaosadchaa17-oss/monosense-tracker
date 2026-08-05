@@ -10,7 +10,7 @@ import {
   Shirt, Plane, Dumbbell, Wifi, GraduationCap, Gift, PawPrint, Smartphone, Wallet
 } from "lucide-react";
 import {PasskeyButton} from "./components/passkey-button";
-const APP_VERSION = "2026.08.05-1";
+const APP_VERSION = "2026.08.05-2";
 
 // Фиксированный набор иконок для лимитов — вынесен в конфиг, чтобы можно было
 // расширять без правки логики компонентов.
@@ -34,7 +34,7 @@ type Account = { id: number | string; name: string; bank: string; owner: string;
 type GoalItem = {id:string;name:string;target:number;current:number;currency:string;date?:string;color:string};
 type DebtItem = {id:string;person:string;direction:"owed_to_me"|"i_owe";amount:number;currency:string;due?:string;note?:string;isVirtual?:boolean;accountId?:string};
 type RecurringItem = {id:string;name:string;amount:number;currency:string;frequency:string;next:string;auto:boolean};
-type CategoryItem = {id:string;name:string;kind:string;color:string;icon:string};
+type CategoryItem = {id:string;name:string;kind:string;color:string;icon:string;isDefault?:boolean};
 type BudgetItem = {id:string;categoryId:string;name:string;icon:string;limit:number;currency:string;month:string;period:"month"|"week";color:string};
 type AuditItem = {id:string;entity:string;action:string;created:string;actor?:string};
 
@@ -164,7 +164,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       setDebts((data.debts||[]).map((item:Record<string,unknown>)=>({id:String(item.id),person:String(item.person),direction:item.direction==="i_owe"?"i_owe":"owed_to_me",amount:Number(item.amount),currency:String(item.currency),due:item.due_date?String(item.due_date):undefined,note:String(item.note||"")})));
       setRecurring((data.recurring||[]).map((item:Record<string,unknown>)=>({id:String(item.id),name:String(item.name),amount:Number(item.amount),currency:String(item.currency),frequency:String(item.frequency),next:String(item.next_run_at),auto:Boolean(item.auto_create)})));
       setTransfers((data.transfers||[]).map((item:Record<string,unknown>)=>({id:String(item.id),fromTransactionId:item.from_transaction_id?String(item.from_transaction_id):null,toTransactionId:item.to_transaction_id?String(item.to_transaction_id):null})));
-      setCategories((data.categories||[]).map((item:Record<string,unknown>)=>({id:String(item.id),name:String(item.name),kind:String(item.kind),color:String(item.color||"#6558E8"),icon:String(item.icon||"CircleDollarSign")})));
+      setCategories((data.categories||[]).map((item:Record<string,unknown>)=>({id:String(item.id),name:String(item.name),kind:String(item.kind),color:String(item.color||"#6558E8"),icon:String(item.icon||"CircleDollarSign"),isDefault:Boolean(item.is_default)})));
       setSavedBudgets((data.budgets||[]).map((item:Record<string,unknown>)=>({id:String(item.id),categoryId:String(item.category_id),name:String((item.categories as {name?:string}|null)?.name||"Категорія"),icon:String(item.icon||(item.categories as {icon?:string}|null)?.icon||"CircleDollarSign"),limit:Number(item.limit_amount),currency:String(item.currency),month:String(item.month),period:item.period_type==="week"?"week":"month",color:String(item.color||(item.categories as {color?:string}|null)?.color||"#6558E8")})));
       setPlanningPeriod(data.planningPeriod==="week"?"week":"month");
       setBaseCurrency(String(data.baseCurrency||"UAH"));
@@ -611,7 +611,7 @@ function ExpenseModal({amount,setAmount,note,setNote,accounts,categories,submit,
   const [type,setType]=useState<"expense"|"income">("expense"),[accountId,setAccountId]=useState(String(accounts[0]?.id||"")),[categoryId,setCategoryId]=useState("");
   const account=accounts.find(item=>String(item.id)===accountId)||accounts[0];
   const accountOptions=accounts.map(item=>({value:String(item.id),label:`${item.name} · ${item.currency}`}));
-  const categoryOptions=[{value:"",label:"Без категорії"},...categories.filter(category=>category.kind===type).map(category=>({value:category.id,label:category.name}))];
+  const categoryOptions=[{value:"",label:"Без категорії"},...categories.filter(category=>category.kind===type&&!category.isDefault).map(category=>({value:category.id,label:category.name}))];
   function changeType(next:"expense"|"income"){setType(next);setCategoryId("")}
   return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal tall-modal" onSubmit={submit} onMouseDown={event=>event.stopPropagation()}>
     <ModalHead label="Деталізація операції" title={type==="income"?"Новий дохід":"Нова витрата"} close={close}/>
