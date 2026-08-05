@@ -65,24 +65,16 @@ export async function POST(request: Request) {
       });
       break;
     case "deleteTransaction": {
-      const [fromMatch, toMatch] = await Promise.all([
-        supabase.from("transfers").select("id").eq("household_id", householdId).eq("from_transaction_id", body.id).maybeSingle(),
-        supabase.from("transfers").select("id").eq("household_id", householdId).eq("to_transaction_id", body.id).maybeSingle(),
-      ]);
-      const linkedTransfer = fromMatch.data || toMatch.data;
-      result = linkedTransfer
-        ? await supabase.rpc("delete_account_transfer", { p_transfer_id: linkedTransfer.id })
-        : await supabase.rpc("delete_finance_transaction", { p_transaction_id: body.id });
-      if (result.error && /linked transfer/i.test(result.error.message || "")) {
-        const [fromRetry, toRetry] = await Promise.all([
-          supabase.from("transfers").select("id").eq("from_transaction_id", body.id).maybeSingle(),
-          supabase.from("transfers").select("id").eq("to_transaction_id", body.id).maybeSingle(),
-        ]);
-        const retryTransfer = fromRetry.data || toRetry.data;
-        if (retryTransfer) result = await supabase.rpc("delete_account_transfer", { p_transfer_id: retryTransfer.id });
-      }
-      break;
-    }
+  const [fromMatch, toMatch] = await Promise.all([
+    supabase.from("transfers").select("id").eq("from_transaction_id", body.id).maybeSingle(),
+    supabase.from("transfers").select("id").eq("to_transaction_id", body.id).maybeSingle(),
+  ]);
+  const linkedTransfer = fromMatch.data || toMatch.data;
+  result = linkedTransfer
+    ? await supabase.rpc("delete_account_transfer", { p_transfer_id: linkedTransfer.id })
+    : await supabase.rpc("delete_finance_transaction", { p_transaction_id: body.id });
+  break;
+}
     case "deleteTransfer":
       result = await supabase.rpc("delete_account_transfer", { p_transfer_id: body.id });
       break;
