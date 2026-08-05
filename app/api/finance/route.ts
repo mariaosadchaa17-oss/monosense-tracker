@@ -13,7 +13,7 @@ export async function GET() {
     supabase.from("goals").select("*").eq("household_id", householdId).order("created_at"),
     supabase.from("debts").select("*").eq("household_id", householdId).eq("settled", false),
     supabase.from("recurring_rules").select("*").eq("household_id", householdId).eq("active", true),
-    supabase.from("transfers").select("*").eq("household_id", householdId).order("booked_at", { ascending: false }).limit(100),
+    supabase.from("transfers").select("*").eq("household_id", householdId).order("booked_at", { ascending: false }).limit(500),
     supabase.from("audit_logs").select("*").eq("household_id",householdId).order("created_at",{ascending:false}).limit(100),
     supabase.from("exchange_rates").select("*").eq("household_id",householdId).order("rate_date",{ascending:false}).limit(20),
     supabase.from("profiles").select("planning_period,base_currency").eq("id",context.user.id).single(),
@@ -65,6 +65,7 @@ export async function POST(request: Request) {
       });
       break;
     case "deleteTransaction": {
+<<<<<<< HEAD
   const search = async (column: string, scopeHousehold: boolean) => {
     let query = supabase.from("transfers").select("id").eq(column, body.id).limit(1);
     if (scopeHousehold) query = query.eq("household_id", householdId);
@@ -82,6 +83,37 @@ export async function POST(request: Request) {
     : await supabase.rpc("delete_finance_transaction", { p_transaction_id: body.id });
   break;
 }
+=======
+      const [fromMatch, toMatch] = await Promise.all([
+        supabase.from("transfers").select("id").eq("household_id", householdId).eq("from_transaction_id", body.id).maybeSingle(),
+        supabase.from("transfers").select("id").eq("household_id", householdId).eq("to_transaction_id", body.id).maybeSingle(),
+      ]);
+      const linkedTransfer = fromMatch.data || toMatch.data;
+      result = linkedTransfer
+        ? await supabase.rpc("delete_account_transfer", { p_transfer_id: linkedTransfer.id })
+        : await supabase.rpc("delete_finance_transaction", { p_transaction_id: body.id });
+      if (result.error && /linked transfer/i.test(result.error.message || "")) {
+        const [fromRetry, toRetry] = await Promise.all([
+          supabase.from("transfers").select("id").eq("from_transaction_id", body.id).maybeSingle(),
+          supabase.from("transfers").select("id").eq("to_transaction_id", body.id).maybeSingle(),
+        ]);
+        const retryTransfer = fromRetry.data || toRetry.data;
+        if (retryTransfer) result = await supabase.rpc("delete_account_transfer", { p_transfer_id: retryTransfer.id });
+      }
+      break;
+    }
+    case "deleteTransfer":
+      result = await supabase.rpc("delete_account_transfer", { p_transfer_id: body.id });
+      break;
+    case "createTransfer":
+      result = await supabase.rpc("create_account_transfer", {
+        p_from_account_id: body.fromAccountId, p_to_account_id: body.toAccountId,
+        p_sent_amount: Number(body.sentAmount), p_received_amount: Number(body.receivedAmount),
+        p_exchange_rate: Number(body.exchangeRate) || 1, p_fee_amount: Number(body.feeAmount) || 0,
+        p_fee_currency: body.feeCurrency || null, p_note: String(body.note || "").slice(0, 500),
+      });
+      break;
+>>>>>>> 5b4c94d8aea491c06eaa4b2a210477059343e9ca
     case "createBudget":
       result = await supabase.from("budgets").upsert({
         household_id: householdId, category_id: body.categoryId, month: body.month,
