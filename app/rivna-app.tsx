@@ -140,15 +140,25 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
         color:item.card_color?String(item.card_color):undefined,
         creditLimit:Number(item.credit_limit)||0,graceEnd:item.grace_period_end?String(item.grace_period_end):undefined,
       })));
-      setTransactions((data.transactions || []).map((item: Record<string, unknown>) => ({
-        id: String(item.id), title: String(item.note || (item.type === "income" ? "Дохід" : "Витрата")),
+      const transferDirection: Record<string, "in" | "out"> = {};
+      (data.transfers || []).forEach((tr: Record<string, unknown>) => {
+        if (tr.from_transaction_id) transferDirection[String(tr.from_transaction_id)] = "out";
+        if (tr.to_transaction_id) transferDirection[String(tr.to_transaction_id)] = "in";
+      });
+      setTransactions((data.transactions || []).map((item: Record<string, unknown>) => {
+        const id = String(item.id);
+        const isTransferLeg = item.type === "transfer" || item.type === "exchange";
+        const direction = transferDirection[id];
+        const isIncomeLike = item.type === "income" || (isTransferLeg && direction === "in");
+        return {
+        id, title: String(item.note || (isTransferLeg ? (direction==="in"?"Поповнення переказом":"Переказ") : (item.type === "income" ? "Дохід" : "Витрата"))),
         category:String((item.categories as {name?:string}|null)?.name||"Без категорії"),categoryIcon:String((item.categories as {icon?:string}|null)?.icon||"CircleDollarSign"),
         date: new Intl.DateTimeFormat("uk-UA", { dateStyle: "medium", timeStyle: "short" }).format(new Date(String(item.booked_at))),
         bookedAt:String(item.booked_at),account:String((item.accounts as {name?:string}|null)?.name||""),
         owner:String((item.accounts as {owner_label?:string}|null)?.owner_label||""),
         tags:((item.transaction_tags as {tags?:{name?:string}|null}[]|null)||[]).map(link=>String(link.tags?.name||"")).filter(Boolean),
-        amount:Number(item.amount)*(item.type==="income"?1:-1),currency:String(item.currency||"UAH"),impulse:Boolean(item.is_impulsive),kind:String(item.type||"expense"),
-      })));
+        amount:Number(item.amount)*(isIncomeLike?1:-1),currency:String(item.currency||"UAH"),impulse:Boolean(item.is_impulsive),kind:String(item.type||"expense"),
+      };}));
       setGoals((data.goals||[]).map((item:Record<string,unknown>)=>({id:String(item.id),name:String(item.name),target:Number(item.target_amount),current:Number(item.current_amount),currency:String(item.currency),date:item.target_date?String(item.target_date):undefined,color:String(item.color||"#6558E8")})));
       setDebts((data.debts||[]).map((item:Record<string,unknown>)=>({id:String(item.id),person:String(item.person),direction:item.direction==="i_owe"?"i_owe":"owed_to_me",amount:Number(item.amount),currency:String(item.currency),due:item.due_date?String(item.due_date):undefined,note:String(item.note||"")})));
       setRecurring((data.recurring||[]).map((item:Record<string,unknown>)=>({id:String(item.id),name:String(item.name),amount:Number(item.amount),currency:String(item.currency),frequency:String(item.frequency),next:String(item.next_run_at),auto:Boolean(item.auto_create)})));
