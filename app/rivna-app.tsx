@@ -760,17 +760,18 @@ function LiveBudgetView({
 
                   {/* КНОПКА ВИДАЛЕННЯ */}
                   <button
-    onClick={() => {
-      if (confirm("Видалити цей ліміт?")) {
-        remove(b.id);
-      }
-    }}
-    className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition"
-    title="Видалити ліміт"
-  >
-    <Trash2 className="w-4 h-4" />
-  </button>
-</div>
+                    onClick={() => {
+                      if (confirm("Видалити цей ліміт?")) {
+                        remove(b.id);
+                      }
+                    }}
+                    className="text-slate-400 hover:text-rose-600 p-2 rounded-lg hover:bg-rose-50 transition flex items-center gap-2"
+                    title="Видалити ліміт"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Видалити</span>
+                  </button>
+                </div>
 
                 <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mb-2">
                   <div
