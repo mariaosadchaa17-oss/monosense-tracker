@@ -728,22 +728,28 @@ function LiveBudgetView({
     );
   });
 
-  const activeBudgets: DisplayBudget[] =
-    periodType === "month"
-      ? Object.values(
-          periodBudgets.reduce<Record<string, DisplayBudget>>((map, budget) => {
-            const key = `${budget.categoryId || budget.name}::${budget.name}`;
-            if (!map[key]) {
-              map[key] = { ...budget, id: `agg-${currentMonthKey}-${budget.categoryId || budget.name}`, period: "month", sourceIds: [budget.id] };
-              map[key].limit = 0;
-            } else {
-              map[key].sourceIds.push(budget.id);
-            }
-            map[key].limit += budget.limit;
-            return map;
-          }, {}),
-        )
-      : periodBudgets.map((budget) => ({ ...budget, sourceIds: [budget.id] }));
+  const activeBudgets: DisplayBudget[] = (() => {
+    if (periodType !== "month") return periodBudgets.map((budget) => ({ ...budget, sourceIds: [budget.id] }));
+    const realMonthBudgets = periodBudgets.filter((b) => b.period === "month");
+    const coveredCategories = new Set(realMonthBudgets.map((b) => b.categoryId || b.name));
+    const weekBudgetsToAggregate = periodBudgets.filter(
+      (b) => b.period === "week" && !coveredCategories.has(b.categoryId || b.name),
+    );
+    const aggregated = Object.values(
+      weekBudgetsToAggregate.reduce<Record<string, DisplayBudget>>((map, budget) => {
+        const key = budget.categoryId || budget.name;
+        if (!map[key]) {
+          map[key] = { ...budget, id: `agg-${currentMonthKey}-${key}`, period: "month", sourceIds: [budget.id] };
+          map[key].limit = 0;
+        } else {
+          map[key].sourceIds.push(budget.id);
+        }
+        map[key].limit += budget.limit;
+        return map;
+      }, {}),
+    );
+    return [...realMonthBudgets.map((b) => ({ ...b, sourceIds: [b.id] })), ...aggregated];
+  })();
 
   const spentBy = periodTransactions
     .filter((t) => t.amount < 0 && t.kind !== "transfer" && t.kind !== "exchange")
