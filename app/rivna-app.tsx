@@ -245,24 +245,10 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   }
   async function removeTransaction(id: number|string) {
     if (initialLoggedIn) {
-      const doDelete=async(targetId:number|string,action:string)=>{
-        const response=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,id:targetId})});
-        return {ok:response.ok,result:await response.json()};
-      };
-      let linkedTransfer=transfers.find(tr=>tr.fromTransactionId===String(id)||tr.toTransactionId===String(id));
-      let action=linkedTransfer?"deleteTransfer":"deleteTransaction";
-      let targetId:number|string=linkedTransfer?linkedTransfer.id:id;
-      let {ok,result}=await doDelete(targetId,action);
-      if(!ok&&!linkedTransfer&&/linked transfer/i.test(String(result.error||""))){
-        const freshResponse=await fetch("/api/finance",{cache:"no-store"});
-        const freshData=await freshResponse.json();
-        const freshTransfers=((freshData.transfers||[]) as Record<string,unknown>[]).map(item=>({id:String(item.id),fromTransactionId:item.from_transaction_id?String(item.from_transaction_id):null,toTransactionId:item.to_transaction_id?String(item.to_transaction_id):null}));
-        const retryLinked=freshTransfers.find(tr=>tr.fromTransactionId===String(id)||tr.toTransactionId===String(id));
-        if(retryLinked){linkedTransfer=retryLinked;({ok,result}=await doDelete(retryLinked.id,"deleteTransfer"))}
-      }
-      if(!ok)return notify(result.error||"Помилка видалення");
+      const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"deleteTransaction",id})});
+      const result = await response.json(); if(!response.ok)return notify(result.error||"Помилка видалення");
       await refreshFinance();
-      notify(linkedTransfer?"Переказ видалено":"Операцію видалено");
+      notify("Операцію видалено");
       return;
     }
     setTransactions(transactions.filter(t => t.id !== id));
