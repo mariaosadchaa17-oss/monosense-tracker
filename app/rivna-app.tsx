@@ -10,7 +10,7 @@ import {
   Shirt, Plane, Dumbbell, Wifi, GraduationCap, Gift, PawPrint, Smartphone, Wallet
 } from "lucide-react";
 import {PasskeyButton} from "./components/passkey-button";
-const APP_VERSION = "2026.08.05-2";
+const APP_VERSION = "2026.08.05-3";
 
 // Фиксированный набор иконок для лимитов — вынесен в конфиг, чтобы можно было
 // расширять без правки логики компонентов.
