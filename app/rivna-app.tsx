@@ -356,7 +356,12 @@ async function addTransfer(e:React.SyntheticEvent<HTMLFormElement>){
         const response=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"createBudget",categoryId:f.get("category"),month:week.date,periodType:"week",limitAmount:week.limit,currency:baseCurrency,icon:String(f.get("icon")||"CircleDollarSign"),color:String(f.get("color")||"#6558e8")})});
         if(!response.ok)failed=true;
       }
-      notify(failed?"Частину лімітів не вдалося зберегти":`Ліміт застосовано на ${weeks.length} тижнів (з урахуванням довжини кожного)`);
+      if(!failed){
+        const monthTotal=weeks.reduce((sum,week)=>sum+week.limit,0);
+        const monthResponse=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"createBudget",categoryId:f.get("category"),month:`${year}-${String(month+1).padStart(2,"0")}-01`,periodType:"month",limitAmount:Math.round(monthTotal*100)/100,currency:baseCurrency,icon:String(f.get("icon")||"CircleDollarSign"),color:String(f.get("color")||"#6558e8")})});
+        if(!monthResponse.ok)failed=true;
+      }
+      notify(failed?"Частину лімітів не вдалося зберегти":`Ліміт застосовано на ${weeks.length} тижнів, місячний ліміт розраховано автоматично`);
       await refreshFinance();
       if(!failed)setModal(null);
       return;
