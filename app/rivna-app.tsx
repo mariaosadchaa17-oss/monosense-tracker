@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import {
-  ArrowDownLeft, ArrowRight, ArrowUpRight, BarChart3, Bell, Check,
+  ArrowDownLeft, ArrowLeft, ArrowRight, ArrowUpRight, BarChart3, Bell, Check,
   ChevronDown, CircleDollarSign, CreditCard, Download, Eye, EyeOff,
   Fingerprint, Goal, Home, Landmark, Moon, MoreHorizontal, PiggyBank, Plus,
   Search, Settings, ShoppingBag, Sparkles, Sun, Target, Trash2,
@@ -697,12 +697,92 @@ function LiveBudgetView({
   add: () => void;
   remove: (id: string) => void;
 }) {
+  const { periodStart, periodEnd } = budgetPeriodBounds(periodType, anchor);
+  const currentMonthKey = `${periodStart.getFullYear()}-${String(periodStart.getMonth() + 1).padStart(2, "0")}`;
+
+  type DisplayBudget = BudgetItem & { sourceIds: string[] };
+
+  const periodTransactions = transactions.filter((t) => {
+    if (!t.bookedAt) return false;
+    const transactionDate = new Date(t.bookedAt);
+    return transactionDate >= periodStart && transactionDate < periodEnd;
+  });
+
+  const periodBudgets = budgets.filter((b) => {
+    if (periodType === "week") {
+      if (b.period !== "week") return false;
+      const budgetDate = new Date(`${b.month}T00:00:00`);
+      return budgetDate >= periodStart && budgetDate < periodEnd;
+    }
+
+    const budgetDate = new Date(`${b.month}T00:00:00`);
+    return (
+      (b.period === "month" && b.month === currentMonthKey) ||
+      (b.period === "week" && budgetDate >= periodStart && budgetDate < periodEnd)
+    );
+  });
+
+  const activeBudgets: DisplayBudget[] =
+    periodType === "month"
+      ? Object.values(
+          periodBudgets.reduce<Record<string, DisplayBudget>>((map, budget) => {
+            const key = `${budget.categoryId || budget.name}::${budget.name}`;
+            if (!map[key]) {
+              map[key] = {
+                ...budget,
+                id: `agg-${currentMonthKey}-${budget.categoryId || budget.name}`,
+                period: "month",
+                sourceIds: [budget.id],
+              };
+              map[key].limit = 0;
+            } else {
+              map[key].sourceIds.push(budget.id);
+            }
+            map[key].limit += budget.limit;
+            return map;
+          }, {}),
+        )
+      : periodBudgets.map((budget) => ({ ...budget, sourceIds: [budget.id] }));
+
+  const periodLabel =
+    periodType === "month"
+      ? `Поточний місяць: ${new Intl.DateTimeFormat("uk-UA", { month: "long", year: "numeric" }).format(periodStart)}`
+      : `Поточний тиждень: ${periodStart.toLocaleDateString("uk-UA")} – ${new Date(periodEnd.getTime() - 1).toLocaleDateString("uk-UA")}`;
+
+  const movePeriod = (direction: number) => {
+    const next = new Date(periodStart);
+    if (periodType === "week") {
+      next.setDate(next.getDate() + direction * 7);
+    } else {
+      next.setMonth(next.getMonth() + direction);
+    }
+    setAnchor(next.toISOString().slice(0, 10));
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800">Бюджети за категоріями</h2>
-          <p className="text-slate-500 text-sm">Контролюйте витрати та ліміти</p>
+          <div className="flex flex-wrap items-center gap-2 mt-2 text-sm text-slate-500">
+            <button
+              type="button"
+              onClick={() => movePeriod(-1)}
+              className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"
+              aria-label="Попередній період"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <span>{periodLabel}</span>
+            <button
+              type="button"
+              onClick={() => movePeriod(1)}
+              className="rounded-lg border border-slate-200 bg-white p-2 text-slate-600 hover:bg-slate-50"
+              aria-label="Наступний період"
+            >
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
@@ -734,16 +814,16 @@ function LiveBudgetView({
         </div>
       </div>
 
-      {budgets.length === 0 ? (
+      {activeBudgets.length === 0 ? (
         <div className="bg-white rounded-2xl p-8 text-center border border-slate-100 shadow-sm">
-          <p className="text-slate-400 text-sm">Бюджети ще не додані. Натисніть «Додати ліміт», щоб створити перший.</p>
+          <p className="text-slate-400 text-sm">У цьому періоді немає бюджетів. Натисніть «Додати ліміт», щоб створити перший.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {budgets.map((b) => {
-            const spent = transactions
-  .filter(t => t.category === b.name && t.amount < 0)
-  .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+          {activeBudgets.map((b) => {
+            const spent = periodTransactions
+              .filter((t) => t.category === b.name && t.amount < 0)
+              .reduce((sum, t) => sum + Math.abs(t.amount), 0);
             const limit = b.limit ?? 0;
             const percent = limit > 0 ? Math.min(Math.round((spent / limit) * 100), 100) : 0;
             const isOver = spent > limit;
@@ -760,9 +840,8 @@ function LiveBudgetView({
 
                   <button
                     onClick={() => {
-                      if (confirm("Видалити цей ліміт?")) {
-                        remove(b.id);
-                      }
+                      if (!confirm("Видалити цей ліміт?")) return;
+                      b.sourceIds.forEach((id) => remove(id));
                     }}
                     className="text-slate-400 hover:text-rose-600 p-2 rounded-lg hover:bg-rose-50 transition flex items-center gap-2"
                     title="Видалити ліміт"
