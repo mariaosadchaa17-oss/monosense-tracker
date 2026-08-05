@@ -13,7 +13,7 @@ export async function GET() {
     supabase.from("goals").select("*").eq("household_id", householdId).order("created_at"),
     supabase.from("debts").select("*").eq("household_id", householdId).eq("settled", false),
     supabase.from("recurring_rules").select("*").eq("household_id", householdId).eq("active", true),
-    supabase.from("transfers").select("*").eq("household_id", householdId).order("booked_at", { ascending: false }).limit(100),
+    supabase.from("transfers").select("*").eq("household_id", householdId).order("booked_at", { ascending: false }).limit(500),
     supabase.from("audit_logs").select("*").eq("household_id",householdId).order("created_at",{ascending:false}).limit(100),
     supabase.from("exchange_rates").select("*").eq("household_id",householdId).order("rate_date",{ascending:false}).limit(20),
     supabase.from("profiles").select("planning_period,base_currency").eq("id",context.user.id).single(),
@@ -64,9 +64,13 @@ export async function POST(request: Request) {
         p_split_total: body.splitTotal ? Number(body.splitTotal) : null, p_personal_share: body.personalShare ? Number(body.personalShare) : null,
       });
       break;
-    case "deleteTransaction":
-      result = await supabase.rpc("delete_finance_transaction", { p_transaction_id: body.id });
+    case "deleteTransaction": {
+      const { data: linkedTransfer } = await supabase.from("transfers").select("id").eq("household_id", householdId).or(`from_transaction_id.eq.${body.id},to_transaction_id.eq.${body.id}`).maybeSingle();
+      result = linkedTransfer
+        ? await supabase.rpc("delete_account_transfer", { p_transfer_id: linkedTransfer.id })
+        : await supabase.rpc("delete_finance_transaction", { p_transaction_id: body.id });
       break;
+    }
     case "deleteTransfer":
       result = await supabase.rpc("delete_account_transfer", { p_transfer_id: body.id });
       break;
