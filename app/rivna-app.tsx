@@ -507,7 +507,26 @@ function LiveBudgetView({budgets,transactions,periodType,setPeriodType,offset,se
   }
   const isCurrent=offset===0;
   const periodKey=periodType==="week"?periodStart.toISOString().slice(0,10):`${periodStart.getFullYear()}-${String(periodStart.getMonth()+1).padStart(2,"0")}`;
-  const active=budgets.filter(budget=>budget.period===periodType&&(periodType==="week"?budget.month.slice(0,10)===periodKey:budget.month.startsWith(periodKey)));
+  type ActiveBudget=BudgetItem&{weeksCount?:number};
+  let active:ActiveBudget[];
+  if(periodType==="week"){
+    active=budgets.filter(budget=>budget.period==="week"&&budget.month.slice(0,10)===periodKey);
+  }else{
+    const monthBudgets=budgets.filter(budget=>budget.period==="month"&&budget.month.startsWith(periodKey));
+    const weeklyInMonth=budgets.filter(budget=>{
+      if(budget.period!=="week")return false;
+      const d=new Date(`${budget.month}T00:00:00`);
+      return d>=periodStart&&d<periodEnd;
+    });
+    const aggregated=Object.values(weeklyInMonth.reduce<Record<string,ActiveBudget>>((sum,budget)=>{
+      const key=budget.categoryId||budget.name;
+      if(!sum[key])sum[key]={...budget,id:`week-agg-${key}`,limit:0,weeksCount:0};
+      sum[key].limit+=budget.limit;
+      sum[key].weeksCount=(sum[key].weeksCount||0)+1;
+      return sum;
+    },{}));
+    active=[...monthBudgets,...aggregated.filter(agg=>!monthBudgets.some(m=>m.categoryId===agg.categoryId))];
+  }
   const periodTransactions=transactions.filter(transaction=>{
     if(!transaction.bookedAt)return isCurrent;
     const date=new Date(transaction.bookedAt);
@@ -547,8 +566,8 @@ function LiveBudgetView({budgets,transactions,periodType,setPeriodType,offset,se
     <section className="panel full-view">
       <div className="section-title"><div><h2>Ліміти за категоріями</h2><p>{isCurrent?`Поточний ${periodLabel}`:rangeLabel}</p></div><button className="small-primary" onClick={add}><Plus/> Додати ліміт</button></div>
       {active.length?<div className="large-budget"><div className="budget-list">{active.map(budget=>{
-        const used=spentBy[budget.name]||0,percent=Math.round(used/budget.limit*100);
-        return <div className="budget-item" key={budget.id}><span className="budget-icon" style={{color:budget.color,background:`${budget.color}15`}}><BudgetIcon name={budget.icon}/></span><div><div><strong>{budget.name}</strong><small>{symbol} {formatMoney(used)} / {formatMoney(budget.limit)} · {percent}%</small></div><span><i style={{width:`${Math.min(100,percent)}%`,background:percent>=100?"#e05252":percent>=80?"#f4b740":budget.color}}/></span></div><button className="icon-button danger" onClick={()=>remove(budget.id)} aria-label="Видалити ліміт"><Trash2/></button></div>;
+        const used=spentBy[budget.name]||0,percent=Math.round(used/budget.limit*100),isAggregated=budget.id.startsWith("week-agg-");
+        return <div className="budget-item" key={budget.id}><span className="budget-icon" style={{color:budget.color,background:`${budget.color}15`}}><BudgetIcon name={budget.icon}/></span><div><div><strong>{budget.name}</strong><small>{symbol} {formatMoney(used)} / {formatMoney(budget.limit)} · {percent}%{isAggregated?` · ${budget.weeksCount} тиж.`:""}</small></div><span><i style={{width:`${Math.min(100,percent)}%`,background:percent>=100?"#e05252":percent>=80?"#f4b740":budget.color}}/></span></div>{!isAggregated&&<button className="icon-button danger" onClick={()=>remove(budget.id)} aria-label="Видалити ліміт"><Trash2/></button>}</div>;
       })}</div></div>:<p className="empty-inline">Лімітів на цей {periodLabel} ще немає.</p>}
       {active.some(budget=>(spentBy[budget.name]||0)/budget.limit>=.8)&&<div className="alert-card"><Bell/><div><strong>Наближення до ліміту</strong><p>Одна або кілька категорій використані більш ніж на 80%.</p></div></div>}
     </section>
