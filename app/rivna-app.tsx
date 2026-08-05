@@ -290,17 +290,14 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     const f=new FormData(e.currentTarget);
     const toAccountId=String(f.get("to")||"");
     const receivedAmount=Number(f.get("received"))||0;
-    const success=await financeAction({action:"createTransfer",fromAccountId:f.get("from"),toAccountId,sentAmount:Number(f.get("sent")),receivedAmount,exchangeRate:Number(f.get("rate")),feeAmount:Number(f.get("fee")),feeCurrency:String(f.get("feeCurrency")),note:String(f.get("note")||"")},"Переказ виконано");
+    const targetAccount=accounts.find(a=>String(a.id)===toAccountId);
+    let creditLimitDelta=0;
+    if(targetAccount&&(targetAccount.creditLimit||0)>0&&receivedAmount>0){
+      creditLimitDelta=window.confirm(`Зменшити кредитний ліміт картки «${targetAccount.name}» на суму погашення ${currencySymbol(targetAccount.currency)} ${formatMoney(receivedAmount)}?`)?receivedAmount:0;
+    }
+    const success=await financeAction({action:"createTransfer",fromAccountId:f.get("from"),toAccountId,sentAmount:Number(f.get("sent")),receivedAmount,exchangeRate:Number(f.get("rate")),feeAmount:Number(f.get("fee")),feeCurrency:String(f.get("feeCurrency")),note:String(f.get("note")||""),creditLimitDelta},"Переказ виконано");
     if(!success)return;
     setModal(null);
-    const targetAccount=accounts.find(a=>String(a.id)===toAccountId);
-    if(targetAccount&&(targetAccount.creditLimit||0)>0&&receivedAmount>0){
-      const reduce=window.confirm(`Зменшити кредитний ліміт картки «${targetAccount.name}» на суму погашення ${currencySymbol(targetAccount.currency)} ${formatMoney(receivedAmount)}?`);
-      if(reduce){
-        const newLimit=Math.max(0,(targetAccount.creditLimit||0)-receivedAmount);
-        await financeAction({action:"updateAccount",id:targetAccount.id,name:targetAccount.name,bank:targetAccount.bank,owner:targetAccount.owner,currency:targetAccount.currency,balance:targetAccount.balance,creditLimit:newLimit,graceEnd:targetAccount.graceEnd,cardColor:targetAccount.color},"Кредитний ліміт зменшено");
-      }
-    }
   }
   async function addBudget(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const raw=String(f.get("period"));if(await financeAction({action:"createBudget",categoryId:f.get("category"),month:planningPeriod==="week"?raw:`${raw}-01`,periodType:planningPeriod,limitAmount:Number(f.get("limit")),currency:baseCurrency,icon:String(f.get("icon")||"CircleDollarSign"),color:String(f.get("color")||"#6558e8")},"Ліміт збережено"))setModal(null);}
   async function addCategory(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);if(await financeAction({action:"createCategory",name:f.get("name"),kind:String(f.get("kind")),icon:String(f.get("icon")),color:String(f.get("color"))},"Категорію створено"))setModal(null);}

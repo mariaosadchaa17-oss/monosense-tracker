@@ -78,12 +78,13 @@ export async function POST(request: Request) {
     case "deleteTransfer":
       result = await supabase.rpc("delete_account_transfer", { p_transfer_id: body.id });
       break;
-    case "createTransfer":
+   case "createTransfer":
       result = await supabase.rpc("create_account_transfer", {
         p_from_account_id: body.fromAccountId, p_to_account_id: body.toAccountId,
         p_sent_amount: Number(body.sentAmount), p_received_amount: Number(body.receivedAmount),
         p_exchange_rate: Number(body.exchangeRate) || 1, p_fee_amount: Number(body.feeAmount) || 0,
         p_fee_currency: body.feeCurrency || null, p_note: String(body.note || "").slice(0, 500),
+        p_credit_limit_delta: Number(body.creditLimitDelta) || 0,
       });
       break;
     case "createBudget":
