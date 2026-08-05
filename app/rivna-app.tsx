@@ -101,6 +101,8 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [categories, setCategories] = useState<CategoryItem[]>(initialLoggedIn?[]:seedCategories);
   const [savedBudgets, setSavedBudgets] = useState<BudgetItem[]>([]);
   const [planningPeriod,setPlanningPeriod]=useState<"month"|"week">("month");
+  const [budgetPeriodType,setBudgetPeriodType]=useState<"month"|"week">("month");
+  const [budgetOffset,setBudgetOffset]=useState(0);
   const [baseCurrency,setBaseCurrency]=useState("UAH");
   const [audit, setAudit] = useState<AuditItem[]>([]);
   const [installPrompt,setInstallPrompt]=useState<Event|null>(null);
@@ -167,6 +169,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       setCategories((data.categories||[]).map((item:Record<string,unknown>)=>({id:String(item.id),name:String(item.name),kind:String(item.kind),color:String(item.color||"#6558E8"),icon:String(item.icon||"CircleDollarSign"),isDefault:Boolean(item.is_default)})));
       setSavedBudgets((data.budgets||[]).map((item:Record<string,unknown>)=>({id:String(item.id),categoryId:String(item.category_id),name:String((item.categories as {name?:string}|null)?.name||"Категорія"),icon:String(item.icon||(item.categories as {icon?:string}|null)?.icon||"CircleDollarSign"),limit:Number(item.limit_amount),currency:String(item.currency),month:String(item.month),period:item.period_type==="week"?"week":"month",color:String(item.color||(item.categories as {color?:string}|null)?.color||"#6558E8")})));
       setPlanningPeriod(data.planningPeriod==="week"?"week":"month");
+      setBudgetPeriodType(data.planningPeriod==="week"?"week":"month");
       setBaseCurrency(String(data.baseCurrency||"UAH"));
       setAudit((data.audit||[]).map((item:Record<string,unknown>)=>({id:String(item.id),entity:String(item.entity_type),action:String(item.action),created:String(item.created_at),actor:item.actor_id?String(item.actor_id):undefined})));
       setCustomRates((data.exchangeRates||[]).map((item:Record<string,unknown>)=>({currency:String(item.quote_currency),rate:Number(item.custom_rate||item.official_rate),date:String(item.rate_date)})));
@@ -307,7 +310,7 @@ async function addTransfer(e:React.SyntheticEvent<HTMLFormElement>){
     if(!success)return;
     setModal(null);
   }
-  async function addBudget(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const raw=String(f.get("period"));if(await financeAction({action:"createBudget",categoryId:f.get("category"),month:planningPeriod==="week"?raw:`${raw}-01`,periodType:planningPeriod,limitAmount:Number(f.get("limit")),currency:baseCurrency,icon:String(f.get("icon")||"CircleDollarSign"),color:String(f.get("color")||"#6558e8")},"Ліміт збережено"))setModal(null);}
+  async function addBudget(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const raw=String(f.get("period"));if(await financeAction({action:"createBudget",categoryId:f.get("category"),month:budgetPeriodType==="week"?raw:`${raw}-01`,periodType:budgetPeriodType,limitAmount:Number(f.get("limit")),currency:baseCurrency,icon:String(f.get("icon")||"CircleDollarSign"),color:String(f.get("color")||"#6558e8")},"Ліміт збережено"))setModal(null);}
   async function addCategory(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);if(await financeAction({action:"createCategory",name:f.get("name"),kind:String(f.get("kind")),icon:String(f.get("icon")),color:String(f.get("color"))},"Категорію створено"))setModal(null);}
   async function addCustomRate(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);if(await financeAction({action:"createCustomRate",quoteCurrency:String(f.get("currency")),rate:Number(f.get("rate")),date:String(f.get("date")||new Date().toISOString().slice(0,10))},"Власний курс збережено"))setModal(null)}
   async function createInvite(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const response=await fetch("/api/household/invite",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({identifier:f.get("identifier"),role:f.get("role")})});const result=await response.json();if(!response.ok)return notify(result.error||"Не вдалося створити запрошення");await navigator.clipboard.writeText(result.url);setModal(null);notify(result.emailed?"Запрошення надіслано email, посилання скопійовано":"Посилання запрошення скопійовано");}
@@ -374,8 +377,7 @@ async function addTransfer(e:React.SyntheticEvent<HTMLFormElement>){
 
       {page === "Головна" && <Dashboard balance={balance} baseCurrency={baseCurrency} accounts={accounts} transactions={normalizedTransactions} goals={goals} authenticated={initialLoggedIn} openPage={setPage} addAccount={() => setModal("account")} changeCurrency={setBaseCurrency}/>}
       {page === "Операції" && <TransactionsView transactions={filteredTransactions} search={search} setSearch={setSearch} remove={removeTransaction} exportCsv={() => exportCsv(transactions, notify)} exportExcel={()=>exportExcel(transactions,notify)}/>}
-      {page === "Бюджет" && (initialLoggedIn?<LiveBudgetView budgets={savedBudgets} transactions={normalizedTransactions} period={planningPeriod} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={id=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>:<BudgetView budgets={savedBudgets} transactions={normalizedTransactions} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={id=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>)}
-      {page === "Рахунки" && <AccountsView accounts={accounts} rates={rates} customRates={customRates} add={() => {setEditingAccount(null);setModal("account")}} edit={account=>{setEditingAccount(account);setModal("account")}} addRate={()=>setModal("rate")} transfer={()=>{setTransferPresetTo(undefined);setModal("transfer")}} remove={removeAccount}/>}
+      {page === "Бюджет" && (initialLoggedIn?<LiveBudgetView budgets={savedBudgets} transactions={normalizedTransactions} periodType={budgetPeriodType} setPeriodType={setBudgetPeriodType} offset={budgetOffset} setOffset={setBudgetOffset} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={id=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>:<BudgetView budgets={savedBudgets} transactions={normalizedTransactions} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={id=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>)}      {page === "Рахунки" && <AccountsView accounts={accounts} rates={rates} customRates={customRates} add={() => {setEditingAccount(null);setModal("account")}} edit={account=>{setEditingAccount(account);setModal("account")}} addRate={()=>setModal("rate")} transfer={()=>{setTransferPresetTo(undefined);setModal("transfer")}} remove={removeAccount}/>}
       {page === "Накопичення" && <GoalsView goals={goals} authenticated={initialLoggedIn} add={()=>setModal("goal")} contribute={(id,amount)=>financeAction({action:"contributeGoal",id,amount},"Ціль поповнено")} recurring={recurring} addRecurring={()=>setModal("recurring")} remove={id=>financeAction({action:"deleteGoal",id},"Ціль видалено")}/>}
       {page === "Аналітика" && <AnalyticsView transactions={normalizedTransactions} baseCurrency={baseCurrency}/>}
       {page === "Борги" && <DebtsView debts={allDebts} add={()=>setModal("debt")} settle={id=>financeAction({action:"settleDebt",id},"Борг закрито")} payOff={accountId=>{setTransferPresetTo(accountId);setModal("transfer")}}/>}
@@ -416,7 +418,7 @@ async function addTransfer(e:React.SyntheticEvent<HTMLFormElement>){
     {modal === "debt" && <DebtModal submit={addDebt} close={()=>setModal(null)}/>}
     {modal === "recurring" && <RecurringModal accounts={accounts} categories={categories} submit={addRecurring} close={()=>setModal(null)}/>}
     {modal === "transfer" && <TransferModal accounts={accounts} rates={rates} customRates={customRates} presetToAccountId={transferPresetTo} submit={addTransfer} close={()=>{setModal(null);setTransferPresetTo(undefined)}}/>}
-    {modal === "budget" && <BudgetModal categories={categories} period={planningPeriod} baseCurrency={baseCurrency} submit={addBudget} close={()=>setModal(null)}/>}
+    {modal === "budget" && <BudgetModal categories={categories} period={budgetPeriodType} baseCurrency={baseCurrency} submit={addBudget} close={()=>setModal(null)}/>}
     {modal === "category" && <CategoryModal submit={addCategory} close={()=>setModal(null)}/>}
     {modal === "invite" && <InviteModal submit={createInvite} close={()=>setModal(null)}/>}
     {modal === "rate" && <CustomRateModal submit={addCustomRate} close={()=>setModal(null)}/>}
@@ -470,41 +472,62 @@ function TransactionsView({ transactions, search, setSearch, remove, exportCsv,e
   return <section className="panel full-view"><div className="view-toolbar"><label className="search-box"><Search/><input placeholder="Пошук за назвою або категорією" value={search} onChange={e=>setSearch(e.target.value)}/></label><button className="secondary" onClick={clear}><X/> Очистити</button><button className="secondary" onClick={exportCsv}><Download/> CSV</button><button className="secondary" onClick={exportExcel}><Download/> Excel</button></div><div className="filter-grid"><label>Рахунок<select value={account} onChange={e=>setAccount(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.account)).map(v=><option key={v}>{v}</option>)}</select></label><label>Категорія<select value={category} onChange={e=>setCategory(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.category)).map(v=><option key={v}>{v}</option>)}</select></label><label>Тег<select value={tag} onChange={e=>setTag(e.target.value)}><option value="">Усі</option>{unique(transactions.flatMap(t=>t.tags||[])).map(v=><option key={v}>{v}</option>)}</select></label><label>Власник<select value={owner} onChange={e=>setOwner(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.owner)).map(v=><option key={v}>{v}</option>)}</select></label><label>Від<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>До<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label></div><div className="data-head"><span>Операція</span><span>Категорія</span><span>Дата</span><span>Сума</span><span/></div>{shown.map(t=><div className="data-row" key={t.id}><strong>{t.title}{t.impulse&&<em>Імпульсивна</em>}<small className="row-tags">{t.tags?.map(x=>`#${x}`).join(" ")}</small></strong><span>{t.category}<small>{t.account}{t.owner?` · ${t.owner}`:""}</small></span><span>{t.date}</span><b className={t.amount>0?"income-amount":""}>{t.amount>0?"+":"−"} {currencySymbol(t.currency||"UAH")} {formatMoney(t.amount)}</b><button className="icon-button danger" onClick={()=>remove(t.id)}><Trash2/></button></div>)}{shown.length===0&&<div className="empty">Нічого не знайдено</div>}</section>;
 }
 function BudgetView({budgets,transactions,add,baseCurrency,remove}:{budgets:BudgetItem[];transactions:Transaction[];add:()=>void;baseCurrency:string;remove:(id:string)=>void}) { const active=budgets.length?budgets:budgetRows.map((b,i)=>({id:`d${i}`,categoryId:"",name:b.name,icon:"CircleDollarSign",limit:b.limit,currency:"UAH",month:"2026-07-01",period:"month" as const,color:b.color}));const spentBy=transactions.filter(t=>t.amount<0).reduce<Record<string,number>>((a,t)=>{a[t.category]=(a[t.category]||0)+Math.abs(t.amount);return a;},{});const plan=active.reduce((s,b)=>s+b.limit,0);const spent=Object.values(spentBy).reduce((s,v)=>s+v,0);const day=Math.max(1,new Date().getDate());const days=new Date(new Date().getFullYear(),new Date().getMonth()+1,0).getDate();const forecast=Math.round(spent/day*days);const symbol=currencySymbol(baseCurrency);return <><div className="metric-grid"><article className="metric"><small>Місячний план</small><strong>{symbol} {formatMoney(plan)}</strong><span>{plan?Math.round(spent/plan*100):0}% використано</span></article><article className="metric"><small>Прогноз витрат</small><strong>{symbol} {formatMoney(forecast)}</strong><span className={forecast>plan?"negative":"positive"}>{forecast>plan?"Можливий перерозхід":"У межах плану"}</span></article><article className="metric"><small>Очікуваний залишок</small><strong>{symbol} {formatMoney(Math.max(0,plan-forecast))}</strong><span>За поточного темпу</span></article></div><section className="panel full-view"><div className="section-title"><div><h2>Ліміти за категоріями</h2><p>Поточний місяць</p></div><button className="small-primary" onClick={add}><Plus/> Додати ліміт</button></div><div className="large-budget"><div className="budget-list">{active.map(b=>{const used=spentBy[b.name]||0;const pct=Math.round(used/b.limit*100);return <div className="budget-item" key={b.id}><span className="budget-icon" style={{color:b.color,background:`${b.color}15`}}><BudgetIcon name={b.icon}/></span><div><div><strong>{b.name}</strong><small>{symbol} {formatMoney(used)} / {formatMoney(b.limit)} · {pct}%</small></div><span><i style={{width:`${Math.min(100,pct)}%`,background:pct>=100?"#e05252":pct>=80?"#f4b740":b.color}}/></span></div>{b.categoryId&&<button className="icon-button danger" onClick={()=>remove(b.id)} aria-label="Видалити ліміт"><Trash2/></button>}</div>})}</div></div>{active.some(b=>(spentBy[b.name]||0)/b.limit>=.8)&&<div className="alert-card"><Bell/><div><strong>Наближення до ліміту</strong><p>Одна або кілька категорій використані більш ніж на 80%.</p></div></div>}</section></>; }
-function LiveBudgetView({budgets,transactions,period,baseCurrency,add,remove}:{budgets:BudgetItem[];transactions:Transaction[];period:"month"|"week";baseCurrency:string;add:()=>void;remove:(id:string)=>void}){
-  const [renderedAt]=useState(()=>Date.now()),now=new Date(renderedAt),weekStart=new Date(now);
-  weekStart.setHours(0,0,0,0);
-  weekStart.setDate(weekStart.getDate()-((weekStart.getDay()+6)%7));
-  const periodEnd=period==="week"?new Date(weekStart):new Date(now.getFullYear(),now.getMonth()+1,1);
-  if(period==="week")periodEnd.setDate(periodEnd.getDate()+7);
-  const periodKey=period==="week"?weekStart.toISOString().slice(0,10):`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-  const active=budgets.filter(budget=>budget.period===period&&(period==="week"?budget.month.slice(0,10)===periodKey:budget.month.startsWith(periodKey)));
+function LiveBudgetView({budgets,transactions,periodType,setPeriodType,offset,setOffset,baseCurrency,add,remove}:{budgets:BudgetItem[];transactions:Transaction[];periodType:"month"|"week";setPeriodType:(p:"month"|"week")=>void;offset:number;setOffset:(fn:(o:number)=>number)=>void;baseCurrency:string;add:()=>void;remove:(id:string)=>void}){
+  const [renderedAt]=useState(()=>Date.now()),today=new Date(renderedAt);
+  const todayWeekStart=new Date(today);todayWeekStart.setHours(0,0,0,0);todayWeekStart.setDate(todayWeekStart.getDate()-((todayWeekStart.getDay()+6)%7));
+  let periodStart:Date,periodEnd:Date;
+  if(periodType==="week"){
+    periodStart=new Date(todayWeekStart);periodStart.setDate(periodStart.getDate()+offset*7);
+    periodEnd=new Date(periodStart);periodEnd.setDate(periodEnd.getDate()+7);
+  }else{
+    periodStart=new Date(today.getFullYear(),today.getMonth()+offset,1);
+    periodEnd=new Date(today.getFullYear(),today.getMonth()+offset+1,1);
+  }
+  const isCurrent=offset===0;
+  const periodKey=periodType==="week"?periodStart.toISOString().slice(0,10):`${periodStart.getFullYear()}-${String(periodStart.getMonth()+1).padStart(2,"0")}`;
+  const active=budgets.filter(budget=>budget.period===periodType&&(periodType==="week"?budget.month.slice(0,10)===periodKey:budget.month.startsWith(periodKey)));
   const periodTransactions=transactions.filter(transaction=>{
-    if(!transaction.bookedAt)return true;
-    const date=new Date(transaction.bookedAt),start=period==="week"?weekStart:new Date(now.getFullYear(),now.getMonth(),1);
-    return date>=start&&date<periodEnd;
+    if(!transaction.bookedAt)return isCurrent;
+    const date=new Date(transaction.bookedAt);
+    return date>=periodStart&&date<periodEnd;
   });
   const spentBy=periodTransactions.filter(transaction=>transaction.amount<0).reduce<Record<string,number>>((sum,transaction)=>{
     sum[transaction.category]=(sum[transaction.category]||0)+Math.abs(transaction.baseAmount??transaction.amount);
     return sum;
   },{});
   const plan=active.reduce((sum,budget)=>sum+budget.limit,0),spent=Object.values(spentBy).reduce((sum,value)=>sum+value,0);
-  const totalDays=period==="week"?7:new Date(now.getFullYear(),now.getMonth()+1,0).getDate();
-  const elapsedDays=period==="week"?Math.min(7,Math.floor((now.getTime()-weekStart.getTime())/86400000)+1):now.getDate();
-  const forecast=Math.round(spent/Math.max(1,elapsedDays)*totalDays),periodLabel=period==="week"?"тиждень":"місяць";
-  const planLabel=period==="week"?"Тижневий план":"Місячний план",symbol=currencySymbol(baseCurrency);
+  const totalDays=periodType==="week"?7:new Date(periodStart.getFullYear(),periodStart.getMonth()+1,0).getDate();
+  const elapsedDays=isCurrent?(periodType==="week"?Math.min(7,Math.floor((today.getTime()-periodStart.getTime())/86400000)+1):today.getDate()):totalDays;
+  const forecast=Math.round(spent/Math.max(1,elapsedDays)*totalDays),periodLabel=periodType==="week"?"тиждень":"місяць";
+  const planLabel=periodType==="week"?"Тижневий план":"Місячний план",symbol=currencySymbol(baseCurrency);
+  const periodEndInclusive=new Date(periodEnd.getTime()-86400000);
+  const rangeLabel=periodType==="week"
+    ?`${periodStart.getDate()} ${new Intl.DateTimeFormat("uk-UA",{month:"short"}).format(periodStart).replace(".","")} – ${periodEndInclusive.getDate()} ${new Intl.DateTimeFormat("uk-UA",{month:"short"}).format(periodEndInclusive).replace(".","")} ${periodStart.getFullYear()}`
+    :new Intl.DateTimeFormat("uk-UA",{month:"long",year:"numeric"}).format(periodStart);
   return <>
-    <div className="period-note"><Repeat2/> Формат планування: <strong>{period==="week"?"щотижня":"щомісяця"}</strong></div>
+    <div className="period-note">
+      <div className="period-toggle">
+        <button type="button" className={periodType==="month"?"active":""} onClick={()=>{setPeriodType("month");setOffset(()=>0)}}>Місяць</button>
+        <button type="button" className={periodType==="week"?"active":""} onClick={()=>{setPeriodType("week");setOffset(()=>0)}}>Тиждень</button>
+      </div>
+      <div className="period-nav">
+        <button type="button" className="icon-button" onClick={()=>setOffset(o=>o-1)} aria-label="Попередній період">‹</button>
+        <strong>{rangeLabel}{isCurrent&&<em className="period-current">поточний</em>}</strong>
+        <button type="button" className="icon-button" onClick={()=>setOffset(o=>o+1)} aria-label="Наступний період">›</button>
+        {!isCurrent&&<button type="button" className="link" onClick={()=>setOffset(()=>0)}>Сьогодні</button>}
+      </div>
+    </div>
     <div className="metric-grid">
       <article className="metric"><small>{planLabel}</small><strong>{symbol} {formatMoney(plan)}</strong><span>{plan?Math.round(spent/plan*100):0}% використано</span></article>
       <article className="metric"><small>Прогноз витрат</small><strong>{symbol} {formatMoney(forecast)}</strong><span className={plan&&forecast>plan?"negative":"positive"}>{!plan?"Додайте перший ліміт":forecast>plan?"Можливий перерозхід":"У межах плану"}</span></article>
       <article className="metric"><small>Очікувана економія</small><strong>{symbol} {formatMoney(Math.max(0,plan-forecast))}</strong><span>За поточного темпу</span></article>
     </div>
     <section className="panel full-view">
-      <div className="section-title"><div><h2>Ліміти за категоріями</h2><p>Поточний {periodLabel}</p></div><button className="small-primary" onClick={add}><Plus/> Додати ліміт</button></div>
+      <div className="section-title"><div><h2>Ліміти за категоріями</h2><p>{isCurrent?`Поточний ${periodLabel}`:rangeLabel}</p></div><button className="small-primary" onClick={add}><Plus/> Додати ліміт</button></div>
       {active.length?<div className="large-budget"><div className="budget-list">{active.map(budget=>{
         const used=spentBy[budget.name]||0,percent=Math.round(used/budget.limit*100);
         return <div className="budget-item" key={budget.id}><span className="budget-icon" style={{color:budget.color,background:`${budget.color}15`}}><BudgetIcon name={budget.icon}/></span><div><div><strong>{budget.name}</strong><small>{symbol} {formatMoney(used)} / {formatMoney(budget.limit)} · {percent}%</small></div><span><i style={{width:`${Math.min(100,percent)}%`,background:percent>=100?"#e05252":percent>=80?"#f4b740":budget.color}}/></span></div><button className="icon-button danger" onClick={()=>remove(budget.id)} aria-label="Видалити ліміт"><Trash2/></button></div>;
-      })}</div></div>:<p className="empty-inline">Лімітів на цей {periodLabel} еще нет.</p>}
+      })}</div></div>:<p className="empty-inline">Лімітів на цей {periodLabel} ще немає.</p>}
       {active.some(budget=>(spentBy[budget.name]||0)/budget.limit>=.8)&&<div className="alert-card"><Bell/><div><strong>Наближення до ліміту</strong><p>Одна або кілька категорій використані більш ніж на 80%.</p></div></div>}
     </section>
   </>;
