@@ -65,45 +65,6 @@ export async function POST(request: Request) {
       });
       break;
     case "deleteTransaction": {
-  const search = async (column: string, scopeHousehold: boolean) => {
-    let query = supabase.from("transfers").select("id").eq(column, body.id).limit(1);
-    if (scopeHousehold) query = query.eq("household_id", householdId);
-    const { data, error } = await query;
-    if (error) console.error("transfer lookup error", column, error.message);
-    return data?.[0]?.id as string | undefined;
-  };
-
-  const linkedTransferId =
-    (await search("from_transaction_id", true)) ||
-    (await search("to_transaction_id", true)) ||
-    (await search("from_transaction_id", false)) ||
-    (await search("to_transaction_id", false));
-  result = linkedTransferId
-    ? await supabase.rpc("delete_account_transfer", { p_transfer_id: linkedTransferId })
-    : await supabase.rpc("delete_finance_transaction", { p_transaction_id: body.id });
-  break;
-}
-    case "deleteTransfer":
-      result = await supabase.rpc("delete_account_transfer", { p_transfer_id: body.id });
-      break;
-  const search = async (column: string, scopeHousehold: boolean) => {
-    let query = supabase.from("transfers").select("id").eq(column, body.id).limit(1);
-    if (scopeHousehold) query = query.eq("household_id", householdId);
-    const { data, error } = await query;
-    if (error) console.error("transfer lookup error", column, error.message);
-    return data?.[0]?.id as string | undefined;
-  };
-  const linkedTransferId =
-    (await search("from_transaction_id", true)) ||
-    (await search("to_transaction_id", true)) ||
-    (await search("from_transaction_id", false)) ||
-    (await search("to_transaction_id", false));
-  result = linkedTransferId
-    ? await supabase.rpc("delete_account_transfer", { p_transfer_id: linkedTransferId })
-    : await supabase.rpc("delete_finance_transaction", { p_transaction_id: body.id });
-  break;
-}
-=======
       const [fromMatch, toMatch] = await Promise.all([
         supabase.from("transfers").select("id").eq("household_id", householdId).eq("from_transaction_id", body.id).maybeSingle(),
         supabase.from("transfers").select("id").eq("household_id", householdId).eq("to_transaction_id", body.id).maybeSingle(),
@@ -121,7 +82,6 @@ export async function POST(request: Request) {
         if (retryTransfer) result = await supabase.rpc("delete_account_transfer", { p_transfer_id: retryTransfer.id });
       }
       break;
->>>>>>> 71aa09a9884e95203a33adc1301277e88ae38f75
     }
     case "deleteTransfer":
       result = await supabase.rpc("delete_account_transfer", { p_transfer_id: body.id });
@@ -134,7 +94,6 @@ export async function POST(request: Request) {
         p_fee_currency: body.feeCurrency || null, p_note: String(body.note || "").slice(0, 500),
       });
       break;
->>>>>>> 5b4c94d8aea491c06eaa4b2a210477059343e9ca
     case "createBudget":
       result = await supabase.from("budgets").upsert({
         household_id: householdId, category_id: body.categoryId, month: body.month,
