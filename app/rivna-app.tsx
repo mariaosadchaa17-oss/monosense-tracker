@@ -10,6 +10,7 @@ import {
   Shirt, Plane, Dumbbell, Wifi, GraduationCap, Gift, PawPrint, Smartphone, Wallet
 } from "lucide-react";
 import {PasskeyButton} from "./components/passkey-button";
+const APP_VERSION = "2026.08.05-1";
 
 // Фиксированный набор иконок для лимитов — вынесен в конфиг, чтобы можно было
 // расширять без правки логики компонентов.
@@ -295,16 +296,13 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   async function addGoal(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);if(await financeAction({action:"createGoal",name:f.get("name"),targetAmount:Number(f.get("target")),currentAmount:Number(f.get("current")),currency:String(f.get("currency")||"UAH"),date:f.get("date")?String(f.get("date")):undefined},"Ціль створено"))setModal(null);}
   async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);if(await financeAction({action:"createDebt",person:f.get("person"),direction:f.get("direction"),amount:Number(f.get("amount")),currency:String(f.get("currency")||"UAH"),dueDate:f.get("date")?String(f.get("date")):undefined,note:String(f.get("note")||"")},"Борг додано"))setModal(null);}
   async function addRecurring(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const account=accounts.find(item=>String(item.id)===String(f.get("account")));if(!account)return notify("Оберіть рахунок");if(await financeAction({action:"createRecurring",accountId:account.id,categoryId:f.get("category")||null,name:f.get("name"),amount:Number(f.get("amount")),currency:account.currency,frequency:String(f.get("frequency")),nextRunAt:f.get("date")?String(f.get("date")):undefined,autoCreate:f.get("auto")==="on"},"Регулярний платіж створено"))setModal(null);}
-  async function addTransfer(e:React.SyntheticEvent<HTMLFormElement>){
+async function addTransfer(e:React.SyntheticEvent<HTMLFormElement>){
     e.preventDefault();
     const f=new FormData(e.currentTarget);
     const toAccountId=String(f.get("to")||"");
     const receivedAmount=Number(f.get("received"))||0;
     const targetAccount=accounts.find(a=>String(a.id)===toAccountId);
-    let creditLimitDelta=0;
-    if(targetAccount&&(targetAccount.creditLimit||0)>0&&receivedAmount>0){
-      creditLimitDelta=window.confirm(`Зменшити кредитний ліміт картки «${targetAccount.name}» на суму погашення ${currencySymbol(targetAccount.currency)} ${formatMoney(receivedAmount)}?`)?receivedAmount:0;
-    }
+    const creditLimitDelta=(targetAccount&&(targetAccount.creditLimit||0)>0&&f.get("reduceCreditLimit")==="on")?receivedAmount:0;
     const success=await financeAction({action:"createTransfer",fromAccountId:f.get("from"),toAccountId,sentAmount:Number(f.get("sent")),receivedAmount,exchangeRate:Number(f.get("rate")),feeAmount:Number(f.get("fee")),feeCurrency:String(f.get("feeCurrency")),note:String(f.get("note")||""),creditLimitDelta},"Переказ виконано");
     if(!success)return;
     setModal(null);
@@ -424,6 +422,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     {modal === "rate" && <CustomRateModal submit={addCustomRate} close={()=>setModal(null)}/>}
     {toast && <div className="toast">{toast}</div>}
     {syncing && <div className="sync-pill">Синхронізація…</div>}
+    <div style={{position:"fixed",bottom:"6px",right:"8px",fontSize:"10px",opacity:0.35,pointerEvents:"none",zIndex:9999,fontFamily:"monospace"}}>v{APP_VERSION}</div>
   </main>;
 }
 
@@ -640,6 +639,7 @@ function TransferModal({accounts,rates,customRates,presetToAccountId,submit,clos
   const [sent,setSent]=useState("");
   const [fee,setFee]=useState("0");
   const from=accounts.find(a=>String(a.id)===fromId),to=accounts.find(a=>String(a.id)===toId);
+  const showCreditToggle=(to?.creditLimit||0)>0;
   const sameCurrency=!from||!to||from.currency===to.currency;
   const rate=sameCurrency?1:crossRate(from!.currency,to!.currency,rates,customRates);
   const sentValue=Number(sent.replace(",","."))||0;
@@ -663,6 +663,7 @@ function TransferModal({accounts,rates,customRates,presetToAccountId,submit,clos
     <input type="hidden" name="received" value={received.toFixed(2)}/>
     <div className="form-message success">Надійде: {currencySymbol(to?.currency||"UAH")} {formatMoney(received)}{!sameCurrency?` · курс НБУ ${rate.toFixed(4)}`:""}</div>
     <label>Нотатка<input name="note" placeholder={presetToAccountId?"Погашення кредитного ліміту":"Обмін на відпустку"}/></label>
+    {showCreditToggle && <label className="check impulse"><input name="reduceCreditLimit" type="checkbox" defaultChecked/> Врахувати як погашення кредитного ліміту</label>}
     <button className="primary">{presetToAccountId?"Погасити кредит":"Виконати переказ"}</button>
   </form></div>;
 }
