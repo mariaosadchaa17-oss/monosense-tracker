@@ -10,7 +10,7 @@ import {
   Shirt, Plane, Dumbbell, Wifi, GraduationCap, Gift, PawPrint, Smartphone, Wallet
 } from "lucide-react";
 import {PasskeyButton} from "./components/passkey-button";
-const APP_VERSION = "2026.08.05-3";
+const APP_VERSION = "2026.08.05-4";
 
 // Фиксированный набор иконок для лимитов — вынесен в конфиг, чтобы можно было
 // расширять без правки логики компонентов.
@@ -310,7 +310,29 @@ async function addTransfer(e:React.SyntheticEvent<HTMLFormElement>){
     if(!success)return;
     setModal(null);
   }
-  async function addBudget(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const raw=String(f.get("period"));if(await financeAction({action:"createBudget",categoryId:f.get("category"),month:budgetPeriodType==="week"?raw:`${raw}-01`,periodType:budgetPeriodType,limitAmount:Number(f.get("limit")),currency:baseCurrency,icon:String(f.get("icon")||"CircleDollarSign"),color:String(f.get("color")||"#6558e8")},"Ліміт збережено"))setModal(null);}
+  async function addBudget(e:React.SyntheticEvent<HTMLFormElement>){
+    e.preventDefault();
+    const f=new FormData(e.currentTarget);
+    const raw=String(f.get("period"));
+    if(budgetPeriodType==="week"&&f.get("cloneWeeks")==="on"&&initialLoggedIn){
+      const monday=new Date(`${raw}T00:00:00`);monday.setDate(monday.getDate()-((monday.getDay()+6)%7));
+      const year=monday.getFullYear(),month=monday.getMonth();
+      const cursor=new Date(year,month,1);cursor.setDate(cursor.getDate()-((cursor.getDay()+6)%7));
+      if(cursor.getMonth()!==month)cursor.setDate(cursor.getDate()+7);
+      const weeks:string[]=[];
+      while(cursor.getMonth()===month){weeks.push(cursor.toISOString().slice(0,10));cursor.setDate(cursor.getDate()+7)}
+      let failed=false;
+      for(const week of weeks){
+        const response=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"createBudget",categoryId:f.get("category"),month:week,periodType:"week",limitAmount:Number(f.get("limit")),currency:baseCurrency,icon:String(f.get("icon")||"CircleDollarSign"),color:String(f.get("color")||"#6558e8")})});
+        if(!response.ok)failed=true;
+      }
+      notify(failed?"Частину лімітів не вдалося зберегти":`Ліміт застосовано на ${weeks.length} тижнів`);
+      await refreshFinance();
+      if(!failed)setModal(null);
+      return;
+    }
+    if(await financeAction({action:"createBudget",categoryId:f.get("category"),month:budgetPeriodType==="week"?raw:`${raw}-01`,periodType:budgetPeriodType,limitAmount:Number(f.get("limit")),currency:baseCurrency,icon:String(f.get("icon")||"CircleDollarSign"),color:String(f.get("color")||"#6558e8")},"Ліміт збережено"))setModal(null);
+  }  
   async function addCategory(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);if(await financeAction({action:"createCategory",name:f.get("name"),kind:String(f.get("kind")),icon:String(f.get("icon")),color:String(f.get("color"))},"Категорію створено"))setModal(null);}
   async function addCustomRate(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);if(await financeAction({action:"createCustomRate",quoteCurrency:String(f.get("currency")),rate:Number(f.get("rate")),date:String(f.get("date")||new Date().toISOString().slice(0,10))},"Власний курс збережено"))setModal(null)}
   async function createInvite(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const response=await fetch("/api/household/invite",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({identifier:f.get("identifier"),role:f.get("role")})});const result=await response.json();if(!response.ok)return notify(result.error||"Не вдалося створити запрошення");await navigator.clipboard.writeText(result.url);setModal(null);notify(result.emailed?"Запрошення надіслано email, посилання скопійовано":"Посилання запрошення скопійовано");}
@@ -713,6 +735,7 @@ function BudgetModal({categories,period,baseCurrency,submit,close}:{categories:C
     <div style={{display:"flex",gap:"6px",flexWrap:"wrap"}}>
       {BUDGET_COLORS.map(hex=><button key={hex} type="button" onClick={()=>setColor(hex)} style={{width:"30px",height:"30px",borderRadius:"50%",background:hex,border:color===hex?"2px solid var(--text)":"2px solid transparent",display:"grid",placeItems:"center",cursor:"pointer"}}>{color===hex&&<Check size={14} color="#fff"/>}</button>)}
     </div>
+    {period==="week" && <label className="check impulse"><input name="cloneWeeks" type="checkbox"/> Застосувати цю суму на кожен тиждень цього місяця</label>}
     <button className="primary">Зберегти ліміт</button>
   </form></div>;
 }
