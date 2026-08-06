@@ -17,7 +17,7 @@ export function AuthBackdrop() {
         <div
           key={index}
           className="auth-v3-float-card"
-          style={{ ...card.style, "--r": `${card.rotate}deg`, animationDelay: `${index * 0.4}s` } as React.CSSProperties}
+          style={{ ...card.style, "--r": `${card.rotate}deg`, animationDelay: `${index * 0.4}s` } as unknown as React.CSSProperties}
         >
           {card.icon === "card" && <CreditCard size={14} className="auth-v3-float-icon" />}
           {card.icon === "repeat" && <Repeat2 size={14} className="auth-v3-float-icon" />}
