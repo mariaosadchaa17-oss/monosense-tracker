@@ -63,6 +63,13 @@ export async function POST(request: Request) {
         p_booked_at: body.bookedAt || new Date().toISOString(), p_is_impulsive: Boolean(body.isImpulsive),
         p_split_total: body.splitTotal ? Number(body.splitTotal) : null, p_personal_share: body.personalShare ? Number(body.personalShare) : null,
       });
+      if(!result.error&&body.debtId){
+        const {data:debtRow}=await supabase.from("debts").select("amount").eq("id",body.debtId).eq("household_id",householdId).single();
+        if(debtRow){
+          const remaining=Math.max(0,Number(debtRow.amount)-Number(body.amount));
+          await supabase.from("debts").update({amount:remaining,settled:remaining<=0}).eq("id",body.debtId).eq("household_id",householdId);
+        }
+      }
       break;
     case "deleteTransaction": {
   const [fromMatch, toMatch] = await Promise.all([
@@ -113,6 +120,7 @@ export async function POST(request: Request) {
         household_id:householdId,person:String(body.person).slice(0,100),direction:body.direction==="i_owe"?"i_owe":"owed_to_me",
         amount:Number(body.amount),currency:String(body.currency||"UAH"),due_date:body.dueDate||null,
         note:String(body.note||"").slice(0,500),created_by:user.id,
+        is_installment:Boolean(body.isInstallment),installment_months:body.installmentMonths?Number(body.installmentMonths):null,
       }).select().single();
       break;
     case "settleDebt":
@@ -123,7 +131,7 @@ export async function POST(request: Request) {
         household_id:householdId,account_id:body.accountId,category_id:body.categoryId||null,
         name:String(body.name).slice(0,100),amount:Number(body.amount),currency:String(body.currency),
         frequency:body.frequency||"monthly",next_run_at:body.nextRunAt,auto_create:Boolean(body.autoCreate),
-        kind:body.kind==="income"?"income":"expense",created_by:user.id,
+        kind:body.kind==="income"?"income":"expense",debt_id:body.debtId||null,created_by:user.id,
       }).select().single();
       break;
     case "createCategory":
