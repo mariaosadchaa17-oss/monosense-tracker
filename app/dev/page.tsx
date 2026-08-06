@@ -14,6 +14,7 @@ const MODALS: { id: string; label: string }[] = [
   { id: "invite", label: "Запросити учасника" },
   { id: "rate", label: "Власний курс" },
 ];
+const linkStyle = { border: "1px solid #ddd", borderRadius: 8, padding: "8px 12px", fontSize: 13, textDecoration: "none", color: "#222" };
 
 export default function DevPage() {
   const [status, setStatus] = useState("");
@@ -29,55 +30,28 @@ export default function DevPage() {
   return (
     <main style={{ maxWidth: 720, margin: "0 auto", padding: "32px 20px", fontFamily: "sans-serif" }}>
       <h1 style={{ marginBottom: 4 }}>Dev-панель</h1>
-      <p style={{ color: "#888", marginBottom: 24, fontSize: 13 }}>
-        Швидкий перехід до будь-якого стану застосунку. Не для звичайних користувачів.
-      </p>
+      <p style={{ color: "#888", marginBottom: 24, fontSize: 13 }}>Швидкий перехід до будь-якого стану застосунку. Не для звичайних користувачів.</p>
 
       <section style={{ marginBottom: 28 }}>
         <h2 style={{ fontSize: 15, marginBottom: 10 }}>Сторінки</h2>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {PAGES.map((page) => (
-            
-              key={page}
-              href={`/?page=${encodeURIComponent(page)}`}
-              style={{ border: "1px solid #ddd", borderRadius: 8, padding: "8px 12px", fontSize: 13, textDecoration: "none", color: "#222" }}
-            >
-              {page}
-            </a>
-          ))}
+          {PAGES.map((page) => <a key={page} href={`/?page=${encodeURIComponent(page)}`} style={linkStyle}>{page}</a>)}
         </div>
       </section>
 
       <section style={{ marginBottom: 28 }}>
         <h2 style={{ fontSize: 15, marginBottom: 10 }}>Модалки</h2>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {MODALS.map((modal) => (
-            
-              key={modal.id}
-              href={`/?modal=${modal.id}`}
-              style={{ border: "1px solid #ddd", borderRadius: 8, padding: "8px 12px", fontSize: 13, textDecoration: "none", color: "#222" }}
-            >
-              {modal.label}
-            </a>
-          ))}
+          {MODALS.map((modal) => <a key={modal.id} href={`/?modal=${modal.id}`} style={linkStyle}>{modal.label}</a>)}
         </div>
       </section>
 
       <section style={{ marginBottom: 28 }}>
         <h2 style={{ fontSize: 15, marginBottom: 10 }}>Онбординг та вхід</h2>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          <button
-            onClick={resetOnboarding}
-            style={{ border: "1px solid #ddd", borderRadius: 8, padding: "8px 12px", fontSize: 13, cursor: "pointer", background: "#fff" }}
-          >
-            Показати онбординг знову
-          </button>
-          <a href="/auth" style={{ border: "1px solid #ddd", borderRadius: 8, padding: "8px 12px", fontSize: 13, textDecoration: "none", color: "#222" }}>
-            Екран входу
-          </a>
-          <a href="/auth?mode=register" style={{ border: "1px solid #ddd", borderRadius: 8, padding: "8px 12px", fontSize: 13, textDecoration: "none", color: "#222" }}>
-            Екран реєстрації
-          </a>
+          <button onClick={resetOnboarding} style={{ ...linkStyle, cursor: "pointer", background: "#fff" }}>Показати онбординг знову</button>
+          <a href="/auth" style={linkStyle}>Екран входу</a>
+          <a href="/auth?mode=register" style={linkStyle}>Екран реєстрації</a>
           {status && <span style={{ fontSize: 12, color: "#666" }}>{status}</span>}
         </div>
       </section>
