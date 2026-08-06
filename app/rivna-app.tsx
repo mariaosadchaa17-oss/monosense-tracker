@@ -11,7 +11,7 @@ import {
   Music, BookOpen, Baby, Palette, Bike, Train, Stethoscope, Cat
 } from "lucide-react";
 import {PasskeyButton} from "./components/passkey-button";
-const APP_VERSION = "2026.08.05-8";
+const APP_VERSION = "2026.08.06-1";
 
 // Фиксированный набор иконок для лимитов — вынесен в конфиг, чтобы можно было
 // расширять без правки логики компонентов.
@@ -893,9 +893,8 @@ function ProfileSettings({dark,setDark,skin,setSkin,notify}:{dark:boolean;setDar
     <label>Кольорова тема
       <div className="skin-picker">
         <button type="button" className={`skin-swatch${skin==="default"?" active":""}`} onClick={()=>setSkin("default")}><i style={{background:"#171a18"}}/><small>Поточна</small></button>
-        <button type="button" className={`skin-swatch${skin==="warm"?" active":""}`} onClick={()=>setSkin("warm")}><i style={{background:"#c97a4a"}}/><small>Тепла</small></button>
-        <button type="button" className={`skin-swatch${skin==="playful"?" active":""}`} onClick={()=>setSkin("playful")}><i style={{background:"#d4537e"}}/><small>Грайлива</small></button>
-        <button type="button" className={`skin-swatch${skin==="luxury"?" active":""}`} onClick={()=>setSkin("luxury")}><i style={{background:"#171716"}}/><small>Люкс</small></button>
+        <button type="button" className={`skin-swatch${skin==="mulberry-mint"?" active":""}`} onClick={()=>setSkin("mulberry-mint")}><i style={{background:"#6B2D42"}}/><small>Mulberry mint</small></button>
+        <button type="button" className={`skin-swatch${skin==="espresso-cream"?" active":""}`} onClick={()=>setSkin("espresso-cream")}><i style={{background:"#8A6A4A"}}/><small>Espresso cream</small></button>
       </div>
     </label>
     <button className="primary" disabled={!profile}>Зберегти</button>

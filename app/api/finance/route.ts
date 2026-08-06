@@ -122,7 +122,8 @@ export async function POST(request: Request) {
       result = await supabase.from("recurring_rules").insert({
         household_id:householdId,account_id:body.accountId,category_id:body.categoryId||null,
         name:String(body.name).slice(0,100),amount:Number(body.amount),currency:String(body.currency),
-        frequency:body.frequency||"monthly",next_run_at:body.nextRunAt,auto_create:Boolean(body.autoCreate),created_by:user.id,
+        frequency:body.frequency||"monthly",next_run_at:body.nextRunAt,auto_create:Boolean(body.autoCreate),
+        kind:body.kind==="income"?"income":"expense",created_by:user.id,
       }).select().single();
       break;
     case "createCategory":
