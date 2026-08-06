@@ -2,10 +2,10 @@
 
 import {useState} from "react";
 import {useRouter} from "next/navigation";
-import {ArrowLeft,ArrowRight,Check,CircleDollarSign,CreditCard,Goal,HeartHandshake,LayoutGrid,Sparkles} from "lucide-react";
+import {ArrowLeft,ArrowRight,Check,CircleDollarSign,CreditCard,Goal,HeartHandshake,LayoutGrid,Sparkles,ShoppingCart,Coffee,House,Bus,Car,HeartPulse,Sparkles as Beauty,Shirt,Gamepad2,Repeat2,Gift,Wifi,GraduationCap,Plane,Dumbbell,Wallet,PawPrint,Smartphone,CircleDollarSign as Other} from "lucide-react";
 
 const categoryNames=["Продукти","Кафе та ресторани","Комуналка","Транспорт","Авто","Здоров’я","Краса","Одяг","Розваги","Підписки","Подарунки","Дім і затишок","Зв’язок та інтернет","Освіта","Подорожі","Спорт","Кишенькові витрати","Домашні улюбленці","Техніка","Інше"];
-// Порядок в categoryNames уже задаёт приоритет (частота использования у большинства людей).
+const categoryIcons=[ShoppingCart,Coffee,House,Bus,Car,HeartPulse,Beauty,Shirt,Gamepad2,Repeat2,Gift,House,Wifi,GraduationCap,Plane,Dumbbell,Wallet,PawPrint,Smartphone,Other];// Порядок в categoryNames уже задаёт приоритет (частота использования у большинства людей).
 // PRIMARY_CATEGORY_COUNT — сколько карточек показывать до сворачивания, подобрано так,
 // чтобы блок помещался на экран без скролла (2 колонки на мобильном, 4 на десктопе).
 const PRIMARY_CATEGORY_COUNT=6;
@@ -40,6 +40,7 @@ export function OnboardingWizard({displayName}:{displayName:string}){
     const result=await response.json();setSaving(false);
     if(!response.ok)return setError(result.error||"Не вдалося завершити налаштування");
     if(result.inviteUrl)await navigator.clipboard.writeText(result.inviteUrl).catch(()=>{});
+    localStorage.setItem("rivna-just-onboarded","1");
     router.refresh();
   }
 return <main className="onboarding-shell"><div className="onboarding-glow"/><section className="onboarding-card"><header className="onboarding-head"><div className="brand"><span className="brand-mark-logo"/></div><div className="step-dots">{[1,2,3,4,5].map(value=><i key={value} className={value<=step?"active":""}/>)}</div><span>{step} / 5</span></header>    <div className="onboarding-body">
@@ -51,8 +52,7 @@ return <main className="onboarding-shell"><div className="onboarding-glow"/><sec
         </div>
       </div>}
       {step===2&&<div className="wizard-step centered"><span className="wizard-icon"><LayoutGrid/></span><small>Період планування</small><h1>Як зручніше планувати?</h1><p>Rivna адаптує прогнози та ліміти під ваш ритм.</p><div className="choice-cards"><button className={period==="month"?"selected":""} onClick={()=>setPeriod("month")}><strong>Місяць</strong><small>Класичний бюджет від зарплати до зарплати</small></button><button className={period==="week"?"selected":""} onClick={()=>setPeriod("week")}><strong>Тиждень</strong><small>Короткі цикли та швидший контроль</small></button><button className={period==="both"?"selected":""} onClick={()=>setPeriod("both")}><strong>Місяць і тиждень</strong><small>Для максимальної гнучкості</small></button></div></div>}
-      {step===3&&<div className="wizard-step categories-step"><span className="wizard-icon"><LayoutGrid/></span><small>Категорії та ліміти</small><h1>Оберіть важливе</h1><p>Увімкніть потрібні категорії та за бажанням одразу задайте ліміт.</p><div className="onboarding-categories">{(showAllCategories?categories:categories.slice(0,PRIMARY_CATEGORY_COUNT)).map((item)=>{const index=categories.indexOf(item);return <div key={item.name} className={item.selected?"selected":""}><button type="button" onClick={()=>setCategories(values=>values.map((value,i)=>i===index?{...value,selected:!value.selected}:value))}><i style={{background:item.color}}>{item.selected&&<Check/>}</i><span>{item.name}</span></button>
-        <div className="limit-inputs">
+{step===3&&<div className="wizard-step categories-step"><span className="wizard-icon"><LayoutGrid/></span><small>Категорії та ліміти</small><h1>Оберіть важливе</h1><p>Увімкніть потрібні категорії та за бажанням одразу задайте ліміт.</p><div className="onboarding-categories">{(showAllCategories?categories:categories.slice(0,PRIMARY_CATEGORY_COUNT)).map((item)=>{const index=categories.indexOf(item);const CatIcon=categoryIcons[index]||CircleDollarSign;return <div key={item.name} className={item.selected?"selected":""}><button type="button" onClick={()=>setCategories(values=>values.map((value,i)=>i===index?{...value,selected:!value.selected}:value))}><i style={{background:item.color}}>{item.selected?<Check size={13}/>:<CatIcon size={13}/>}</i><span>{item.name}</span></button>        <div className="limit-inputs">
           {(period==="week"||period==="both")&&<input type="number" inputMode="numeric" disabled={!item.selected} value={item.week_limit} onChange={event=>{const newWeekValue=event.target.value;const calculatedMonthValue=Number(newWeekValue)*4;setCategories(values=>values.map((value,i)=>i===index?{...value,week_limit:newWeekValue,month_limit:calculatedMonthValue>0?String(calculatedMonthValue):""}:value))}} placeholder="Тиждень, ₴"/>}
           {(period==="month"||period==="both")&&<input type="number" inputMode="numeric" disabled={!item.selected} value={item.month_limit} onChange={event=>setCategories(values=>values.map((value,i)=>i===index?{...value,month_limit:event.target.value}:value))} placeholder="Місяць, ₴"/>}
         </div></div>})}
