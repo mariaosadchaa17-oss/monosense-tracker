@@ -1,16 +1,42 @@
-import { ShieldCheck, Fingerprint } from "lucide-react";
+import { CreditCard, Repeat2 } from "lucide-react";
+
+const FLOATING_CARDS = [
+  { style: { top: "6%", left: "5%" }, rotate: -8, label: "Продукти", value: "−₴1 248", tone: "danger" as const },
+  { style: { top: "10%", right: "6%" }, rotate: 7, label: "Бюджет", value: "82% виконано", tone: "neutral" as const },
+  { style: { bottom: "24%", left: "3%" }, rotate: 5, label: "Зарплата", value: "+₴24 500", tone: "positive" as const },
+  { style: { bottom: "20%", right: "4%" }, rotate: -6, label: "Ціль: Резерв", value: "60% накопичено", tone: "neutral" as const },
+  { style: { top: "38%", left: "-1%" }, rotate: -4, label: "Основна картка", icon: "card" as const },
+  { style: { top: "42%", right: "-1%" }, rotate: 6, label: "Netflix щомісяця", icon: "repeat" as const },
+  { style: { bottom: "8%", left: "22%" }, rotate: 3, label: "Кава", value: "−₴185", tone: "neutral" as const },
+];
 
 export function AuthBackdrop() {
   return (
     <div className="auth-v3-backdrop" aria-hidden="true">
-      <span className="auth-v3-blob auth-v3-blob-mint" />
-      <span className="auth-v3-blob auth-v3-blob-lav" />
-      <span className="auth-v3-ring" />
-      <span className="auth-v3-badge auth-v3-badge-1"><ShieldCheck /></span>
-      <span className="auth-v3-badge auth-v3-badge-2"><Fingerprint /></span>
-      <span className="auth-v3-badge auth-v3-badge-3">
-        <i /><i /><i />
-      </span>
+      {FLOATING_CARDS.map((card, index) => (
+        <div
+          key={index}
+          className="auth-v3-float-card"
+          style={{ ...card.style, transform: `rotate(${card.rotate}deg)` }}
+        >
+          {card.icon === "card" && <CreditCard size={14} className="auth-v3-float-icon" />}
+          {card.icon === "repeat" && <Repeat2 size={14} className="auth-v3-float-icon" />}
+          <span className="auth-v3-float-label">{card.label}</span>
+          {card.value && (
+            <span
+              className={
+                card.tone === "positive"
+                  ? "auth-v3-float-value auth-v3-float-value-positive"
+                  : card.tone === "danger"
+                  ? "auth-v3-float-value auth-v3-float-value-danger"
+                  : "auth-v3-float-value"
+              }
+            >
+              {card.value}
+            </span>
+          )}
+        </div>
+      ))}
     </div>
   );
 }
