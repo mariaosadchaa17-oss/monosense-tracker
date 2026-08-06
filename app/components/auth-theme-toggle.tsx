@@ -10,13 +10,13 @@ export function AuthThemeToggle() {
   const [theme, setTheme] = useState("mulberry-mint");
 
   useEffect(() => {
-    const saved = typeof window !== "undefined" ? localStorage.getItem("rivna-auth-skin") : null;
+    const saved = typeof window !== "undefined" ? localStorage.getItem("rivna-skin") : null;
     if (saved && THEMES.some((item) => item.id === saved)) setTheme(saved);
   }, []);
 
   useEffect(() => {
-    document.documentElement.dataset.authskin = theme;
-    localStorage.setItem("rivna-auth-skin", theme);
+    document.documentElement.dataset.skin = theme;
+    localStorage.setItem("rivna-skin", theme);
   }, [theme]);
 
   const current = THEMES.find((item) => item.id === theme) || THEMES[0];
