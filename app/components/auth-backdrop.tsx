@@ -1,13 +1,13 @@
 import { CreditCard, Repeat2 } from "lucide-react";
 
 const FLOATING_CARDS = [
-  { style: { top: "6%", left: "5%" }, rotate: -8, label: "Продукти", value: "−₴1 248", tone: "danger" as const },
-  { style: { top: "10%", right: "6%" }, rotate: 7, label: "Бюджет", value: "82% виконано", tone: "neutral" as const },
-  { style: { bottom: "24%", left: "3%" }, rotate: 5, label: "Зарплата", value: "+₴24 500", tone: "positive" as const },
-  { style: { bottom: "20%", right: "4%" }, rotate: -6, label: "Ціль: Резерв", value: "60% накопичено", tone: "neutral" as const },
-  { style: { top: "38%", left: "-1%" }, rotate: -4, label: "Основна картка", icon: "card" as const },
-  { style: { top: "42%", right: "-1%" }, rotate: 6, label: "Netflix щомісяця", icon: "repeat" as const },
-  { style: { bottom: "8%", left: "22%" }, rotate: 3, label: "Кава", value: "−₴185", tone: "neutral" as const },
+  { style: { top: "14%", left: "16%" }, rotate: -8, label: "Продукти", value: "−₴1 248", tone: "danger" as const },
+  { style: { top: "18%", right: "15%" }, rotate: 7, label: "Бюджет", value: "82% виконано", tone: "neutral" as const },
+  { style: { bottom: "30%", left: "12%" }, rotate: 5, label: "Зарплата", value: "+₴24 500", tone: "positive" as const },
+  { style: { bottom: "26%", right: "13%" }, rotate: -6, label: "Ціль: Резерв", value: "60% накопичено", tone: "neutral" as const },
+  { style: { top: "42%", left: "6%" }, rotate: -4, label: "Основна картка", icon: "card" as const },
+  { style: { top: "46%", right: "6%" }, rotate: 6, label: "Netflix щомісяця", icon: "repeat" as const },
+  { style: { bottom: "14%", left: "32%" }, rotate: 3, label: "Кава", value: "−₴185", tone: "neutral" as const },
 ];
 
 export function AuthBackdrop() {
@@ -17,7 +17,7 @@ export function AuthBackdrop() {
         <div
           key={index}
           className="auth-v3-float-card"
-          style={{ ...card.style, transform: `rotate(${card.rotate}deg)` }}
+          style={{ ...card.style, "--r": `${card.rotate}deg`, animationDelay: `${index * 0.4}s` } as React.CSSProperties}
         >
           {card.icon === "card" && <CreditCard size={14} className="auth-v3-float-icon" />}
           {card.icon === "repeat" && <Repeat2 size={14} className="auth-v3-float-icon" />}

@@ -108,8 +108,10 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .auth-v3{min-height:100vh;position:relative;display:grid;place-items:center;padding:32px;background:#F6ECEE;overflow:hidden}
 :root[data-skin="espresso-cream"] .auth-v3{background:#1E1712}
 .auth-v3-backdrop{position:absolute;inset:0;overflow:hidden;pointer-events:none;background:linear-gradient(to bottom, transparent 0%, transparent 55%, color-mix(in srgb,var(--purple) 10%, transparent) 100%)}
-.auth-v3-float-card{position:absolute;background:var(--panel);border:0.5px solid var(--line);border-radius:10px;padding:9px 13px;box-shadow:0 4px 16px rgba(0,0,0,.08);font-size:11px;display:flex;align-items:center;gap:6px;white-space:nowrap}
-.auth-v3-float-icon{color:var(--purple)}
+.auth-v3-float-card{position:absolute;background:var(--panel);border:0.5px solid var(--line);border-radius:13px;padding:13px 18px;box-shadow:0 6px 22px rgba(0,0,0,.1);font-size:13px;display:flex;align-items:center;gap:8px;white-space:nowrap;animation:auth-v3-card-drift 6s ease-in-out infinite}.auth-v3-float-icon{color:var(--purple);font-size:16px}
+.auth-v3-float-label{color:var(--muted);font-size:12px}
+.auth-v3-float-value{font-weight:650;margin-left:4px;color:var(--text);font-size:13px}
+@keyframes auth-v3-card-drift{0%,100%{transform:translateY(0) rotate(var(--r,0deg))}50%{transform:translateY(-10px) rotate(var(--r,0deg))}}
 .auth-v3-float-label{color:var(--muted)}
 .auth-v3-float-value{font-weight:650;margin-left:4px;color:var(--text)}
 .auth-v3-float-value-positive{color:#3B6D11}
@@ -206,3 +208,7 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .auth-v3-logo{width:180px;height:auto;display:block;margin:0 auto 4px}
 .auth-v3-signature{font-size:10px;color:#8F6270;text-align:center;letter-spacing:.3px;margin:0 0 20px}
 :root[data-theme="dark"] .auth-v3-signature{color:#C9A98A}
+
+.passkey-section{margin-top:2px}
+.auth-v3-passkey{width:100%}
+.passkey-error{margin:8px 0 0;font-size:11px;color:#D85A30;text-align:center}

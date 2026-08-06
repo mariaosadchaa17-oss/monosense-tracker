@@ -11,7 +11,7 @@ import {
   Music, BookOpen, Baby, Palette, Bike, Train, Stethoscope, Cat
 } from "lucide-react";
 import {PasskeyButton} from "./components/passkey-button";
-const APP_VERSION = "2026.08.06-1";
+const APP_VERSION = "2026.08.06-2";
 
 // Фиксированный набор иконок для лимитов — вынесен в конфиг, чтобы можно было
 // расширять без правки логики компонентов.
