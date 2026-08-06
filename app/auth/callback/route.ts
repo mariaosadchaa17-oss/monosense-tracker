@@ -5,7 +5,7 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const code = url.searchParams.get("code");
   const requested=url.searchParams.get("next")||"/",next=requested.startsWith("/")&&!requested.startsWith("//")?requested:"/";
-if (code) {
+  if (code) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) {
@@ -13,3 +13,4 @@ if (code) {
     }
   }
   return NextResponse.redirect(new URL(next,url.origin));
+}
