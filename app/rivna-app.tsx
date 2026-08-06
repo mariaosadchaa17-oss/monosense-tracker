@@ -111,6 +111,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [rates, setRates] = useState<{currency:string;rate:number;date:string}[]>([]);
   const [customRates,setCustomRates]=useState<{currency:string;rate:number;date:string}[]>([]);
   const [syncing, setSyncing] = useState(initialLoggedIn);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(!initialLoggedIn);
   const [goals, setGoals] = useState<GoalItem[]>(initialLoggedIn?[]:seedGoals);
   const [debts, setDebts] = useState<DebtItem[]>([]);
   const [recurring, setRecurring] = useState<RecurringItem[]>([]);
@@ -202,7 +203,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       setCustomRates((data.exchangeRates||[]).map((item:Record<string,unknown>)=>({currency:String(item.quote_currency),rate:Number(item.custom_rate||item.official_rate),date:String(item.rate_date)})));
     } catch (error) {
       notify(error instanceof Error ? error.message : "Помилка синхронізації");
-    } finally { setSyncing(false); }
+    } finally { setSyncing(false); setHasLoadedOnce(true); }
   }
   // Refresh once when the authenticated application is mounted.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -418,6 +419,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   }
 
   if (!loggedIn) return <Login dark={dark} setDark={setDark} showPassword={showPassword} setShowPassword={setShowPassword} login={() => setLoggedIn(true)}/>;
+  if (!hasLoadedOnce) return <div className="app-loader"><span className="app-loader-logo"/><span className="app-loader-spinner"/></div>;
 
   const nav: [Page, React.ReactNode][] = [
     ["Головна", <Home key="h"/>], ["Операції", <ArrowUpRight key="o"/>], ["Бюджет", <BarChart3 key="b"/>],
@@ -492,7 +494,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     {modal === "invite" && <InviteModal submit={createInvite} close={()=>setModal(null)}/>}
     {modal === "rate" && <CustomRateModal submit={addCustomRate} close={()=>setModal(null)}/>}
     {toast && <div className="toast">{toast}</div>}
-    {syncing && <div className="sync-pill">Синхронізація…</div>}
+    {syncing && hasLoadedOnce && <div className="sync-bar"/>}
     <div style={{position:"fixed",bottom:"6px",right:"8px",fontSize:"10px",opacity:0.35,pointerEvents:"none",zIndex:9999,fontFamily:"monospace"}}>v{APP_VERSION}</div>
   </main>;
 }
@@ -954,7 +956,7 @@ function AccountCard({account}:{account:Account}) {
 }
 function BankMark({bank}:{bank:string}){const value=bank.toLowerCase();if(value.includes("mono"))return <span className="bank-logo mono-logo">mono</span>;if(value.includes("приват")||value.includes("privat"))return <span className="bank-logo privat-logo">П</span>;if(value.includes("пумб")||value.includes("pumb"))return <span className="bank-logo pumb-logo">ПУМБ</span>;if(value.includes("ощад"))return <span className="bank-logo oschad-logo">О</span>;if(value.includes("райффайзен")||value.includes("raiffeisen"))return <span className="bank-logo raif-logo">RAIFF</span>;if(value.includes("а-банк")||value.includes("abank"))return <span className="bank-logo abank-logo">А-Банк</span>;if(value.includes("сенс")||value.includes("sense"))return <span className="bank-logo sense-logo">Sense</span>;if(value.includes("укрсиб")||value.includes("ukrsib"))return <span className="bank-logo ukrsib-logo">УСБ</span>;if(value.includes("отп")||value.includes("otp"))return <span className="bank-logo otp-logo">OTP</span>;if(value.includes("кредо")||value.includes("kredo"))return <span className="bank-logo kredo-logo">Kredo</span>;if(value.includes("пайонер")||value.includes("піонер")||value.includes("pioneer"))return <span className="bank-logo pioneer-logo">Pioneer</span>;if(value.includes("готів"))return <span className="bank-icon"><Landmark/></span>;return <span className="bank-icon">{bank.slice(0,1).toUpperCase()||<CreditCard/>}</span>}
 function bankStyle(bank:string,index=2){const value=bank.toLowerCase();if(value.includes("mono"))return "mono";if(value.includes("приват")||value.includes("privat"))return "privat";if(value.includes("пумб")||value.includes("pumb"))return "pumb";if(value.includes("ощад"))return "oschad";if(value.includes("райффайзен")||value.includes("raiffeisen"))return "raif";if(value.includes("а-банк")||value.includes("abank"))return "abank";if(value.includes("сенс")||value.includes("sense"))return "sense";if(value.includes("укрсиб")||value.includes("ukrsib"))return "ukrsib";if(value.includes("отп")||value.includes("otp"))return "otp";if(value.includes("кредо")||value.includes("kredo"))return "kredo";if(value.includes("пайонер")||value.includes("піонер")||value.includes("pioneer"))return "pioneer";return index%3===0?"mono":index%3===1?"privat":"stash"}
-function TransactionList({transactions}:{transactions:Transaction[]}) { return <div className="tx-list">...</div>; }
+function TransactionList({transactions}:{transactions:Transaction[]}) { return <div className="tx-list">{transactions.map(t=><div className="tx" key={t.id}><span className={`tx-icon ${t.amount>0?"income":"shop"}`}>{t.amount>0?<ArrowDownLeft/>:<ShoppingBag/>}</span><div className="tx-info"><strong>{t.title}{t.impulse&&<em>Імпульсивна</em>}</strong><small>{t.category} · {t.date}</small></div><strong className={t.amount>0?"income-amount":""}>{t.amount>0?"+":"−"} {currencySymbol(t.currency||"UAH")} {formatMoney(t.amount)}</strong></div>)}</div>; }
 function EmptyState({icon,text}:{icon:React.ReactNode;text:string}){
   return <div className="empty-state"><span className="empty-state-icon">{icon}</span><p>{text}</p></div>;
 }
