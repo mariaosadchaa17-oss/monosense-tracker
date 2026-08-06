@@ -18,7 +18,7 @@ export default async function AuthPage({ searchParams }: { searchParams: Promise
   const requested = params.next || "/", next = requested.startsWith("/") && !requested.startsWith("//") ? requested : "/";
 
   return (
-    <main className="auth-v3">Dashboard balance={balance} baseCurrency
+    <main className="auth-v3">
       <AuthBackdrop />
       <div className="auth-v3-card">
         <AuthThemeToggle />
