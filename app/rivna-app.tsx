@@ -258,7 +258,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
         isImpulsive:!isIncome&&form.get("impulse")==="on",splitTotal:isIncome?null:form.get("splitTotal")||null,personalShare:isIncome?null:form.get("personalShare")||null,
         bookedAt:form.get("date")?new Date(String(form.get("date"))).toISOString():undefined,
         tags:String(form.get("tags")||"").split(/\s+/).filter(Boolean),splitParticipants:String(form.get("splitParticipants")||"").split(",").map(value=>value.trim()).filter(Boolean),
-        repeat:!isIncome&&form.get("repeat")==="on",repeatFrequency:form.get("repeatFrequency"),repeatDay:form.get("repeatDay"),
+        repeat:form.get("repeat")==="on",repeatFrequency:form.get("repeatFrequency"),repeatDay:form.get("repeatDay"),
         debtId:!isIncome?(form.get("debtId")||null):null,
       })});
       const result = await response.json();
@@ -1008,9 +1008,9 @@ function ExpenseModal({amount,setAmount,note,setNote,accounts,categories,debts,s
     {type==="expense"&&<>
       {debts.length>0&&<details className="split-details"><summary>Погашення боргу</summary><label>Борг<select value={debtId} onChange={e=>setDebtId(e.target.value)}><option value="">Не пов'язано з боргом</option>{debts.map(d=><option key={d.id} value={d.id}>{d.person} · {d.currency} {formatMoney(d.amount)}</option>)}</select></label><input type="hidden" name="debtId" value={debtId}/><small className="field-help">Сума цієї витрати спишеться з залишку обраного боргу — підходить і для планового, і для дострокового погашення.</small></details>}
       <details className="split-details"><summary>Розділити чек</summary><div className="form-two"><label>Загальна сума<input name="splitTotal" type="number" min="0" step=".01"/></label><label>Моя частка<input name="personalShare" type="number" min="0" step=".01"/></label></div><label>Учасники<input name="splitParticipants" placeholder="Діма, Оля, Андрій"/></label><small className="field-help">Залишок буде порівну розподілений між учасниками, а з балансу спишеться лише ваша частка.</small></details>
-      <details className="split-details" open={repeat}><summary onClick={e=>e.preventDefault()} style={{cursor:"default"}}>Повторювати витрату</summary><label className="check impulse"><input name="repeat" type="checkbox" checked={repeat} onChange={e=>setRepeat(e.target.checked)}/> Створити регулярне нагадування</label><div className="form-two"><label>Період<select name="repeatFrequency"><option value="weekly">Щотижня</option><option value="monthly">Щомісяця</option><option value="yearly">Щороку</option></select></label><label>Число місяця<input name="repeatDay" type="number" min="1" max="28" placeholder="Наприклад, 5"/></label></div></details>
-      <label className="check impulse"><input name="impulse" type="checkbox"/> Імпульсивна витрата</label>
     </>}
+    <details className="split-details" open={repeat}><summary onClick={e=>e.preventDefault()} style={{cursor:"default"}}>{type==="income"?"Плановий дохід":"Повторювати витрату"}</summary><label className="check impulse"><input name="repeat" type="checkbox" checked={repeat} onChange={e=>setRepeat(e.target.checked)}/> {type==="income"?"Позначити як регулярний дохід":"Створити регулярне нагадування"}</label><div className="form-two"><label>Період<select name="repeatFrequency"><option value="weekly">Щотижня</option><option value="monthly">Щомісяця</option><option value="yearly">Щороку</option></select></label><label>Число місяця<input name="repeatDay" type="number" min="1" max="28" placeholder="Наприклад, 5"/></label></div></details>
+    {type==="expense"&&<label className="check impulse"><input name="impulse" type="checkbox"/> Імпульсивна витрата</label>}
     <button className="primary">{type==="income"?"Додати дохід":"Додати витрату"}</button>
   </form></div>;
 }
