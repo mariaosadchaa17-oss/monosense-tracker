@@ -21,10 +21,16 @@ export default function DevPage() {
 
   async function resetOnboarding() {
     setStatus("Скидаю...");
-    const response = await fetch("/api/dev/reset-onboarding", { method: "POST" });
-    const result = await response.json();
-    setStatus(response.ok ? "Готово, зараз відкриється онбординг" : result.error || "Помилка");
-    if (response.ok) window.setTimeout(() => (window.location.href = "/"), 500);
+    try {
+      const response = await fetch("/api/dev/reset-onboarding", { method: "POST" });
+      const text = await response.text();
+      let result: { error?: string } = {};
+      try { result = JSON.parse(text); } catch { result = { error: `Сервер повернув не-JSON: ${text.slice(0, 200)}` }; }
+      setStatus(response.ok ? "Готово, зараз відкриється онбординг" : result.error || `Помилка ${response.status}`);
+      if (response.ok) window.setTimeout(() => (window.location.href = "/"), 500);
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "Мережева помилка");
+    }
   }
 
   return (

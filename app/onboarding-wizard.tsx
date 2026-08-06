@@ -10,7 +10,7 @@ const categoryNames=["Продукти","Кафе та ресторани","Ко
 // чтобы блок помещался на экран без скролла (2 колонки на мобильном, 4 на десктопе).
 const PRIMARY_CATEGORY_COUNT=6;
 const categoryColors=["#ff7a66","#f0a94a","#6558e8","#4c91e8","#39495e","#28a879","#e874a6","#8875d1","#ef7d53","#4f73d9","#ec6b87","#a57a5a","#42a7a2","#6574c4","#28a879","#ef7658","#d3a032","#9b6b51","#66717d","#878b86"];
-const banks=["monobank","ПриватБанк","ПУМБ","Ощадбанк","Райффайзен Банк","Готівка"];
+const banks=["monobank","ПриватБанк","ПУМБ","Ощадбанк","Райффайзен Банк","А-Банк","Сенс Банк","Укрсиббанк","ОТП Банк","Кредобанк","Пайонер","Готівка","Інший"];
 const goals=[["reserve","Накопичити фінансову подушку"],["travel","Відпустка або подорож"],["purchase","Велика покупка"],["debt_free","Вийти з боргів"],["control","Просто контролювати витрати"],["custom","Своя ціль"]];
 const suggestedCardColors=['#fecaca', '#a7f3d0', '#bae6fd', '#c7d2fe', '#fbcfe8', '#fef08a', '#bfdbfe', '#e9d5ff', '#fed7aa', '#d9f99d', '#252629'];
 
@@ -43,8 +43,7 @@ export function OnboardingWizard({displayName}:{displayName:string}){
     router.refresh();
   }
 return <main className="onboarding-shell"><div className="onboarding-glow"/><section className="onboarding-card"><header className="onboarding-head"><div className="brand"><span className="brand-mark-logo"/></div><div className="step-dots">{[1,2,3,4,5].map(value=><i key={value} className={value<=step?"active":""}/>)}</div><span>{step} / 5</span></header>    <div className="onboarding-body">
-      {step===1&&<div className="wizard-step"><span className="wizard-icon"><CreditCard/></span><small>Вітаємо, {displayName}</small><h1>Додайте перший рахунок</h1><p>Почнемо з картки або готівки. Усе можна змінити пізніше.</p><label>Назва<input value={account.name} onChange={event=>setAccount({...account,name:event.target.value})}/></label><div className="wizard-grid"><label>Поточний баланс<input type="number" inputMode="decimal" value={account.balance} onChange={event=>setAccount({...account,balance:event.target.value})} placeholder="0"/></label><label>Кредитний ліміт<input type="number" inputMode="decimal" value={account.credit_limit} onChange={event=>setAccount({...account,credit_limit:event.target.value})} placeholder="0"/></label></div><div className="wizard-grid"><label>Валюта<select value={account.currency} onChange={event=>setAccount({...account,currency:event.target.value})}><option>UAH</option><option>USD</option><option>EUR</option><option>PLN</option></select></label></div><label>Банк</label><div className="wheel-picker" aria-label="Вибір банку">{banks.map((bank,index)=><button type="button" key={bank} className={index===selectedBank?"selected":""} onClick={()=>setAccount({...account,bank})}>{bank}{index===selectedBank&&<Check/>}</button>)}</div>
-        <label>Колір картки</label>
+{step===1&&<div className="wizard-step"><span className="wizard-icon"><CreditCard/></span><small>Вітаємо, {displayName}</small><h1>Створимо твій перший рахунок</h1>        <label>Колір картки</label>
         <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
           <div style={{display:"flex",gap:"6px", flexWrap: "wrap"}}>
             {suggestedCardColors.map(c=><button key={c} type="button" style={{background:c,width:"32px",height:"32px",borderRadius:"50%",border:account.color.toLowerCase()===c.toLowerCase()?"2px solid #6558e8":"2px solid transparent",display:"grid",placeItems:"center",color:isLight(c)?"#000":"#fff",cursor:"pointer"}} onClick={()=>setAccount({...account,color:c})}>{account.color.toLowerCase()===c.toLowerCase()&&<Check size={16}/>}</button>)}
