@@ -1017,8 +1017,9 @@ function ExpenseModal({amount,setAmount,note,setNote,accounts,categories,debts,s
 function WheelField({name,label,options,value:controlled,onChange,defaultValue}:{name:string;label:string;options:{value:string;label:string}[];value?:string;onChange?:(value:string)=>void;defaultValue?:string}){const [internal,setInternal]=useState(defaultValue??options[0]?.value??""),value=controlled===undefined?internal:controlled,selected=options.find(option=>option.value===value);function select(next:string){if(controlled===undefined)setInternal(next);onChange?.(next)}return <label className="picker-label">{label}<details className="compact-picker"><summary>{selected?.label||"Оберіть"}</summary><div className="picker-wheel">{options.map(option=><button type="button" key={`${name}-${option.value}`} className={option.value===value?"selected":""} onClick={event=>{select(option.value);event.currentTarget.closest("details")?.removeAttribute("open")}}>{option.label}{option.value===value&&<Check/>}</button>)}</div></details><input type="hidden" name={name} value={value}/></label>}
 function CategoryGridField({categories,type,value,onChange}:{categories:CategoryItem[];type:"expense"|"income";value:string;onChange:(v:string)=>void}){
   const seen=new Set<string>();
-  const filtered=categories.filter(c=>c.kind===type&&!c.isDefault).filter(c=>{
-    const key=c.name.trim().toLowerCase();
+  const normalize=(name:string)=>name.trim().toLowerCase().replace(/['’ʼ`]/g,"");
+  const filtered=categories.filter(c=>c.kind===type).filter(c=>{
+    const key=normalize(c.name);
     if(seen.has(key))return false;
     seen.add(key);
     return true;
