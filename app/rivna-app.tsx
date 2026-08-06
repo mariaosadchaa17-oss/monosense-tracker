@@ -133,14 +133,15 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     fetch("/api/settings",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(data=>data?.profile&&setTopProfile({name:data.profile.name,email:data.profile.email||""})).catch(()=>{});
   },[initialLoggedIn]);
 
-  useEffect(() => {
-    if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
-    const onInstall=(event:Event)=>{event.preventDefault();setInstallPrompt(event)};
-    window.addEventListener("beforeinstallprompt",onInstall);
-    const timer=window.setTimeout(()=>{
+  const timer=window.setTimeout(()=>{
       const params=new URLSearchParams(location.search);
-      if(params.get("action")==="expense")setModal("expense");
-      if(params.get("section")==="budget")setPage("Бюджет");
+      const pageParam=params.get("page");
+      const validPages:Page[]=["Головна","Операції","Бюджет","Рахунки","Накопичення","Аналітика","Борги","Налаштування"];
+      if(pageParam&&(validPages as string[]).includes(pageParam))setPage(pageParam as Page);
+      else if(params.get("section")==="budget")setPage("Бюджет");
+      const modalParam=params.get("modal")||(params.get("action")==="expense"?"expense":null);
+      const validModals=["expense","account","goal","debt","recurring","transfer","budget","category","invite","rate"];
+      if(modalParam&&validModals.includes(modalParam))setModal(modalParam as typeof modal);
       if("Notification" in window)setPushEnabled(Notification.permission==="granted");
     },0);
     return()=>{window.clearTimeout(timer);window.removeEventListener("beforeinstallprompt",onInstall)};
