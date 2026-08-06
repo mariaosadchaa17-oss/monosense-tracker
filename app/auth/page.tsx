@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { signIn, signUp } from "./actions";
 import { PasskeySection } from "@/app/components/passkey-section";
 import { AuthBackdrop } from "@/app/components/auth-backdrop";
+import { AuthThemeToggle } from "@/app/components/auth-theme-toggle";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,8 @@ export default async function AuthPage({ searchParams }: { searchParams: Promise
     <main className="auth-v3">
       <AuthBackdrop />
       <div className="auth-v3-card">
+        <AuthThemeToggle />
+        <p className="auth-v3-signature">Engineered by Maria Osadcha</p>
         <h1>{register ? "Створити акаунт" : "Увійти"}</h1>
         <p>{register ? "Почніть керувати фінансами разом" : "Раді бачити знову"}</p>
 
