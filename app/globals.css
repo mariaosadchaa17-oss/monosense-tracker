@@ -290,3 +290,19 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .auth-v3-passkey{width:100%}
 .passkey-error{margin:8px 0 0;font-size:11px;color:#D85A30;text-align:center}
 .brand-mark-logo{display:block;width:120px;height:44px;background-color:var(--ink);-webkit-mask-image:url('/logo-rivna-green.png');mask-image:url('/logo-rivna-green.png');-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:left center;mask-position:left center}
+
+.period-choice-cards{grid-template-columns:1fr 1fr 1fr}
+.period-choice-cards button{position:relative;display:flex;flex-direction:column;gap:8px}
+.period-choice-icon{width:38px;height:38px;border-radius:12px;background:#E3CCD3;color:#6B2D42;display:grid;place-items:center;margin-bottom:2px}
+:root[data-skin="espresso-cream"] .period-choice-icon{background:#4A3222;color:#F3E5D3}
+.period-choice-cards button.selected .period-choice-icon{background:#6B2D42;color:#fff}
+:root[data-skin="espresso-cream"] .period-choice-cards button.selected .period-choice-icon{background:#8A6A4A;color:#FBF3E7}
+.period-choice-icon svg{width:19px}
+.period-choice-badge{position:absolute;top:14px;right:14px;font-style:normal;font-size:9px;font-weight:800;color:#6B2D42;background:#EFDDE2;padding:4px 8px;border-radius:999px}
+:root[data-skin="espresso-cream"] .period-choice-badge{color:#C9AC8A;background:#3A2C22}
+@media(max-width:720px){.period-choice-cards{grid-template-columns:1fr}}
+
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:50px 20px;color:var(--muted);text-align:center}
+.empty-state-icon{width:44px;height:44px;border-radius:50%;background:color-mix(in srgb,var(--purple) 10%,var(--panel));color:var(--purple);display:grid;place-items:center}
+.empty-state-icon svg{width:20px}
+.empty-state p{margin:0;font-size:13px}
