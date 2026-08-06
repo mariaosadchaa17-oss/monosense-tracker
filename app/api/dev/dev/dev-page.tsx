@@ -37,7 +37,7 @@ export default function DevPage() {
         <h2 style={{ fontSize: 15, marginBottom: 10 }}>Сторінки</h2>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {PAGES.map((page) => (
-            <a
+            
               key={page}
               href={`/?page=${encodeURIComponent(page)}`}
               style={{ border: "1px solid #ddd", borderRadius: 8, padding: "8px 12px", fontSize: 13, textDecoration: "none", color: "#222" }}
@@ -52,7 +52,7 @@ export default function DevPage() {
         <h2 style={{ fontSize: 15, marginBottom: 10 }}>Модалки</h2>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {MODALS.map((modal) => (
-            <a
+            
               key={modal.id}
               href={`/?modal=${modal.id}`}
               style={{ border: "1px solid #ddd", borderRadius: 8, padding: "8px 12px", fontSize: 13, textDecoration: "none", color: "#222" }}
