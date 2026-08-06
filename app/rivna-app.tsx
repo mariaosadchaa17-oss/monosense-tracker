@@ -835,24 +835,25 @@ function LiveBudgetView({
       </div>
       <section className="panel full-view">
         <div className="section-title"><div><h2>Ліміти за категоріями</h2><p>{isCurrent ? `Поточний ${periodLabel}` : rangeLabel}</p></div><button className="small-primary" onClick={add}><Plus /> Додати ліміт</button></div>
-        {activeBudgets.length ? (
-          <div className="large-budget"><div className="budget-list">{activeBudgets.map((budget) => {
+       {activeBudgets.length ? (
+        <div className="large-budget"><div className="budget-list">{activeBudgets.map((budget) => {
             const used = spentBy[budget.name] || 0;
             const percent = Math.round((used / budget.limit) * 100);
+            const isOver = percent >= 100;
             return (
-              <div className="budget-item" key={budget.id}>
-                <span className="budget-icon" style={{ color: budget.color, background: `${budget.color}15` }}><BudgetIcon name={budget.icon} /></span>
-                <div>
-                  <div><strong>{budget.name}</strong><small>{symbol} {formatMoney(used)} / {formatMoney(budget.limit)} · {percent}%{budget.sourceIds.length > 1 ? ` · ${budget.sourceIds.length} тиж.` : ""}</small></div>
-                  <span><i style={{ width: `${Math.min(100, percent)}%`, background: percent >= 100 ? "#e05252" : percent >= 80 ? "#f4b740" : budget.color }} /></span>
-                </div>
-                <button className="icon-button danger" onClick={() => { if (window.confirm("Видалити цей ліміт?")) budget.sourceIds.forEach((id) => remove(id)); }} aria-label="Видалити ліміт"><Trash2 /></button>
+              <div className={isOver ? "budget-item over-budget" : "budget-item"} key={budget.id}>
+                <button className="icon-button danger" onClick={() => { if (window.confirm("Видалити цей ліміт?")) budget.sourceIds.forEach((id) => remove(id)); }} aria-label="Видалити ліміт"><Trash2 size={13}/></button>
+                <span className="budget-icon" style={{ color: budget.color, background: `${budget.color}15` }}><BudgetIcon name={budget.icon} size={17}/></span>
+                <strong>{budget.name}</strong>
+                <span className={isOver ? "budget-amount over" : "budget-amount"}>{symbol} {formatMoney(used)}</span>
+                <small>з {formatMoney(budget.limit)}₴ · {percent}%{budget.sourceIds.length > 1 ? ` · ${budget.sourceIds.length} тиж.` : ""}</small>
+                <span><i style={{ width: `${Math.min(100, percent)}%`, background: percent >= 100 ? "#e05252" : percent >= 80 ? "#f4b740" : budget.color }} /></span>
               </div>
             );
           })}</div></div>
-        ) : (
-          <p className="empty-inline">Лімітів на цей {periodLabel} ще немає.</p>
-        )}
+      ) : (
+        <EmptyState icon={<BarChart3/>} text={`Лімітів на цей ${periodLabel} ще немає — додай перший через кнопку вище`}/>
+      )}
         {activeBudgets.some((budget) => (spentBy[budget.name] || 0) / budget.limit >= 0.8) && (
           <div className="alert-card"><Bell /><div><strong>Наближення до ліміту</strong><p>Одна або кілька категорій використані більш ніж на 80%.</p></div></div>
         )}
