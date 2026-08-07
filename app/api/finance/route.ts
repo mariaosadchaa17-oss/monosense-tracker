@@ -197,9 +197,12 @@ export async function POST(request: Request) {
         quote_currency:String(body.quoteCurrency||"USD").toUpperCase().slice(0,3),official_rate:Number(body.rate),custom_rate:Number(body.rate),source:"CUSTOM",
       },{onConflict:"rate_date,quote_currency,household_id"}).select().single();
       break;
-    case "deleteCategory":
-      result = await supabase.from("categories").delete().eq("id",body.id).eq("household_id",householdId);
-      break;
+    case "deleteCategory": {
+          const { data: catRow } = await supabase.from("categories").select("name,is_default").eq("id",body.id).eq("household_id",householdId).single();
+          if(catRow?.name==="Відсотки / Комісія"){result={error:{message:"Цю системну категорію не можна видалити"}};break;}
+          result = await supabase.from("categories").delete().eq("id",body.id).eq("household_id",householdId);
+          break;
+        }
     case "deleteBudget":
       result = await supabase.from("budgets").delete().eq("id",body.id).eq("household_id",householdId);
       break;
