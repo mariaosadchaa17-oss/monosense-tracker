@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 
 :root {
   --bg:#f7f8fc; --panel:#fff; --text:#171625; --muted:#858695; --line:#eaebf2;
@@ -8,7 +9,6 @@
   --bg:#11121a; --panel:#1b1c27; --text:#f7f6fb; --muted:#999aa8; --line:#2b2d3b;
   --shadow:0 12px 40px rgba(0,0,0,.2);
 }
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap');
 *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font-family:'Space Grotesk',Inter,"Segoe UI",Arial,sans-serif}
 .app-shell{zoom:1.15}
 h1,h2,h3,.section-title h2,.metric strong,.goal-card h3,.card-heading h3,.balance-card h2{font-weight:700;letter-spacing:-0.02em}

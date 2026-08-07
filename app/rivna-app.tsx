@@ -125,6 +125,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [audit, setAudit] = useState<AuditItem[]>([]);
   const [installPrompt,setInstallPrompt]=useState<Event|null>(null);
   const [pushEnabled,setPushEnabled]=useState(false);
+  const [editingAccount,setEditingAccount]=useState<Account|null>(null);
   const [editingGoal,setEditingGoal]=useState<GoalItem|null>(null);
   const [goalAction,setGoalAction]=useState<{goal:GoalItem;mode:"withdraw"|"break"|"history"}|null>(null);
   const [transferPresetTo,setTransferPresetTo]=useState<string|undefined>(undefined);
