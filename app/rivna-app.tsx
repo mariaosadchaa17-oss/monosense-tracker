@@ -248,6 +248,12 @@ useEffect(() => {
   },[budgetPeriodType,budgetAnchor]);
   const normalizedTransactions=useMemo(()=>transactions.map(transaction=>({...transaction,baseAmount:transaction.amount*conversionRate(transaction.currency||"UAH",rates,customRates)/conversionRate(baseCurrency,rates,customRates)})),[transactions,rates,customRates,baseCurrency]);
   const filteredTransactions = transactions.filter(t => `${t.title} ${t.category}`.toLowerCase().includes(search.toLowerCase()));
+  const hasAlerts=useMemo(()=>{
+      const now=new Date();
+      const monthKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+      const monthSpent:Record<string,number>=transactions.filter(t=>t.amount<0&&t.kind!=="transfer"&&t.kind!=="exchange"&&t.bookedAt?.startsWith(monthKey)).reduce((sum,t)=>{sum[t.category]=(sum[t.category]||0)+Math.abs(t.amount);return sum},{} as Record<string,number>);
+      return savedBudgets.some(b=>b.month.startsWith(monthKey)&&(monthSpent[b.name]||0)/b.limit>=0.8);
+    },[savedBudgets,transactions]);
   const allDebts=useMemo(()=>{
     const creditDebts=accounts.filter(a=>(a.creditLimit||0)>0&&a.balance<0).map(a=>({id:`credit-${a.id}`,person:a.bank,direction:"i_owe" as const,amount:Math.abs(a.balance),currency:a.currency,note:"Кредитні кошти",isVirtual:true,accountId:String(a.id)}));
     return [...debts,...creditDebts];
@@ -503,7 +509,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
         <div><p className="hello">{topProfile?.name?`Вітаємо, ${topProfile.name}`:"Вітаємо"} <span>☀</span></p><h1>{page === "Головна" ? "Ваші фінанси" : page}</h1></div>
         <div className="header-actions">
           <button className="theme-btn" onClick={() => setDark(!dark)} aria-label="Змінити тему">{dark ? <Sun/> : <Moon/>}</button>
-          <button className="theme-btn notification" onClick={() => notify("Нових сповіщень немає")} aria-label="Сповіщення"><Bell/><i/></button>
+          <button className="theme-btn notification" onClick={() => notify(hasAlerts?"Є ліміти близькі до вичерпання":"Нових сповіщень немає")} aria-label="Сповіщення"><Bell/>{hasAlerts&&<i/>}</button>
           <button className="add-btn" onClick={() => setModal("expense")}><Plus/> Додати витрату</button>
         </div>
       </header>
