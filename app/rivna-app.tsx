@@ -636,6 +636,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
     {goalAction && <GoalActionModal action={goalAction} accounts={accounts} withdraw={withdrawGoal} breakGoal={breakGoal} close={()=>setGoalAction(null)}/>}
     {modal === "debt" && <DebtModal accounts={accounts} categories={categories} submit={addDebt} close={()=>setModal(null)}/>}
     {modal === "split" && <SplitBillModal submit={splitBill} close={()=>setModal(null)}/>}
+    {modal === "purchase-sim" && <BigPurchaseSimulator balance={balance} recurring={recurring} rates={rates} customRates={customRates} baseCurrency={baseCurrency} close={()=>setModal(null)}/>}
     {modal === "wrapped" && <WrappedModal transactions={transactions} goals={goals} baseCurrency={baseCurrency} close={()=>setModal(null)}/>}
     {settleTarget && <SettleDebtModal debt={settleTarget} accounts={accounts} submit={accountId=>{financeAction({action:"settleDebt",id:settleTarget.id,accountId},"Борг закрито, кошти зараховано");setSettleTarget(null)}} close={()=>setSettleTarget(null)}/>}
     {payTarget && <PayInstallmentModal debt={payTarget} accounts={accounts} submit={(accountId,amount)=>{financeAction({action:"payInstallment",id:payTarget.id,accountId,amount},"Платіж внесено");setPayTarget(null)}} close={()=>setPayTarget(null)}/>}
