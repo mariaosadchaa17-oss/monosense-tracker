@@ -1,0 +1,39 @@
+"use client";
+import { useEffect, useState } from "react";
+
+const THEMES = [
+  { id: "mulberry-mint", label: "Mulberry mint", logo: "/logo-rivna-mulberry.png" },
+  { id: "espresso-cream", label: "Espresso cream", logo: "/logo-rivna-cream.png" },
+];
+
+export function AuthThemeToggle() {
+  const [theme, setTheme] = useState("mulberry-mint");
+
+  useEffect(() => {
+    const saved = typeof window !== "undefined" ? localStorage.getItem("rivna-auth-skin") : null;
+    if (saved && THEMES.some((item) => item.id === saved)) setTheme(saved);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.dataset.authskin = theme;
+    localStorage.setItem("rivna-auth-skin", theme);
+  }, [theme]);
+
+  const current = THEMES.find((item) => item.id === theme) || THEMES[0];
+  const next = THEMES.find((item) => item.id !== theme) || THEMES[1];
+
+  return (
+    <>
+      <button
+        type="button"
+        className="auth-v3-theme-btn"
+        onClick={() => setTheme(next.id)}
+        aria-label={`Перемкнути на тему ${next.label}`}
+        title={next.label}
+      >
+        <span className="auth-v3-theme-dot" />
+      </button>
+      <img src={current.logo} alt="rivna" className="auth-v3-logo" />
+    </>
+  );
+}
