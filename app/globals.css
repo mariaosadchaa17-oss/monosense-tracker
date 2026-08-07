@@ -392,6 +392,7 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .notification-item small{color:var(--muted);font-size:10px}
 
 
+
 .goals-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:50px 20px;text-align:center}
 .goals-empty p{margin:0;color:var(--muted);font-size:13px;max-width:320px}
 .round-add-btn{width:52px;height:52px;border-radius:50%;border:0;background:var(--purple);color:#fff;display:grid;place-items:center;cursor:pointer}

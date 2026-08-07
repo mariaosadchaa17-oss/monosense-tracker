@@ -587,9 +587,15 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
 
       {page === "Головна" && <Dashboard balance={balance} baseCurrency={baseCurrency} accounts={orderedAccounts} transactions={normalizedTransactions} goals={goals} authenticated={initialLoggedIn} openPage={setPage} addAccount={() => setModal("account")} changeCurrency={setBaseCurrency} monthlyFees={monthlyFees} plannedIncome={plannedMonthlyIncome} recurring={recurring} addRecurring={()=>setModal("recurring")} reorderAccounts={reorderAccounts}/>}{page === "Операції" && <TransactionsView transactions={filteredTransactions} search={search} setSearch={setSearch} remove={removeTransaction} exportCsv={() => exportCsv(transactions, notify)} exportExcel={()=>exportExcel(transactions,notify)} exportJson={()=>exportJson(transactions,notify)} initialAccount={accountFilter}/>}      {page === "Бюджет" && (initialLoggedIn?<LiveBudgetView budgets={savedBudgets} transactions={normalizedTransactions} periodType={budgetPeriodType} setPeriodType={setBudgetPeriodType} anchor={budgetAnchor} setAnchor={setBudgetAnchor} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={(id: string|number)=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>:<BudgetView budgets={savedBudgets} transactions={normalizedTransactions} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={(id: string|number)=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>)}
       {page === "Рахунки" && <AccountsView accounts={orderedAccounts} rates={rates} customRates={customRates} add={() => {setEditingAccount(null);setModal("account")}} edit={account=>{setEditingAccount(account);setModal("account")}} addRate={()=>setModal("rate")} transfer={()=>{setTransferPresetTo(undefined);setModal("transfer")}} remove={removeAccount} reorderAccounts={reorderAccounts}/>}
-      {page === "Накопичення" && <GoalsView goals={goals} authenticated={initialLoggedIn} add={()=>{setEditingGoal(null);setModal("goal")}} contribute={(id,amount)=>financeAction({action:"contributeGoal",id,amount},"Ціль поповнено")} recurring={recurring} addRecurring={()=>setModal("recurring")} edit={goal=>{setEditingGoal(goal);setModal("goal")}} openAction={(goal,mode)=>setGoalAction({goal,mode})}/>}      
+      {page === "Накопичення" && <>
+        <GoalsView goals={goals} authenticated={initialLoggedIn} add={()=>{setEditingGoal(null);setModal("goal")}} contribute={(id,amount)=>financeAction({action:"contributeGoal",id,amount},"Ціль поповнено")} recurring={recurring} addRecurring={()=>setModal("recurring")} edit={goal=>{setEditingGoal(goal);setModal("goal")}} openAction={(goal,mode)=>setGoalAction({goal,mode})}/>
+        <InvestmentSimulator goals={goals} baseCurrency={baseCurrency}/>
+      </>}
       {page === "Аналітика" && <AnalyticsView transactions={normalizedTransactions} baseCurrency={baseCurrency} recurring={recurring} balance={balance} rates={rates} customRates={customRates}/>}
-      {page === "Борги" && <DebtsView debts={allDebts} add={()=>setModal("debt")} settle={debt=>debt.direction==="owed_to_me"?setSettleTarget(debt):financeAction({action:"settleDebt",id:debt.id},"Борг закрито")} payOff={accountId=>{setTransferPresetTo(accountId);setModal("transfer")}} openPay={setPayTarget} splitBill={()=>setModal("split")}/>}
+      {page === "Борги" && <>
+        <DebtsView debts={allDebts} add={()=>setModal("debt")} settle={debt=>debt.direction==="owed_to_me"?setSettleTarget(debt):financeAction({action:"settleDebt",id:debt.id},"Борг закрито")} payOff={accountId=>{setTransferPresetTo(accountId);setModal("transfer")}} openPay={setPayTarget} splitBill={()=>setModal("split")}/>
+        <SettlementPanel baseCurrency={baseCurrency} createDebt={(person,amount)=>financeAction({action:"createDebt",person,direction:"owed_to_me",amount,currency:baseCurrency,note:"Спільні витрати місяця"},"Борг створено")}/>
+      </>}
       {page === "Налаштування" && <SettingsView dark={dark} setDark={setDark} skin={skin} setSkin={setSkin} cardStyle={cardStyle} setCardStyle={setCardStyle} importCsv={importCsv} categories={categories} audit={audit} pushEnabled={pushEnabled} enablePush={enablePush} installApp={installApp} goals={goals} budgets={savedBudgets} debts={allDebts} transactions={transactions} addCategory={()=>setModal("category")} deleteCategory={id=>financeAction({action:"deleteCategory",id},"Категорію видалено")} logout={async () => {
         if (initialLoggedIn) {
           await fetch("/auth/signout", { method: "POST" });
@@ -1205,6 +1211,15 @@ function AchievementsPanel({goals,budgets,debts,transactions}:{goals:GoalItem[];
   },[goals,budgets,debts,transactions]);
   return <section className="panel"><div className="section-title"><div><h2>Досягнення</h2><p>Твій прогрес у фінансовій дисципліні</p></div></div>
     <div className="achievements-grid">{ACHIEVEMENTS.map(a=>{const unlocked=a.check(ctx);const Icon=a.icon;return <div key={a.id} className={unlocked?"achievement-badge unlocked":"achievement-badge"}><span className="achievement-icon"><Icon size={20}/></span><strong>{a.label}</strong><small>{a.desc}</small></div>})}</div>
+  </section>;
+}
+function SettlementPanel({baseCurrency,createDebt}:{baseCurrency:string;createDebt:(person:string,amount:number)=>void}){
+  const [balances,setBalances]=useState<{person:string;amount:number}[]>([]);
+  useEffect(()=>{fetch("/api/finance/splits").then(r=>r.ok?r.json():null).then(data=>setBalances(data?.balances||[])).catch(()=>{})},[]);
+  const symbol=currencySymbol(baseCurrency);
+  if(!balances.length)return null;
+  return <section className="panel"><div className="section-title"><div><h2>Спільний бюджет цього місяця</h2><p>Хто скільки має доплатити за розділені чеки</p></div></div>
+    <div className="recurring-list">{balances.map(b=><div key={b.person}><span className="recurring-icon"><HandCoins/></span><strong>{b.person}</strong><small>Спільні витрати цього місяця</small><b>{symbol} {formatMoney(b.amount)}</b><button className="small-primary" onClick={()=>createDebt(b.person,b.amount)}>Створити борг</button></div>)}</div>
   </section>;
 }
 function ProfileSettings({dark,setDark,skin,setSkin,cardStyle,setCardStyle,notify}:{dark:boolean;setDark:(value:boolean)=>void;skin:string;setSkin:(value:string)=>void;cardStyle:string;setCardStyle:(value:string)=>void;notify:(message:string)=>void}){
