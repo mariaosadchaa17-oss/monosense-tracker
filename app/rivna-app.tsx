@@ -101,6 +101,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [page, setPage] = useState<Page>("Головна");
   const [dark, setDark] = useState(()=>typeof window!=="undefined"&&localStorage.getItem("rivna-theme")==="dark");
   const [skin, setSkin] = useState(()=>typeof window!=="undefined"?localStorage.getItem("rivna-skin")||"default":"default");
+  const [cardStyle, setCardStyle] = useState(()=>typeof window!=="undefined"?localStorage.getItem("rivna-cardstyle")||"default":"default");
   const [modal, setModal] = useState<"expense" | "account" | "goal" | "debt" | "recurring" | "transfer" | "budget" | "category" | "invite" | "rate" | null>(null);
   const [transactions, setTransactions] = useState(initialLoggedIn?[]:seedTransactions);
   const [accounts, setAccounts] = useState(initialLoggedIn?[]:seedAccounts);
@@ -219,6 +220,11 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     else document.documentElement.dataset.skin = skin;
     localStorage.setItem("rivna-skin", skin);
   }, [skin]);
+useEffect(() => {
+    if (cardStyle === "default") delete document.documentElement.dataset.cardstyle;
+    else document.documentElement.dataset.cardstyle = cardStyle;
+    localStorage.setItem("rivna-cardstyle", cardStyle);
+  }, [cardStyle]);
   useEffect(() => {
     fetch("/api/exchange-rates").then(r => r.ok ? r.json() : null).then(data => {
       if (data?.rates) setRates(data.rates);
@@ -508,7 +514,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
       {page === "Накопичення" && <GoalsView goals={goals} authenticated={initialLoggedIn} add={()=>{setEditingGoal(null);setModal("goal")}} contribute={(id,amount)=>financeAction({action:"contributeGoal",id,amount},"Ціль поповнено")} recurring={recurring} addRecurring={()=>setModal("recurring")} edit={goal=>{setEditingGoal(goal);setModal("goal")}} openAction={(goal,mode)=>setGoalAction({goal,mode})}/>}      
       {page === "Аналітика" && <AnalyticsView transactions={normalizedTransactions} baseCurrency={baseCurrency} recurring={recurring}/>}
       {page === "Борги" && <DebtsView debts={allDebts} add={()=>setModal("debt")} settle={debt=>debt.direction==="owed_to_me"?setSettleTarget(debt):financeAction({action:"settleDebt",id:debt.id},"Борг закрито")} payOff={accountId=>{setTransferPresetTo(accountId);setModal("transfer")}}/>}
-      {page === "Налаштування" && <SettingsView dark={dark} setDark={setDark} skin={skin} setSkin={setSkin} importCsv={importCsv} categories={categories} audit={audit} pushEnabled={pushEnabled} enablePush={enablePush} installApp={installApp} addCategory={()=>setModal("category")} deleteCategory={id=>financeAction({action:"deleteCategory",id},"Категорію видалено")} logout={async () => {
+      {page === "Налаштування" && <SettingsView dark={dark} setDark={setDark} skin={skin} setSkin={setSkin} cardStyle={cardStyle} setCardStyle={setCardStyle} importCsv={importCsv} categories={categories} audit={audit} pushEnabled={pushEnabled} enablePush={enablePush} installApp={installApp} addCategory={()=>setModal("category")} deleteCategory={id=>financeAction({action:"deleteCategory",id},"Категорію видалено")} logout={async () => {
         if (initialLoggedIn) {
           await fetch("/auth/signout", { method: "POST" });
           window.location.href = "/auth";
@@ -913,12 +919,13 @@ function LiveBudgetView({
         <EmptyState icon={<BarChart3/>} text={`Лімітів на цей ${periodLabel} ще немає — додай перший через кнопку вище`}/>
       )}
         {activeBudgets.some((budget) => (spentBy[budget.name] || 0) / budget.limit >= 0.8) && (
-          <div className="alert-card"><Bell /><div><strong>Наближення до ліміту</strong><p>Одна або кілька категорій використані більш ніж на 80%.</p></div></div>
-        )}
-      </section>
-    </>
-  );
-}
+                  <div className="alert-card"><Bell /><div><strong>Наближення до ліміту</strong><p>Одна або кілька категорій використані більш ніж на 80%.</p></div></div>
+                )}
+              </section>
+              <section className="panel"><div className="section-title"><div><h2>Витрати за категоріями</h2><p>Розподіл за {periodType==="week"?"тиждень":"місяць"}</p></div></div><div className="category-chart">{Object.entries(spentBy).sort((a,b)=>b[1]-a[1]).map(([name,value],index)=><div key={name}><span style={{background:`hsl(${250-index*34} 72% ${58+index*3}%)`}}/><strong>{name}</strong><i><b style={{width:`${value/(Object.values(spentBy)[0]||1)*100}%`}}/></i><em>{spent?Math.round(value/spent*100):0}%</em></div>)}{!Object.keys(spentBy).length&&<p className="empty-inline">Додай операції для розподілу за категоріями</p>}</div></section>
+            </>
+          );
+        }
 function AccountsView({accounts,rates,customRates,add,edit,addRate,transfer,remove}:{accounts:Account[];rates:{currency:string;rate:number;date:string}[];customRates:{currency:string;rate:number;date:string}[];add:()=>void;edit:(account:Account)=>void;addRate:()=>void;transfer:()=>void;remove:(id:number|string)=>void}) { const visible=rates.filter(r=>["USD","EUR"].includes(r.currency)); return <section className="panel full-view"><div className="section-title"><div><h2>Усі рахунки</h2><p>UAH, USD та інші валюти</p></div><div className="title-actions"><button className="secondary" onClick={transfer}><ArrowRight/> Переказ / обмін</button><button className="small-primary" onClick={add}><Plus/> Новий рахунок</button></div></div>{!accounts.length&&<button className="new-account" style={{width:"100%",minHeight:"140px",marginBottom:"20px"}} onClick={add}><span className="new-account-icon"><Plus/></span><span>Додай свій перший рахунок, щоб почати</span></button>}<div className="accounts-grid">{accounts.map(a=><div className="account-wrap" key={a.id}><AccountCard account={a}/><div className="account-actions"><button className="remove-account edit-account" onClick={()=>edit(a)}><Settings/> Редагувати</button><button className="remove-account" onClick={()=>remove(a.id)}><Trash2/> Видалити</button></div></div>)}</div><div className="rate-card"><Landmark/><div><strong>Офіційний курс НБУ</strong><p>{visible.length ? visible.map(r=>`${r.currency} ${r.rate.toFixed(4)}`).join(" · ") : "Оновлення курсів…"}{customRates.length?` · Власний: ${customRates.slice(0,3).map(r=>`${r.currency} ${r.rate}`).join(", ")}`:""}</p></div><button className="secondary" onClick={addRate}>Власний курс</button></div></section>; }
 const ASSET_TYPE_LABELS:Record<string,string>={savings:"Накопичення",deposit:"Депозит",bond:"Облігація",security:"Цінний папір"};
 function GoalsView({goals,authenticated,add,contribute,recurring,addRecurring,edit,openAction}:{goals:GoalItem[];authenticated:boolean;add:()=>void;contribute:(id:string,amount:number)=>void;recurring:RecurringItem[];addRecurring:()=>void;edit:(goal:GoalItem)=>void;openAction:(goal:GoalItem,mode:"withdraw"|"break"|"history")=>void}) {
@@ -965,13 +972,13 @@ function AnalyticsView({transactions,baseCurrency,recurring}:{transactions:Trans
     <section className="panel recurring-panel"><div className="section-title"><div><h2>Заплановані доходи</h2><p>Регулярні надходження</p></div></div><div className="recurring-list">{plannedIncomeItems.length?plannedIncomeItems.map(r=><div key={r.id}><span className="recurring-icon"><ArrowDownLeft/></span><strong>{r.name}</strong><small>{r.frequency} · наступний {new Date(r.next).toLocaleDateString("uk-UA")}</small><b className="income-amount">+{r.currency} {formatMoney(r.amount)}</b><em>{r.auto?"Автоматично":"Нагадування"}</em></div>):<p className="empty-inline">Планових доходів поки немає — додай через «Регулярний платіж», обравши «Дохід»</p>}</div></section></>;
 }
 function DebtsView({debts,add,settle,payOff}:{debts:DebtItem[];add:()=>void;settle:(debt:DebtItem)=>void;payOff:(accountId:string)=>void}) { const mine=debts.filter(d=>d.direction==="owed_to_me");const owe=debts.filter(d=>d.direction==="i_owe");return <section className="panel full-view"><div className="section-title"><div><h2>Борги та кредити</h2><p>Хто винен мені та кому винна я</p></div><button className="small-primary" onClick={add}><Plus/> Додати борг</button></div><div className="debt-summary"><article><ArrowDownLeft/><div><small>Мені винні</small><strong>{currencySymbol("UAH")} {formatMoney(mine.reduce((s,d)=>s+d.amount,0))}</strong></div></article><article><ArrowUpRight/><div><small>Я винна</small><strong>{currencySymbol("UAH")} {formatMoney(owe.reduce((s,d)=>s+d.amount,0))}</strong></div></article></div><div className="debt-list">{debts.map(d=><div key={d.id}><span className={d.direction==="owed_to_me"?"debt-in":"debt-out"}>{d.direction==="owed_to_me"?<ArrowDownLeft/>:<ArrowUpRight/>}</span><div><strong>{d.person}</strong><small>{d.note||"Без нотатки"}{d.due?` · до ${new Date(d.due).toLocaleDateString("uk-UA")}`:""}</small></div><b>{d.currency} {formatMoney(d.amount)}</b>{d.isVirtual?<button className="small-primary" onClick={()=>d.accountId&&payOff(d.accountId)}>Погасити</button>:<button onClick={()=>settle(d)}>Закрити</button>}</div>)}{!debts.length&&<p className="empty">Активних боргів немає</p>}</div></section>; }
-function SettingsView({dark,setDark,skin,setSkin,logout,notify,importCsv,categories,audit,addCategory,deleteCategory,pushEnabled,enablePush,installApp}:{dark:boolean;setDark:(v:boolean)=>void;skin:string;setSkin:(v:string)=>void;logout:()=>void;notify:(s:string)=>void;importCsv:(file:File)=>void;categories:CategoryItem[];audit:AuditItem[];addCategory:()=>void;deleteCategory:(id:string)=>void;pushEnabled:boolean;enablePush:()=>void;installApp:()=>void}) {
-  return <><div className="settings-grid"><ProfileSettings dark={dark} setDark={setDark} skin={skin} setSkin={setSkin} notify={notify}/><section className="panel settings-card"><h2>Застосунок та інтеграції</h2><button className="integration" onClick={installApp}><Download/><span><strong>Встановити Rivna</strong><small>На домашній екран iOS, Android або ПК</small></span><ArrowRight/></button><button className="integration" onClick={enablePush}><Bell/><span><strong>{pushEnabled?"Сповіщення увімкнено":"Увімкнути сповіщення"}</strong><small>Алерти 80% і 100% бюджету</small></span><ArrowRight/></button><label className="integration file-integration"><Upload/><span><strong>Імпорт даних</strong><small>CSV до 5 МБ</small></span><ArrowRight/><input type="file" accept=".csv,text/csv" onChange={event=>{const file=event.target.files?.[0];if(file)importCsv(file);event.target.value=""}}/></label><button className="integration" onClick={()=>notify("Telegram chat ID зберігається у блоці «Загальні»")}><Goal/><span><strong>Telegram-бот</strong><small>Команда: 300 кава #робота</small></span><ArrowRight/></button><button className="logout" onClick={logout}>Вийти з акаунта</button></section></div>
+function SettingsView({dark,setDark,skin,setSkin,cardStyle,setCardStyle,logout,notify,importCsv,categories,audit,addCategory,deleteCategory,pushEnabled,enablePush,installApp}:{dark:boolean;setDark:(v:boolean)=>void;skin:string;setSkin:(v:string)=>void;cardStyle:string;setCardStyle:(v:string)=>void;logout:()=>void;notify:(s:string)=>void;importCsv:(file:File)=>void;categories:CategoryItem[];audit:AuditItem[];addCategory:()=>void;deleteCategory:(id:string)=>void;pushEnabled:boolean;enablePush:()=>void;installApp:()=>void}) {
+  return <><div className="settings-grid"><ProfileSettings dark={dark} setDark={setDark} skin={skin} setSkin={setSkin} cardStyle={cardStyle} setCardStyle={setCardStyle} notify={notify}/><section className="panel settings-card"><h2>Застосунок та інтеграції</h2><button className="integration" onClick={installApp}><Download/><span><strong>Встановити Rivna</strong><small>На домашній екран iOS, Android або ПК</small></span><ArrowRight/></button><button className="integration" onClick={enablePush}><Bell/><span><strong>{pushEnabled?"Сповіщення увімкнено":"Увімкнути сповіщення"}</strong><small>Алерти 80% і 100% бюджету</small></span><ArrowRight/></button><label className="integration file-integration"><Upload/><span><strong>Імпорт даних</strong><small>CSV до 5 МБ</small></span><ArrowRight/><input type="file" accept=".csv,text/csv" onChange={event=>{const file=event.target.files?.[0];if(file)importCsv(file);event.target.value=""}}/></label><button className="integration" onClick={()=>notify("Telegram chat ID зберігається у блоці «Загальні»")}><Goal/><span><strong>Telegram-бот</strong><small>Команда: 300 кава #робота</small></span><ArrowRight/></button><button className="logout" onClick={logout}>Вийти з акаунта</button></section></div>
     <div className="settings-lower"><section className="panel"><div className="section-title"><div><h2>Категорії</h2><p>Власні назви, кольори та Lucide-іконки</p></div><button className="small-primary" onClick={addCategory}><Plus/> Категорія</button></div><div className="category-manager">{categories.map(category=><div key={category.id}><span style={{background:category.color}}/><strong>{category.name}</strong><small>{category.kind==="income"?"Дохід":"Витрата"}</small><button onClick={()=>deleteCategory(category.id)}><Trash2/></button></div>)}</div></section><section className="panel"><div className="section-title"><div><h2>Історія змін</h2><p>Останні ключові дії</p></div></div><div className="audit-list">{audit.slice(0,12).map(item=><div key={item.id}><span>{item.action==="insert"?"+":item.action==="delete"?"−":"↻"}</span><div><strong>{translateEntity(item.entity)}</strong><small>{translateAction(item.action)} · {new Date(item.created).toLocaleString("uk-UA")}</small></div></div>)}{!audit.length&&<p className="empty-inline">Історія з’явиться після змін у Supabase</p>}</div></section></div></>
 }
 
 type SettingsProfile={name:string;email:string;baseCurrency:string;planningPeriod:"month"|"week";householdName:string;telegramChatId:string;recurringReminders:boolean;budget80:boolean;budget100:boolean;role:string};
-function ProfileSettings({dark,setDark,skin,setSkin,notify}:{dark:boolean;setDark:(value:boolean)=>void;skin:string;setSkin:(value:string)=>void;notify:(message:string)=>void}){
+function ProfileSettings({dark,setDark,skin,setSkin,cardStyle,setCardStyle,notify}:{dark:boolean;setDark:(value:boolean)=>void;skin:string;setSkin:(value:string)=>void;cardStyle:string;setCardStyle:(value:string)=>void;notify:(message:string)=>void}){
   const [profile,setProfile]=useState<SettingsProfile|null>({name:"Марія",email:"",baseCurrency:"UAH",planningPeriod:"month",householdName:"Мої фінанси",telegramChatId:"",recurringReminders:true,budget80:true,budget100:true,role:"owner"});
   useEffect(()=>{fetch("/api/settings",{cache:"no-store"}).then(r=>r.ok?r.json():null).then(data=>data?.profile&&setProfile(data.profile)).catch(()=>{})},[]);
   async function save(e:React.SyntheticEvent<HTMLFormElement>){
@@ -992,12 +999,20 @@ function ProfileSettings({dark,setDark,skin,setSkin,notify}:{dark:boolean;setDar
     <label className="setting-toggle"><span><strong>Нагадування про платежі</strong><small>Для неавтоматичних правил</small></span><input type="checkbox" checked={profile?.recurringReminders??true} onChange={e=>setProfile(p=>p?{...p,recurringReminders:e.target.checked}:p)}/></label>
     <label className="setting-toggle"><span><strong>Темна тема</strong><small>Змінити вигляд застосунку</small></span><input type="checkbox" checked={dark} onChange={e=>setDark(e.target.checked)}/></label>
     <label>Кольорова тема
-      <div className="skin-picker">
-        <button type="button" className={`skin-swatch${skin==="default"?" active":""}`} onClick={()=>setSkin("default")}><i style={{background:"#171a18"}}/><small>Поточна</small></button>
-        <button type="button" className={`skin-swatch${skin==="mulberry-mint"?" active":""}`} onClick={()=>setSkin("mulberry-mint")}><i style={{background:"#6B2D42"}}/><small>Mulberry mint</small></button>
-        <button type="button" className={`skin-swatch${skin==="espresso-cream"?" active":""}`} onClick={()=>setSkin("espresso-cream")}><i style={{background:"#8A6A4A"}}/><small>Espresso cream</small></button>
-      </div>
-    </label>
+          <div className="skin-picker">
+            <button type="button" className={`skin-swatch${skin==="default"?" active":""}`} onClick={()=>setSkin("default")}><i style={{background:"#171a18"}}/><small>Поточна</small></button>
+            <button type="button" className={`skin-swatch${skin==="mulberry-mint"?" active":""}`} onClick={()=>setSkin("mulberry-mint")}><i style={{background:"#6B2D42"}}/><small>Mulberry mint</small></button>
+            <button type="button" className={`skin-swatch${skin==="espresso-cream"?" active":""}`} onClick={()=>setSkin("espresso-cream")}><i style={{background:"#8A6A4A"}}/><small>Espresso cream</small></button>
+          </div>
+        </label>
+        <label>Дизайн картки балансу
+          <div className="skin-picker">
+            <button type="button" className={`skin-swatch${cardStyle==="default"?" active":""}`} onClick={()=>setCardStyle("default")}><i style={{background:"linear-gradient(120deg,#12151a,#242832)"}}/><small>Класична</small></button>
+            <button type="button" className={`skin-swatch${cardStyle==="aurora"?" active":""}`} onClick={()=>setCardStyle("aurora")}><i style={{background:"linear-gradient(135deg,#1b1233,#3a2a63)"}}/><small>Аврора</small></button>
+            <button type="button" className={`skin-swatch${cardStyle==="mesh"?" active":""}`} onClick={()=>setCardStyle("mesh")}><i style={{background:"radial-gradient(circle at 30% 30%,#2c2450,#1a3a3a)"}}/><small>Меш</small></button>
+            <button type="button" className={`skin-swatch${cardStyle==="minimal"?" active":""}`} onClick={()=>setCardStyle("minimal")}><i style={{background:"#171a18"}}/><small>Мінімал</small></button>
+          </div>
+        </label>
     <button className="primary" disabled={!profile}>Зберегти</button>
   </form>;
 }
