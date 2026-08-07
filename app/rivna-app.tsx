@@ -339,33 +339,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     notify(success);await refreshFinance();return true;
   }
   async function addGoal(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);if(await financeAction({action:"createGoal",name:f.get("name"),targetAmount:Number(f.get("target")),currentAmount:Number(f.get("current")),currency:String(f.get("currency")||"UAH"),date:f.get("date")?String(f.get("date")):undefined},"Ціль створено"))setModal(null);}
-  async function addRecurring(e:React.SyntheticEvent<HTMLFormElement>){
-    e.preventDefault();
-    const f=new FormData(e.currentTarget);
-    const account=accounts.find(item=>String(item.id)===String(f.get("account")));
-    if(!account)return notify("Оберіть рахунок");
-    const totalAmount=Number(f.get("amount"));
-    const count=Math.max(1,Number(f.get("payoutCount"))||1);
-    const frequency=String(f.get("frequency"));
-    const firstDate=f.get("date")?String(f.get("date")):undefined;
-    const kind=String(f.get("kind")||"expense");
-    if(frequency==="monthly"&&count>1){
-      const perPayout=Math.round((totalAmount/count)*100)/100;
-      const spacingDays=Math.floor(28/count);
-      let failed=false;
-      for(let i=0;i<count;i++){
-        const runDate=firstDate?new Date(firstDate):new Date();
-        runDate.setDate(runDate.getDate()+i*spacingDays);
-        const response=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"createRecurring",accountId:account.id,categoryId:f.get("category")||null,name:`${f.get("name")} (${i+1}/${count})`,amount:perPayout,currency:account.currency,frequency:"monthly",nextRunAt:runDate.toISOString(),autoCreate:f.get("auto")==="on",kind})});
-        if(!response.ok)failed=true;
-      }
-      notify(failed?"Частину виплат не вдалося зберегти":`Створено ${count} виплат на місяць`);
-      await refreshFinance();
-      if(!failed)setModal(null);
-      return;
-    }
-    if(await financeAction({action:"createRecurring",accountId:account.id,categoryId:f.get("category")||null,name:f.get("name"),amount:totalAmount,currency:account.currency,frequency,nextRunAt:firstDate,autoCreate:f.get("auto")==="on",kind},kind==="income"?"Плановий дохід додано":"Регулярний платіж створено"))setModal(null);
-  }
+  async function addRecurring(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const account=accounts.find(item=>String(item.id)===String(f.get("account")));if(!account)return notify("Оберіть рахунок");if(await financeAction({action:"createRecurring",accountId:account.id,categoryId:f.get("category")||null,name:f.get("name"),amount:Number(f.get("amount")),currency:account.currency,frequency:String(f.get("frequency")),nextRunAt:f.get("date")?String(f.get("date")):undefined,autoCreate:f.get("auto")==="on",kind:String(f.get("kind")||"expense")},f.get("kind")==="income"?"Плановий дохід додано":"Регулярний платіж створено"))setModal(null);}
 async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
     e.preventDefault();
     const f=new FormData(e.currentTarget);
@@ -541,7 +515,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
     {modal === "expense" && <ExpenseModal amount={amount} setAmount={setAmount} note={note} setNote={setNote} accounts={accounts} categories={categories} debts={debts.filter(d=>d.direction==="i_owe"&&!d.isVirtual)} submit={addExpense} close={() => setModal(null)}/>}
     {modal === "account" && <AccountModal account={editingAccount} submit={addAccount} close={() => {setEditingAccount(null);setModal(null)}}/>}
     {modal === "goal" && <GoalModal submit={addGoal} close={()=>setModal(null)}/>}
-    {modal === "debt" && <DebtModal accounts={accounts} categories={categories} submit={addDebt} close={()=>setModal(null)}/>}    {modal === "recurring" && <RecurringModal accounts={accounts} categories={categories} submit={addRecurring} close={()=>setModal(null)}/>}
+    {modal === "debt" && <DebtModal accounts={accounts} categories={categories} submit={addDebt} close={()=>setModal(null)}/>}    {modal === "recurring" && <RecurringModal accounts={accounts} categories={categories} rates={rates} customRates={customRates} submit={addRecurring} close={()=>setModal(null)}/>}
     {modal === "transfer" && <TransferModal accounts={accounts} rates={rates} customRates={customRates} presetToAccountId={transferPresetTo} submit={addTransfer} close={()=>{setModal(null);setTransferPresetTo(undefined)}}/>}
     {modal === "budget" && <BudgetModal categories={categories} period={budgetPeriodType} initialDate={budgetModalDefaultDate} baseCurrency={baseCurrency} submit={addBudget} close={()=>setModal(null)}/>}
     {modal === "category" && <CategoryModal submit={addCategory} close={()=>setModal(null)}/>}
@@ -1091,22 +1065,25 @@ function DebtModal({accounts,categories,submit,close}:{accounts:Account[];catego
     <button className="primary">Додати борг</button>
   </form></div>;
 }
-function RecurringModal({accounts,categories,submit,close}:{accounts:Account[];categories:CategoryItem[];submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}) {
+function RecurringModal({accounts,categories,rates,customRates,submit,close}:{accounts:Account[];categories:CategoryItem[];rates:{currency:string;rate:number}[];customRates:{currency:string;rate:number}[];submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}) {
   const [kind,setKind]=useState<"expense"|"income">("expense");
-  const [frequency,setFrequency]=useState("monthly");
-  const [amount,setAmount]=useState("");
-  const [count,setCount]=useState("1");
-  const perPayout=Number(count)>1&&Number(amount)>0?Number(amount)/Number(count):0;
+  const [accountId,setAccountId]=useState(String(accounts[0]?.id||""));
+  const [sourceCurrency,setSourceCurrency]=useState("USD");
+  const [sourceAmount,setSourceAmount]=useState("");
+  const [finalAmount,setFinalAmount]=useState("");
+  const account=accounts.find(a=>String(a.id)===accountId)||accounts[0];
+  const converted=sourceCurrency===account?.currency?Number(sourceAmount)||0:crossRate(sourceCurrency,account?.currency||"UAH",rates,customRates)*(Number(sourceAmount)||0);
   return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal" onSubmit={submit} onMouseDown={e=>e.stopPropagation()}>
     <ModalHead label="Автоматизація" title={kind==="income"?"Плановий дохід":"Регулярний платіж"} close={close}/>
     <div className="operation-type"><button type="button" className={kind==="expense"?"active":""} onClick={()=>setKind("expense")}><ArrowUpRight/> Витрата</button><button type="button" className={kind==="income"?"active":""} onClick={()=>setKind("income")}><ArrowDownLeft/> Дохід</button></div>
     <input type="hidden" name="kind" value={kind}/>
     <label>Назва<input name="name" required placeholder={kind==="income"?"Зарплата":"Netflix"}/></label>
-    <div className="form-two"><label>Рахунок<select name="account" required>{accounts.map(account=><option key={account.id} value={account.id}>{account.name} · {account.currency}</option>)}</select></label><label>Категорія<select name="category"><option value="">Без категорії</option>{categories.filter(category=>category.kind===kind).map(category=><option key={category.id} value={category.id}>{category.name}</option>)}</select></label></div>
-    <div className="form-two"><label>Загальна сума за період<input name="amount" type="number" min=".01" step=".01" required value={amount} onChange={e=>setAmount(e.target.value)}/></label><label>Період<select name="frequency" value={frequency} onChange={e=>setFrequency(e.target.value)}><option value="monthly">Щомісяця</option><option value="weekly">Щотижня</option><option value="yearly">Щороку</option></select></label></div>
-    {frequency==="monthly" && <label>К-сть виплат на місяць<input name="payoutCount" type="number" min="1" max="10" value={count} onChange={e=>setCount(e.target.value)}/></label>}
-    {perPayout>0 && <div className="form-message success">Кожна виплата: {formatMoney(perPayout)} грн, рівномірно протягом місяця</div>}
-    <label>Дата {Number(count)>1?"першої":"наступної"} виплати<input name="date" type="datetime-local" required/></label>
+    <div className="form-two"><label>Рахунок<select name="account" value={accountId} onChange={e=>setAccountId(e.target.value)} required>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></label><label>Категорія<select name="category"><option value="">Без категорії</option>{categories.filter(c=>c.kind===kind).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label></div>
+    <div className="form-two"><label>Сума в<select value={sourceCurrency} onChange={e=>setSourceCurrency(e.target.value)}><option>UAH</option><option>USD</option><option>EUR</option><option>GBP</option><option>PLN</option></select></label><label>Значення<input type="number" min="0" step=".01" value={sourceAmount} onChange={e=>setSourceAmount(e.target.value)}/></label></div>
+    {sourceCurrency!==account?.currency && sourceAmount && <div className="form-message success">≈ {formatMoney(converted)} {account?.currency} за поточним курсом</div>}
+    <label>Сума до збереження, {account?.currency}<input name="amount" type="number" min=".01" step=".01" required value={finalAmount||(converted?converted.toFixed(2):"")} onChange={e=>setFinalAmount(e.target.value)}/></label>
+    <label>Період<select name="frequency"><option value="monthly">Щомісяця</option><option value="weekly">Щотижня</option><option value="yearly">Щороку</option></select></label>
+    <label>Наступна дата<input name="date" type="datetime-local" required/></label>
     <label className="check impulse"><input name="auto" type="checkbox"/> Створювати операцію автоматично</label>
     <button className="primary">{kind==="income"?"Зберегти плановий дохід":"Зберегти платіж"}</button>
   </form></div>;
