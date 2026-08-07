@@ -33,7 +33,11 @@ export function AuthThemeToggle() {
       >
         <span className="auth-v3-theme-dot" />
       </button>
+<<<<<<< HEAD
+     <img src={current.logo} alt="rivna" className="auth-v3-logo" width={230} height={127} fetchPriority="high" />
+=======
       <img src={current.logo} alt="rivna" className="auth-v3-logo" width={230} height={127} fetchPriority="high" />
+>>>>>>> 08db7e078322599d3a1d5876e84a43bf23e80531
     </>
   );
 }
