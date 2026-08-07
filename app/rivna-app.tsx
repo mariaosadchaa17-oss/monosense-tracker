@@ -505,7 +505,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
   }
 
   if (!loggedIn) return <Login dark={dark} setDark={setDark} showPassword={showPassword} setShowPassword={setShowPassword} login={() => setLoggedIn(true)}/>;
-  if (!hasLoadedOnce) return <div className="app-loader"><span className="app-loader-logo"/><span className="app-loader-spinner"/></div>;
+ if (!hasLoadedOnce) return <div className="app-loader"><span className="app-loader-logo"/><div className="app-loader-dots"><span/><span/><span/></div></div>;
 
   const nav: [Page, React.ReactNode][] = [
     ["Головна", <Home key="h"/>], ["Операції", <ArrowUpRight key="o"/>], ["Бюджет", <BarChart3 key="b"/>],
