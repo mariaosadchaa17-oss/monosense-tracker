@@ -72,16 +72,23 @@ export async function POST(request: Request) {
       }
       break;
     case "deleteTransaction": {
-  const [fromMatch, toMatch] = await Promise.all([
-    supabase.from("transfers").select("id").eq("from_transaction_id", body.id).maybeSingle(),
-    supabase.from("transfers").select("id").eq("to_transaction_id", body.id).maybeSingle(),
-  ]);
-  const linkedTransfer = fromMatch.data || toMatch.data;
-  result = linkedTransfer
-    ? await supabase.rpc("delete_account_transfer", { p_transfer_id: linkedTransfer.id })
-    : await supabase.rpc("delete_finance_transaction", { p_transaction_id: body.id });
-  break;
-}
+      const [fromMatch, toMatch, txRow] = await Promise.all([
+        supabase.from("transfers").select("id").eq("from_transaction_id", body.id).maybeSingle(),
+        supabase.from("transfers").select("id").eq("to_transaction_id", body.id).maybeSingle(),
+        supabase.from("transactions").select("amount,debt_id").eq("id", body.id).eq("household_id", householdId).maybeSingle(),
+      ]);
+      const linkedTransfer = fromMatch.data || toMatch.data;
+      result = linkedTransfer
+        ? await supabase.rpc("delete_account_transfer", { p_transfer_id: linkedTransfer.id })
+        : await supabase.rpc("delete_finance_transaction", { p_transaction_id: body.id });
+      if(!result.error&&!linkedTransfer&&txRow.data?.debt_id){
+        const { data: debtRow } = await supabase.from("debts").select("amount").eq("id",txRow.data.debt_id).eq("household_id",householdId).single();
+        if(debtRow){
+          await supabase.from("debts").update({amount:Number(debtRow.amount)+Number(txRow.data.amount),settled:false}).eq("id",txRow.data.debt_id).eq("household_id",householdId);
+        }
+      }
+      break;
+    }
     case "deleteTransfer":
       result = await supabase.rpc("delete_account_transfer", { p_transfer_id: body.id });
       break;
@@ -167,16 +174,17 @@ export async function POST(request: Request) {
         is_installment:Boolean(body.isInstallment),installment_months:body.installmentMonths?Number(body.installmentMonths):null,
       }).select().single();
       break;
-      case "payInstallment": {
-            const { data: debtRow } = await supabase.from("debts").select("amount,currency,person,is_installment,installment_months").eq("id",body.id).eq("household_id",householdId).single();
-            if(!debtRow){result={error:{message:"Борг не знайдено"}};break;}
-            const payAmount=Number(body.amount);
-            const rpcResult = await supabase.rpc("create_finance_transaction",{p_account_id:String(body.accountId),p_category_id:null,p_type:"expense",p_amount:payAmount,p_currency:debtRow.currency,p_note:`Погашення розстрочки: ${debtRow.person}`,p_booked_at:new Date().toISOString(),p_is_impulsive:false});
-            if(rpcResult.error){result={error:rpcResult.error};break;}
-            const remaining=Math.max(0,Number(debtRow.amount)-payAmount);
-            result = await supabase.from("debts").update({amount:remaining,settled:remaining<=0}).eq("id",body.id).eq("household_id",householdId).select().single();
-            break;
-          }
+     case "payInstallment": {
+           const { data: debtRow } = await supabase.from("debts").select("amount,currency,person,is_installment,installment_months").eq("id",body.id).eq("household_id",householdId).single();
+           if(!debtRow){result={error:{message:"Борг не знайдено"}};break;}
+           const payAmount=Number(body.amount);
+           const rpcResult = await supabase.rpc("create_finance_transaction",{p_account_id:String(body.accountId),p_category_id:null,p_type:"expense",p_amount:payAmount,p_currency:debtRow.currency,p_note:`Погашення розстрочки: ${debtRow.person}`,p_booked_at:new Date().toISOString(),p_is_impulsive:false});
+           if(rpcResult.error){result={error:rpcResult.error};break;}
+           await supabase.from("transactions").update({debt_id:body.id}).eq("id",rpcResult.data.id).eq("household_id",householdId);
+           const remaining=Math.max(0,Number(debtRow.amount)-payAmount);
+           result = await supabase.from("debts").update({amount:remaining,settled:remaining<=0}).eq("id",body.id).eq("household_id",householdId).select().single();
+           break;
+         }
     case "settleDebt": {
           if(body.accountId){
             const { data: debtRow } = await supabase.from("debts").select("amount,currency,person").eq("id",body.id).eq("household_id",householdId).single();
