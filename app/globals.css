@@ -116,7 +116,7 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .ukrsib-logo{background:#00579c;color:#fff}.account.ukrsib{background:linear-gradient(145deg,#0072c6,#00395e)}
 .otp-logo{background:#00543c;color:#fff}.account.otp{background:linear-gradient(145deg,#137a55,#00382a)}
 .kredo-logo{background:#1c3f94;color:#fff}.account.kredo{background:linear-gradient(145deg,#2e56c4,#132a63)}
-.pioneer-logo{background:#1a1a1a;color:#f4c430}.account.pioneer{background:linear-gradient(145deg,#3a3a3a,#0f0f0f)}
+.pioneer-logo{background:#FF4800;color:#fff}.account.pioneer{background:linear-gradient(145deg,#FF4800 0%,#CC3900 100%)}
 .file-button{position:relative;overflow:hidden;cursor:pointer}.file-button input{position:absolute;inset:0;opacity:0;cursor:pointer}
 .field-help{display:block;color:var(--muted);font-size:9px;line-height:1.5;margin-top:7px}
 .account-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.account-actions .remove-account{margin-top:0}.edit-account{color:var(--text)!important}
