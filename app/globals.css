@@ -438,3 +438,16 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .achievement-badge.unlocked .achievement-icon{background:var(--purple);color:#fff}
 .achievement-badge strong{font-size:11px}
 .achievement-badge small{font-size:9px;color:var(--muted)}
+
+
+.wrapped-wrap{position:relative;display:flex;flex-direction:column;align-items:center;gap:16px}
+.wrapped-card{width:320px;height:480px;border-radius:28px;padding:32px;display:flex;flex-direction:column;justify-content:center;color:#fff;position:relative;box-shadow:0 30px 70px rgba(0,0,0,.4)}
+.wrapped-brand{position:absolute;top:24px;left:28px;font-size:12px;font-weight:800;letter-spacing:.05em;opacity:.85}
+.wrapped-card small{font-size:11px;text-transform:uppercase;letter-spacing:.05em;opacity:.75}
+.wrapped-card h2{font-size:22px;margin:8px 0 20px;font-weight:700}
+.wrapped-card strong{font-size:38px;font-weight:800;line-height:1.1;word-break:break-word}
+.wrapped-card p{font-size:13px;opacity:.8;margin-top:10px}
+.wrapped-dots{position:absolute;bottom:28px;left:32px;right:32px;display:flex;gap:6px}
+.wrapped-dots i{flex:1;height:3px;border-radius:99px;background:rgba(255,255,255,.25)}
+.wrapped-dots i.active{background:#fff}
+.wrapped-actions{display:flex;gap:10px;align-items:center}

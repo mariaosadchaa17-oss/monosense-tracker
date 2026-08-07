@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownLeft, ArrowLeft, ArrowRight, ArrowUpRight, BarChart3, Bell, Check,
   ChevronDown, CircleDollarSign, CreditCard, Download, Eye, EyeOff,
@@ -113,7 +113,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [dark, setDark] = useState(()=>typeof window!=="undefined"&&localStorage.getItem("rivna-theme")==="dark");
   const [skin, setSkin] = useState(()=>typeof window!=="undefined"?localStorage.getItem("rivna-skin")||"default":"default");
   const [cardStyle, setCardStyle] = useState(()=>typeof window!=="undefined"?localStorage.getItem("rivna-cardstyle")||"default":"default");
-  const [modal, setModal] = useState<"expense" | "account" | "goal" | "debt" | "recurring" | "transfer" | "budget" | "category" | "invite" | "rate" | "split" | "purchase-sim" | null>(null);
+  const [modal, setModal] = useState<"expense" | "account" | "goal" | "debt" | "recurring" | "transfer" | "budget" | "category" | "invite" | "rate" | "split" | "purchase-sim" | "wrapped" | null>(null);
   const [transactions, setTransactions] = useState(initialLoggedIn?[]:seedTransactions);
   const [accounts, setAccounts] = useState(initialLoggedIn?[]:seedAccounts);
   const [amount, setAmount] = useState("");
@@ -636,7 +636,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
     {goalAction && <GoalActionModal action={goalAction} accounts={accounts} withdraw={withdrawGoal} breakGoal={breakGoal} close={()=>setGoalAction(null)}/>}
     {modal === "debt" && <DebtModal accounts={accounts} categories={categories} submit={addDebt} close={()=>setModal(null)}/>}
     {modal === "split" && <SplitBillModal submit={splitBill} close={()=>setModal(null)}/>}
-    {modal === "purchase-sim" && <BigPurchaseSimulator balance={balance} recurring={recurring} rates={rates} customRates={customRates} baseCurrency={baseCurrency} close={()=>setModal(null)}/>}
+    {modal === "wrapped" && <WrappedModal transactions={transactions} goals={goals} baseCurrency={baseCurrency} close={()=>setModal(null)}/>}
     {settleTarget && <SettleDebtModal debt={settleTarget} accounts={accounts} submit={accountId=>{financeAction({action:"settleDebt",id:settleTarget.id,accountId},"Борг закрито, кошти зараховано");setSettleTarget(null)}} close={()=>setSettleTarget(null)}/>}
     {payTarget && <PayInstallmentModal debt={payTarget} accounts={accounts} submit={(accountId,amount)=>{financeAction({action:"payInstallment",id:payTarget.id,accountId,amount},"Платіж внесено");setPayTarget(null)}} close={()=>setPayTarget(null)}/>}
     {modal === "recurring" && <RecurringModal accounts={accounts} categories={categories} rates={rates} customRates={customRates} submit={addRecurring} close={()=>setModal(null)}/>}
@@ -1063,8 +1063,8 @@ function AnalyticsView({transactions,baseCurrency,recurring,balance,rates,custom
   const total=expenses.reduce((sum,transaction)=>sum+Math.abs(transaction.baseAmount??transaction.amount),0),income=currentTransactions.filter(transaction=>transaction.amount>0&&transaction.kind!=="transfer"&&transaction.kind!=="exchange").reduce((sum,transaction)=>sum+(transaction.baseAmount??transaction.amount),0),impulsive=expenses.filter(transaction=>transaction.impulse).reduce((sum,transaction)=>sum+Math.abs(transaction.baseAmount??transaction.amount),0);
   const grouped=Object.entries(expenses.reduce<Record<string,number>>((sum,transaction)=>{sum[transaction.category]=(sum[transaction.category]||0)+Math.abs(transaction.baseAmount??transaction.amount);return sum},{})).sort((a,b)=>b[1]-a[1]);
   const current=buckets.at(-1)?.value||0,previous=buckets.at(-2)?.value||0,delta=previous?Math.round((current-previous)/previous*100):0,maxValue=Math.max(...buckets.map(bucket=>bucket.value),1),symbol=currencySymbol(baseCurrency);
-  return <><div className="period-switch"><button className={period==="month"?"active":""} onClick={()=>setPeriod("month")}>За місяцями</button><button className={period==="week"?"active":""} onClick={()=>setPeriod("week")}>За тижнями</button></div><div className="metric-grid"><article className="metric"><small>Витрати за {period==="month"?"місяць":"тиждень"}</small><strong>{symbol} {formatMoney(total)}</strong><span>Поточний період</span></article><article className="metric"><small>Доходи</small><strong>{symbol} {formatMoney(income)}</strong><span className="positive">Чистий потік {symbol} {formatMoney(income-total)}</span></article><article className="metric"><small>Імпульсивні покупки</small><strong>{symbol} {formatMoney(impulsive)}</strong><span>{total?Math.round(impulsive/total*100):0}% усіх витрат</span></article></div>
-    <section className="panel monthly-panel"><div className="section-title"><div><h2>Динаміка витрат</h2><p>{period==="month"?"Останні шість місяців":"Останні вісім тижнів"}</p></div><span className={delta>0?"comparison negative":"comparison positive"}>{previous?`${delta>0?"+":""}${delta}% до попереднього періоду`:"Ще немає порівняння"}</span></div><div className="monthly-chart">{buckets.map(bucket=><div key={bucket.key}><strong>{bucket.value?`${symbol}${formatMoney(bucket.value)}`:"—"}</strong><span><i style={{height:`${Math.max(bucket.value?8:2,bucket.value/maxValue*100)}%`}}/></span><small>{bucket.label}</small></div>)}</div></section>
+  return <><div className="period-switch" style={{justifyContent:"space-between",display:"flex"}}><div className="period-switch"><button className={period==="month"?"active":""} onClick={()=>setPeriod("month")}>За місяцями</button><button className={period==="week"?"active":""} onClick={()=>setPeriod("week")}>За тижнями</button></div><div className="metric-grid"><article className="metric"><small>Витрати за {period==="month"?"місяць":"тиждень"}</small><strong>{symbol} {formatMoney(total)}</strong><span>Поточний період</span></article><article className="metric"><small>Доходи</small><strong>{symbol} {formatMoney(income)}</strong><span className="positive">Чистий потік {symbol} {formatMoney(income-total)}</span></article><article className="metric"><small>Імпульсивні покупки</small><strong>{symbol} {formatMoney(impulsive)}</strong><span>{total?Math.round(impulsive/total*100):0}% усіх витрат</span></article></div>
+    <section className="panel monthly-panel"><div className="section-title"><div><h2>Динаміка витрат</h2><p>{period==="month"?"Останні шість місяців":"Останні вісім тижнів"}</p></div><span className={delta>0?"comparison negative":"comparison positive"}>{previous?`${delta>0?"+":""}${delta}% до попереднього періоду`:"Ще немає порівняння"}</span></div></div><button className="small-primary" onClick={()=>alert("Відкрий через Головна → кнопку rivna Wrapped")}>rivna Wrapped</button></div><div className="monthly-chart">{buckets.map(bucket=><div key={bucket.key}><strong>{bucket.value?`${symbol}${formatMoney(bucket.value)}`:"—"}</strong><span><i style={{height:`${Math.max(bucket.value?8:2,bucket.value/maxValue*100)}%`}}/></span><small>{bucket.label}</small></div>)}</div></section>
     <div className="analytics-grid"><section className="panel"><div className="section-title"><div><h2>Витрати за категоріями</h2><p>Розподіл поточного періоду</p></div></div><div className="category-chart">{grouped.length?grouped.map(([name,value],index)=><div key={name}><span style={{background:`hsl(${250-index*34} 72% ${58+index*3}%)`}}/><strong>{name}</strong><i><b style={{width:`${value/(grouped[0]?.[1]||1)*100}%`}}/></i><em>{Math.round(value/total*100)}%</em></div>):<p className="empty-inline">Додайте операції для аналітики</p>}</div></section><section className="panel impulse-report"><span className="wizard-icon"><Sparkles/></span><h2>Звіт про імпульсивні витрати</h2><strong>{expenses.filter(transaction=>transaction.impulse).length} покупок</strong><p>Позначайте незаплановані покупки під час створення операції. Rivna покаже їхню частку та вплив на план.</p><div className="donut" style={{"--percent":`${total?impulsive/total*100:0}%`} as React.CSSProperties}><span>{total?Math.round(impulsive/total*100):0}%</span></div></section></div>
     <section className="panel recurring-panel"><div className="section-title"><div><h2>Заплановані доходи</h2><p>Регулярні надходження</p></div></div><div className="recurring-list">{plannedIncomeItems.length?plannedIncomeItems.map(r=><div key={r.id}><span className="recurring-icon"><ArrowDownLeft/></span><strong>{r.name}</strong><small>{r.frequency} · наступний {new Date(r.next).toLocaleDateString("uk-UA")}</small><b className="income-amount">+{r.currency} {formatMoney(r.amount)}</b><em>{r.auto?"Автоматично":"Нагадування"}</em></div>):<p className="empty-inline">Планових доходів поки немає — додай через «Регулярний платіж», обравши «Дохід»</p>}</div></section>
         <CashflowCalendar balance={balance} recurring={recurring} transactions={transactions} rates={rates} customRates={customRates} baseCurrency={baseCurrency}/>
@@ -1290,6 +1290,62 @@ function BigPurchaseSimulator({balance,recurring,rates,customRates,baseCurrency,
       {canAfford
         ?`Після покупки на ${symbol}${formatMoney(Number(amount)||0)} у тебе залишиться ${symbol}${formatMoney(balanceAfterPurchase)} — цього вистачить приблизно на ${Math.max(0,Math.round(bufferMonths*10)/10)} місяців обов'язкових платежів.`
         :`Цієї покупки зараз може не вистачити коштів: бракує ${symbol}${formatMoney(Math.abs(balanceAfterPurchase))} з урахуванням запланованих платежів до ${new Date(date).toLocaleDateString("uk-UA")}.`}
+    </div>
+  </div></div>;
+}
+function WrappedModal({transactions,goals,baseCurrency,close}:{transactions:Transaction[];goals:GoalItem[];baseCurrency:string;close:()=>void}){
+  const [cardIndex,setCardIndex]=useState(0);
+  const cardRef=useRef<HTMLDivElement>(null);
+  const symbol=currencySymbol(baseCurrency);
+  const now=new Date();
+  const monthLabel=new Intl.DateTimeFormat("uk-UA",{month:"long",year:"numeric"}).format(now);
+
+  const stats=useMemo(()=>{
+    const monthKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+    const monthExpenses=transactions.filter(t=>t.amount<0&&t.kind!=="transfer"&&t.kind!=="exchange"&&t.bookedAt?.startsWith(monthKey));
+    const byCategory:Record<string,number>={};
+    monthExpenses.forEach(t=>{byCategory[t.category]=(byCategory[t.category]||0)+Math.abs(t.baseAmount??t.amount)});
+    const favoriteCategory=Object.entries(byCategory).sort((a,b)=>b[1]-a[1])[0];
+    const biggestPurchase=monthExpenses.sort((a,b)=>Math.abs(b.amount)-Math.abs(a.amount))[0];
+    const totalSpent=monthExpenses.reduce((sum,t)=>sum+Math.abs(t.baseAmount??t.amount),0);
+    const totalSaved=goals.reduce((sum,g)=>sum+g.current,0);
+    const transactionCount=monthExpenses.length;
+    return {favoriteCategory,biggestPurchase,totalSpent,totalSaved,transactionCount};
+  },[transactions,goals,now]);
+
+  const cards=[
+    {title:"Твій місяць у rivna",subtitle:monthLabel,big:`${symbol} ${formatMoney(stats.totalSpent)}`,label:"Витрачено загалом",color:"#6B2D42"},
+    {title:"Категорія-фаворит",subtitle:"Найбільше пішло сюди",big:stats.favoriteCategory?.[0]||"—",label:stats.favoriteCategory?`${symbol} ${formatMoney(stats.favoriteCategory[1])}`:"Ще немає даних",color:"#8A6A4A"},
+    {title:"Найбільша покупка",subtitle:stats.biggestPurchase?.date||"",big:stats.biggestPurchase?`${symbol} ${formatMoney(Math.abs(stats.biggestPurchase.amount))}`:"—",label:stats.biggestPurchase?.title||"Ще немає даних",color:"#3B6D11"},
+    {title:"Відкладено в банки",subtitle:"Загальні накопичення",big:`${symbol} ${formatMoney(stats.totalSaved)}`,label:`${goals.length} ${goals.length===1?"ціль":"цілей"}`,color:"#4C91E8"},
+    {title:"Операцій за місяць",subtitle:"Твоя активність",big:String(stats.transactionCount),label:"записів у rivna",color:"#D85A30"},
+  ];
+  const card=cards[cardIndex];
+
+  async function saveAsImage(){
+    if(!cardRef.current)return;
+    const html2canvas=(await import("html2canvas")).default;
+    const canvas=await html2canvas(cardRef.current,{backgroundColor:null,scale:2});
+    const link=document.createElement("a");
+    link.download=`rivna-wrapped-${cardIndex+1}.png`;
+    link.href=canvas.toDataURL("image/png");
+    link.click();
+  }
+
+  return <div className="modal-backdrop" onMouseDown={close}><div className="wrapped-wrap" onMouseDown={e=>e.stopPropagation()}>
+    <button className="icon-button" style={{position:"absolute",top:16,right:16,color:"#fff",zIndex:5}} onClick={close}><X/></button>
+    <div ref={cardRef} className="wrapped-card" style={{background:`linear-gradient(150deg,${card.color} 0%,#1a1a1a 100%)`}}>
+      <span className="wrapped-brand">rivna</span>
+      <small>{card.subtitle}</small>
+      <h2>{card.title}</h2>
+      <strong>{card.big}</strong>
+      <p>{card.label}</p>
+      <div className="wrapped-dots">{cards.map((_,i)=><i key={i} className={i===cardIndex?"active":""}/>)}</div>
+    </div>
+    <div className="wrapped-actions">
+      <button className="period-nav-btn" onClick={()=>setCardIndex(i=>Math.max(0,i-1))} disabled={cardIndex===0}>← Назад</button>
+      <button className="secondary" onClick={saveAsImage}><Download/> Зберегти</button>
+      <button className="period-nav-btn" onClick={()=>setCardIndex(i=>Math.min(cards.length-1,i+1))} disabled={cardIndex===cards.length-1}>Вперед →</button>
     </div>
   </div></div>;
 }
