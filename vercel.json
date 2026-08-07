@@ -9,6 +9,10 @@
     {
       "path": "/api/cron/budget-alerts",
       "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/goal-daily",
+      "schedule": "30 4 * * *"
     }
   ]
 }

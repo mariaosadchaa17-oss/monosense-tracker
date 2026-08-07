@@ -107,8 +107,52 @@ export async function POST(request: Request) {
         household_id: householdId, name: String(body.name).slice(0,100), target_amount:Number(body.targetAmount),
         current_amount:Number(body.currentAmount)||0, currency:String(body.currency||"UAH"), target_date:body.targetDate||null,
         color:body.color||"#6558E8", created_by:user.id,
+        asset_type:["savings","deposit","bond","security"].includes(body.assetType)?body.assetType:"savings",
+        annual_rate:body.annualRate?Number(body.annualRate):null, compound_interest:Boolean(body.compoundInterest),
+        round_balance_to:body.roundBalanceTo?Number(body.roundBalanceTo):null,
+        round_expense_to:body.roundExpenseTo?Number(body.roundExpenseTo):null,
+        expense_percent:body.expensePercent?Number(body.expensePercent):null,
+        source_account_id:body.sourceAccountId||null,
       }).select().single();
       break;
+    case "updateGoal":
+      result = await supabase.from("goals").update({
+        name: String(body.name).slice(0,100), target_amount:Number(body.targetAmount), target_date:body.targetDate||null,
+        color:body.color||"#6558E8", asset_type:["savings","deposit","bond","security"].includes(body.assetType)?body.assetType:"savings",
+        annual_rate:body.annualRate?Number(body.annualRate):null, compound_interest:Boolean(body.compoundInterest),
+        round_balance_to:body.roundBalanceTo?Number(body.roundBalanceTo):null,
+        round_expense_to:body.roundExpenseTo?Number(body.roundExpenseTo):null,
+        expense_percent:body.expensePercent?Number(body.expensePercent):null,
+        source_account_id:body.sourceAccountId||null,
+      }).eq("id",body.id).eq("household_id",householdId).select().single();
+      break;
+    case "withdrawGoal": {
+      const amount=Number(body.amount);
+      const { data: goalRow } = await supabase.from("goals").select("current_amount").eq("id",body.id).eq("household_id",householdId).single();
+      if(!goalRow){result={error:{message:"Ціль не знайдена"}};break;}
+      const remaining=Math.max(0,Number(goalRow.current_amount)-amount);
+      result = await supabase.from("goals").update({current_amount:remaining}).eq("id",body.id).eq("household_id",householdId).select().single();
+      if(!result.error){
+        await supabase.from("goal_transactions").insert({goal_id:body.id,household_id:householdId,amount:-amount,kind:"withdrawal",note:body.note||"Зняття коштів"});
+        if(body.targetAccountId){
+          const { data: acc } = await supabase.from("accounts").select("balance").eq("id",body.targetAccountId).eq("household_id",householdId).single();
+          if(acc)await supabase.from("accounts").update({balance:Number(acc.balance)+amount}).eq("id",body.targetAccountId).eq("household_id",householdId);
+        }
+      }
+      break;
+    }
+    case "breakGoal": {
+      const { data: goalRow } = await supabase.from("goals").select("current_amount").eq("id",body.id).eq("household_id",householdId).single();
+      if(!goalRow){result={error:{message:"Ціль не знайдена"}};break;}
+      const total=Number(goalRow.current_amount);
+      if(body.targetAccountId&&total>0){
+        const { data: acc } = await supabase.from("accounts").select("balance").eq("id",body.targetAccountId).eq("household_id",householdId).single();
+        if(acc)await supabase.from("accounts").update({balance:Number(acc.balance)+total}).eq("id",body.targetAccountId).eq("household_id",householdId);
+      }
+      if(total>0)await supabase.from("goal_transactions").insert({goal_id:body.id,household_id:householdId,amount:-total,kind:"withdrawal",note:"Розбито банку"});
+      result = await supabase.from("goals").delete().eq("id",body.id).eq("household_id",householdId);
+      break;
+    }
     case "contributeGoal":
       result = await supabase.rpc("contribute_to_goal",{p_goal_id:body.id,p_amount:Number(body.amount)});
       break;
