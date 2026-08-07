@@ -38,6 +38,7 @@ type DebtItem = {id:string;person:string;direction:"owed_to_me"|"i_owe";amount:n
 type RecurringItem = {id:string;name:string;amount:number;currency:string;frequency:string;next:string;auto:boolean;kind:"expense"|"income"};
 type CategoryItem = {id:string;name:string;kind:string;color:string;icon:string;isDefault?:boolean};
 type BudgetItem = {id:string;categoryId:string;name:string;icon:string;limit:number;currency:string;month:string;period:"month"|"week";color:string};
+type RuleItem={id:string;name:string;conditionType:string;conditionValue:string;actionType:string;actionCategoryId?:string;actionGoalId?:string;actionValue?:number};
 type AuditItem = {id:string;entity:string;action:string;created:string;actor?:string};
 
 const seedTransactions: Transaction[] = [
@@ -135,6 +136,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [budgetAnchor,setBudgetAnchor]=useState<string>(()=>toDateKey(new Date()));
   const [baseCurrency,setBaseCurrency]=useState("UAH");
   const [audit, setAudit] = useState<AuditItem[]>([]);
+  const [rules, setRules] = useState<RuleItem[]>([]);
   const [installPrompt,setInstallPrompt]=useState<Event|null>(null);
   const [pushEnabled,setPushEnabled]=useState(false);
   const [editingAccount,setEditingAccount]=useState<Account|null>(null);
@@ -212,6 +214,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       setBudgetPeriodType(data.planningPeriod==="week"?"week":"month");
       setBaseCurrency(String(data.baseCurrency||"UAH"));
       setAudit((data.audit||[]).map((item:Record<string,unknown>)=>({id:String(item.id),entity:String(item.entity_type),action:String(item.action),created:String(item.created_at),actor:item.actor_id?String(item.actor_id):undefined})));
+      setRules((data.rules||[]).map((item:Record<string,unknown>)=>({id:String(item.id),name:String(item.name),conditionType:String(item.condition_type),conditionValue:String(item.condition_value||""),actionType:String(item.action_type),actionCategoryId:item.action_category_id?String(item.action_category_id):undefined,actionGoalId:item.action_goal_id?String(item.action_goal_id):undefined,actionValue:item.action_value?Number(item.action_value):undefined})));
       setCustomRates((data.exchangeRates||[]).map((item:Record<string,unknown>)=>({currency:String(item.quote_currency),rate:Number(item.custom_rate||item.official_rate),date:String(item.rate_date)})));
     } catch (error) {
       notify(error instanceof Error ? error.message : "Помилка синхронізації");
@@ -510,6 +513,11 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
     if(await financeAction({action:"createBudget",categoryId:f.get("category"),month:budgetPeriodType==="week"?raw:`${raw}-01`,periodType:budgetPeriodType,limitAmount:Number(f.get("limit")),currency:baseCurrency,icon:String(f.get("icon")||"CircleDollarSign"),color:String(f.get("color")||"#6558e8")},"Ліміт збережено"))setModal(null);
   }
   async function addCategory(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);if(await financeAction({action:"createCategory",name:f.get("name"),kind:String(f.get("kind")),icon:String(f.get("icon")),color:String(f.get("color"))},"Категорію створено"))setModal(null);}
+  async function addRule(e:React.SyntheticEvent<HTMLFormElement>){
+    e.preventDefault();
+    const f=new FormData(e.currentTarget);
+    if(await financeAction({action:"createRule",name:f.get("name"),conditionType:f.get("conditionType"),conditionValue:f.get("conditionValue"),actionType:f.get("actionType"),actionCategoryId:f.get("actionCategoryId")||undefined,actionGoalId:f.get("actionGoalId")||undefined,actionValue:f.get("actionValue")||undefined},"Правило створено"))setModal(null);
+  }
   async function addCustomRate(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);if(await financeAction({action:"createCustomRate",quoteCurrency:String(f.get("currency")),rate:Number(f.get("rate")),date:String(f.get("date")||new Date().toISOString().slice(0,10))},"Власний курс збережено"))setModal(null)}
   async function createInvite(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const response=await fetch("/api/household/invite",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({identifier:f.get("identifier"),role:f.get("role")})});const result=await response.json();if(!response.ok)return notify(result.error||"Не вдалося створити запрошення");await navigator.clipboard.writeText(result.url);setModal(null);notify(result.emailed?"Запрошення надіслано email, посилання скопійовано":"Посилання запрошення скопійовано");}
   async function enablePush(){
@@ -646,6 +654,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
     {modal === "transfer" && <TransferModal accounts={accounts} rates={rates} customRates={customRates} presetToAccountId={transferPresetTo} submit={addTransfer} close={()=>{setModal(null);setTransferPresetTo(undefined)}}/>}
     {modal === "budget" && <BudgetModal categories={categories} period={budgetPeriodType} initialDate={budgetModalDefaultDate} baseCurrency={baseCurrency} submit={addBudget} close={()=>setModal(null)}/>}
     {modal === "category" && <CategoryModal submit={addCategory} close={()=>setModal(null)}/>}
+    {modal === "rule" && <RuleModal categories={categories} goals={goals} submit={addRule} close={()=>setModal(null)}/>}
     {modal === "invite" && <InviteModal submit={createInvite} close={()=>setModal(null)}/>}
     {modal === "rate" && <CustomRateModal submit={addCustomRate} close={()=>setModal(null)}/>}
     {toast && <div className="toast">{toast}</div>}
@@ -1206,9 +1215,9 @@ function CashflowCalendar({balance,recurring,transactions,rates,customRates,base
   </section>;
 }
 function DebtsView({debts,add,settle,payOff,openPay,splitBill}:{debts:DebtItem[];add:()=>void;settle:(debt:DebtItem)=>void;payOff:(accountId:string)=>void;openPay:(debt:DebtItem)=>void;splitBill:()=>void}) { const mine=debts.filter(d=>d.direction==="owed_to_me");const owe=debts.filter(d=>d.direction==="i_owe");return <section className="panel full-view"><div className="section-title"><div><h2>Борги та кредити</h2><p>Хто винен мені та кому винна я</p></div><div className="title-actions"><button className="secondary" onClick={splitBill}><HandCoins/> Розділити чек</button><button className="small-primary" onClick={add}><Plus/> Додати борг</button></div></div><div className="debt-summary"><article><ArrowDownLeft/><div><small>Мені винні</small><strong>{currencySymbol("UAH")} {formatMoney(mine.reduce((s,d)=>s+d.amount,0))}</strong></div></article><article><ArrowUpRight/><div><small>Я винна</small><strong>{currencySymbol("UAH")} {formatMoney(owe.reduce((s,d)=>s+d.amount,0))}</strong></div></article></div><div className="debt-list">{debts.map(d=><div key={d.id}><span className={d.direction==="owed_to_me"?"debt-in":"debt-out"}>{d.direction==="owed_to_me"?<ArrowDownLeft/>:<ArrowUpRight/>}</span><div><strong>{d.person}</strong><small>{d.note||"Без нотатки"}{d.due?` · до ${new Date(d.due).toLocaleDateString("uk-UA")}`:""}</small></div><b>{d.currency} {formatMoney(d.amount)}</b>{d.isVirtual?<button className="small-primary" onClick={()=>d.accountId&&payOff(d.accountId)}>Погасити</button>:d.isInstallment&&d.direction==="i_owe"?<><button className="small-primary" onClick={()=>openPay(d)}>Погасити</button><button className="icon-button danger" onClick={()=>settle(d)}><Trash2 size={14}/></button></>:<button onClick={()=>settle(d)}>Закрити</button>}</div>)}{!debts.length&&<p className="empty">Активних боргів немає</p>}</div></section>; }
-function SettingsView({dark,setDark,skin,setSkin,cardStyle,setCardStyle,logout,notify,importCsv,categories,audit,addCategory,deleteCategory,pushEnabled,enablePush,installApp,goals,budgets,debts,transactions}:{dark:boolean;setDark:(v:boolean)=>void;skin:string;setSkin:(v:string)=>void;cardStyle:string;setCardStyle:(v:string)=>void;logout:()=>void;notify:(s:string)=>void;importCsv:(file:File)=>void;categories:CategoryItem[];audit:AuditItem[];addCategory:()=>void;deleteCategory:(id:string)=>void;pushEnabled:boolean;enablePush:()=>void;installApp:()=>void;goals:GoalItem[];budgets:BudgetItem[];debts:DebtItem[];transactions:Transaction[]}) {
+function SettingsView({dark,setDark,skin,setSkin,cardStyle,setCardStyle,logout,notify,importCsv,categories,audit,addCategory,deleteCategory,pushEnabled,enablePush,installApp,goals,budgets,debts,transactions,rules,openAddRule,removeRule}:{dark:boolean;setDark:(v:boolean)=>void;skin:string;setSkin:(v:string)=>void;cardStyle:string;setCardStyle:(v:string)=>void;logout:()=>void;notify:(s:string)=>void;importCsv:(file:File)=>void;categories:CategoryItem[];audit:AuditItem[];addCategory:()=>void;deleteCategory:(id:string)=>void;pushEnabled:boolean;enablePush:()=>void;installApp:()=>void;goals:GoalItem[];budgets:BudgetItem[];debts:DebtItem[];transactions:Transaction[];rules:RuleItem[];openAddRule:()=>void;removeRule:(id:string)=>void}) {
   return <><div className="settings-grid"><ProfileSettings dark={dark} setDark={setDark} skin={skin} setSkin={setSkin} cardStyle={cardStyle} setCardStyle={setCardStyle} notify={notify}/><section className="panel settings-card"><h2>Застосунок та інтеграції</h2><button className="integration" onClick={installApp}><Download/><span><strong>Встановити Rivna</strong><small>На домашній екран iOS, Android або ПК</small></span><ArrowRight/></button><button className="integration" onClick={enablePush}><Bell/><span><strong>{pushEnabled?"Сповіщення увімкнено":"Увімкнути сповіщення"}</strong><small>Алерти 80% і 100% бюджету</small></span><ArrowRight/></button><label className="integration file-integration"><Upload/><span><strong>Імпорт даних</strong><small>CSV до 5 МБ</small></span><ArrowRight/><input type="file" accept=".csv,text/csv" onChange={event=>{const file=event.target.files?.[0];if(file)importCsv(file);event.target.value=""}}/></label><button className="integration" onClick={()=>notify("Telegram chat ID зберігається у блоці «Загальні»")}><Goal/><span><strong>Telegram-бот</strong><small>Команда: 300 кава #робота</small></span><ArrowRight/></button><button className="logout" onClick={logout}>Вийти з акаунта</button></section></div>
-    <div className="settings-lower"><AchievementsPanel goals={goals} budgets={budgets} debts={debts} transactions={transactions}/><section className="panel"><div className="section-title"><div><h2>Категорії</h2><p>Власні назви, кольори та Lucide-іконки</p></div><button className="small-primary" onClick={addCategory}><Plus/> Категорія</button></div><div className="category-manager">{categories.map(category=><div key={category.id}><span style={{background:category.color}}/><strong>{category.name}</strong><small>{category.kind==="income"?"Дохід":"Витрата"}</small><button onClick={()=>deleteCategory(category.id)}><Trash2/></button></div>)}</div></section><section className="panel"><div className="section-title"><div><h2>Історія змін</h2><p>Останні ключові дії</p></div></div><div className="audit-list">{audit.slice(0,12).map(item=><div key={item.id}><span>{item.action==="insert"?"+":item.action==="delete"?"−":"↻"}</span><div><strong>{translateEntity(item.entity)}</strong><small>{translateAction(item.action)} · {new Date(item.created).toLocaleString("uk-UA")}</small></div></div>)}{!audit.length&&<p className="empty-inline">Історія з’явиться після змін у Supabase</p>}</div></section></div></>
+    <div className="settings-lower"><AchievementsPanel goals={goals} budgets={budgets} debts={debts} transactions={transactions}/><RulesPanel rules={rules} addRule={openAddRule} removeRule={removeRule}/><section className="panel"><div className="section-title"><div><h2>Категорії</h2><p>Власні назви, кольори та Lucide-іконки</p></div><button className="small-primary" onClick={addCategory}><Plus/> Категорія</button></div><div className="category-manager">{categories.map(category=><div key={category.id}><span style={{background:category.color}}/><strong>{category.name}</strong><small>{category.kind==="income"?"Дохід":"Витрата"}</small><button onClick={()=>deleteCategory(category.id)}><Trash2/></button></div>)}</div></section><section className="panel"><div className="section-title"><div><h2>Історія змін</h2><p>Останні ключові дії</p></div></div><div className="audit-list">{audit.slice(0,12).map(item=><div key={item.id}><span>{item.action==="insert"?"+":item.action==="delete"?"−":"↻"}</span><div><strong>{translateEntity(item.entity)}</strong><small>{translateAction(item.action)} · {new Date(item.created).toLocaleString("uk-UA")}</small></div></div>)}{!audit.length&&<p className="empty-inline">Історія з’явиться після змін у Supabase</p>}</div></section></div></>
 }
 
 type SettingsProfile={name:string;email:string;baseCurrency:string;planningPeriod:"month"|"week";householdName:string;telegramChatId:string;recurringReminders:boolean;budget80:boolean;budget100:boolean;role:string};
@@ -1233,6 +1242,13 @@ function AchievementsPanel({goals,budgets,debts,transactions}:{goals:GoalItem[];
   },[goals,budgets,debts,transactions]);
   return <section className="panel"><div className="section-title"><div><h2>Досягнення</h2><p>Твій прогрес у фінансовій дисципліні</p></div></div>
     <div className="achievements-grid">{ACHIEVEMENTS.map(a=>{const unlocked=a.check(ctx);const Icon=a.icon;return <div key={a.id} className={unlocked?"achievement-badge unlocked":"achievement-badge"}><span className="achievement-icon"><Icon size={20}/></span><strong>{a.label}</strong><small>{a.desc}</small></div>})}</div>
+  </section>;
+}
+function RulesPanel({rules,addRule,removeRule}:{rules:RuleItem[];addRule:()=>void;removeRule:(id:string)=>void}){
+  const conditionLabels:Record<string,string>={amount_gt:"Сума більше",amount_lt:"Сума менше",no_category:"Без категорії",currency_is:"Валюта дорівнює"};
+  const actionLabels:Record<string,string>={set_category:"Встановити категорію",contribute_goal_percent:"% доходу в банку"};
+  return <section className="panel"><div className="section-title"><div><h2>Автоматичні правила</h2><p>Обробка транзакцій за умовами</p></div><button className="small-primary" onClick={addRule}><Plus/> Правило</button></div>
+    <div className="category-manager">{rules.map(r=><div key={r.id}><span style={{background:"var(--purple)"}}/><strong>{r.name}</strong><small>{conditionLabels[r.conditionType]||r.conditionType}{r.conditionValue?` ${r.conditionValue}`:""} → {actionLabels[r.actionType]||r.actionType}</small><button onClick={()=>removeRule(r.id)}><Trash2/></button></div>)}{!rules.length&&<p className="empty-inline">Правил ще немає</p>}</div>
   </section>;
 }
 function InvestmentSimulator({goals,baseCurrency}:{goals:GoalItem[];baseCurrency:string}){
@@ -1730,6 +1746,29 @@ function CategoryModal({submit,close}:{submit:(e:React.SyntheticEvent<HTMLFormEl
       {BUDGET_COLORS.map(hex=><button key={hex} type="button" onClick={()=>setColor(hex)} style={{width:"30px",height:"30px",borderRadius:"50%",background:hex,border:color===hex?"2px solid var(--text)":"2px solid transparent",display:"grid",placeItems:"center",cursor:"pointer"}}>{color===hex&&<Check size={14} color="#fff"/>}</button>)}
     </div>
     <button className="primary">Створити категорію</button>
+  </form></div>;
+}
+function RuleModal({categories,goals,submit,close}:{categories:CategoryItem[];goals:GoalItem[];submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}){
+  const [conditionType,setConditionType]=useState("amount_gt");
+  const [actionType,setActionType]=useState("set_category");
+  return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal" onSubmit={submit} onMouseDown={e=>e.stopPropagation()}>
+    <ModalHead label="Автоматизація" title="Нове правило" close={close}/>
+    <label>Назва<input name="name" required placeholder="Велика покупка"/></label>
+    <label>Умова<select name="conditionType" value={conditionType} onChange={e=>setConditionType(e.target.value)}>
+      <option value="amount_gt">Сума більше</option>
+      <option value="amount_lt">Сума менше</option>
+      <option value="no_category">Без категорії</option>
+      <option value="currency_is">Валюта дорівнює</option>
+    </select></label>
+    {(conditionType==="amount_gt"||conditionType==="amount_lt") && <label>Значення суми<input name="conditionValue" type="number" min="0" required/></label>}
+    {conditionType==="currency_is" && <label>Валюта<select name="conditionValue"><option>UAH</option><option>USD</option><option>EUR</option></select></label>}
+    <label>Дія<select name="actionType" value={actionType} onChange={e=>setActionType(e.target.value)}>
+      <option value="set_category">Встановити категорію</option>
+      <option value="contribute_goal_percent">% доходу автоматично в банку</option>
+    </select></label>
+    {actionType==="set_category" && <label>Категорія<select name="actionCategoryId" required>{categories.filter(c=>c.kind==="expense").map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>}
+    {actionType==="contribute_goal_percent" && <><label>Банка<select name="actionGoalId" required>{goals.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</select></label><label>Відсоток, %<input name="actionValue" type="number" min="0" max="100" required/></label></>}
+    <button className="primary">Створити правило</button>
   </form></div>;
 }
 function InviteModal({submit,close}:{submit:(e:React.SyntheticEvent<HTMLFormElement>)=>void;close:()=>void}) { return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal" onSubmit={submit} onMouseDown={e=>e.stopPropagation()}><ModalHead label="Спільне планування" title="Запросити учасника" close={close}/><label>Email або username<input name="identifier" required placeholder="partner@example.example.com або @partner"/></label><label>Роль<select name="role"><option value="member">Учасник — може редагувати фінанси</option><option value="viewer">Глядач — лише перегляд</option><option value="admin">Адміністратор — може запрошувати</option></select></label><div className="form-message success">Email-запрошення буде надіслано автоматически. Одноразове посилання также діятиме 7 днів и скопіюється в буфер.</div><button className="primary">Надіслати запрошення</button></form></div>; }

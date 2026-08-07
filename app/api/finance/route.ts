@@ -71,6 +71,26 @@ export async function POST(request: Request) {
           await supabase.from("debts").update({amount:remaining,settled:remaining<=0}).eq("id",body.debtId).eq("household_id",householdId);
         }
       }
+      if(!result.error&&result.data?.id){
+        const { data: rules } = await supabase.from("transaction_rules").select("*").eq("household_id",householdId).eq("active",true);
+        for(const rule of rules||[]){
+          let matches=false;
+          if(rule.condition_type==="amount_gt")matches=Number(body.amount)>Number(rule.condition_value);
+          else if(rule.condition_type==="amount_lt")matches=Number(body.amount)<Number(rule.condition_value);
+          else if(rule.condition_type==="no_category")matches=!body.categoryId;
+          else if(rule.condition_type==="currency_is")matches=body.currency===rule.condition_value;
+          if(!matches)continue;
+          if(rule.action_type==="set_category"&&rule.action_category_id){
+            await supabase.from("transactions").update({category_id:rule.action_category_id}).eq("id",result.data.id).eq("household_id",householdId);
+          } else if(rule.action_type==="contribute_goal_percent"&&rule.action_goal_id&&body.type==="income"){
+            const contribution=Number(body.amount)*(Number(rule.action_value)||0)/100;
+            if(contribution>0){
+              const { data: goalRow } = await supabase.from("goals").select("current_amount").eq("id",rule.action_goal_id).eq("household_id",householdId).single();
+              if(goalRow)await supabase.from("goals").update({current_amount:Number(goalRow.current_amount)+contribution}).eq("id",rule.action_goal_id).eq("household_id",householdId);
+            }
+          }
+        }
+      }
       break;
     case "deleteTransaction": {
       const [fromMatch, toMatch, txRow] = await Promise.all([
@@ -222,6 +242,15 @@ export async function POST(request: Request) {
           result = await supabase.from("categories").delete().eq("id",body.id).eq("household_id",householdId);
           break;
         }
+    case "createRule":
+          result = await supabase.from("transaction_rules").insert({
+            household_id:householdId,name:String(body.name).slice(0,100),condition_type:body.conditionType,condition_value:body.conditionValue||null,
+            action_type:body.actionType,action_category_id:body.actionCategoryId||null,action_goal_id:body.actionGoalId||null,action_value:body.actionValue||null,created_by:user.id,
+          }).select().single();
+          break;
+        case "deleteRule":
+          result = await supabase.from("transaction_rules").delete().eq("id",body.id).eq("household_id",householdId);
+          break;
     case "deleteBudget":
       result = await supabase.from("budgets").delete().eq("id",body.id).eq("household_id",householdId);
       break;
