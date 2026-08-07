@@ -75,6 +75,17 @@ const formatMoney = (value: number) => new Intl.NumberFormat("uk-UA", { maximumF
 const currencySymbol=(currency:string)=>({UAH:"₴",USD:"$",EUR:"€",GBP:"£",PLN:"zł"} as Record<string,string>)[currency]||currency;
 const conversionRate=(currency:string,rates:{currency:string;rate:number}[],customRates:{currency:string;rate:number}[])=>currency==="UAH"?1:(customRates.find(rate=>rate.currency===currency)?.rate||rates.find(rate=>rate.currency===currency)?.rate||1);
 function toDateKey(date:Date){return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`}
+function evaluateExpression(input:string):number|null{
+  const trimmed=input.trim();
+  if(!trimmed||!/^[0-9+\-*/.,\s()]+$/.test(trimmed))return null;
+  if(!/[+\-*/]/.test(trimmed))return null;
+  try{
+    const normalized=trimmed.replace(/,/g,".");
+    const result=Function(`"use strict";return(${normalized})`)();
+    if(typeof result==="number"&&Number.isFinite(result)&&result>0)return Math.round(result*100)/100;
+    return null;
+  }catch{return null;}
+}
 function budgetPeriodBounds(periodType:"month"|"week",anchorIso:string){
   const anchor=new Date(`${anchorIso}T00:00:00`);
   if(periodType==="week"){
@@ -277,9 +288,10 @@ useEffect(() => {
   },[accounts,debts]);
 
   async function addExpense(e: React.SyntheticEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form=new FormData(e.currentTarget);
-    const value = Number(amount.replace(",", "."));
+      e.preventDefault();
+      const form=new FormData(e.currentTarget);
+      const evaluated=evaluateExpression(amount);
+      const value = evaluated!==null?evaluated:Number(amount.replace(",", "."));
     if (!value) return;
     const operationType=form.get("type")==="income"?"income":"expense",isIncome=operationType==="income";
     if (initialLoggedIn) {
@@ -1273,7 +1285,7 @@ function ExpenseModal({amount,setAmount,note,setNote,accounts,categories,debts,s
     <ModalHead label="Деталізація операції" title={type==="income"?"Новий дохід":"Нова витрата"} close={close}/>
     <div className="operation-type"><button type="button" className={type==="expense"?"active":""} onClick={()=>changeType("expense")}><ArrowUpRight/> Витрата</button><button type="button" className={type==="income"?"active":""} onClick={()=>changeType("income")}><ArrowDownLeft/> Дохід</button></div>
     <input type="hidden" name="type" value={type}/>
-    <label className="amount-field"><span>{currencySymbol(account?.currency||"UAH")}</span><input autoFocus required inputMode="decimal" placeholder="0" value={amount} onChange={event=>setAmount(event.target.value)}/></label>
+    <label className="amount-field"><span>{currencySymbol(account?.currency||"UAH")}</span><input autoFocus required inputMode="decimal" placeholder="0" value={amount} onChange={event=>setAmount(event.target.value)} onBlur={()=>{const evaluated=evaluateExpression(amount);if(evaluated!==null)setAmount(String(evaluated))}}/></label>
     <WheelField name="account" label="Рахунок" options={accountOptions} value={accountId} onChange={setAccountId}/>
     <CategoryGridField categories={categories} type={type} value={categoryId} onChange={setCategoryId}/>
     <label>Валюта<input name="currency" value={account?.currency||"UAH"} readOnly/></label>
