@@ -582,9 +582,9 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
               {activeAlerts.length?activeAlerts.map(a=><div key={a.key} className="notification-item"><span className={a.percent>=100?"negative":""}>{a.name}</span>{a.percent>=0&&<small>{a.percent}% ліміту використано</small>}</div>):<p className="empty-inline">Нових сповіщень немає</p>}
             </div>}
           </div>
-          <button className="add-btn" onClick={() => setModal("expense")}><Plus/> Додати витрату</button>
           <button className="theme-btn" onClick={() => setModal("purchase-sim")} aria-label="Симулятор великої покупки"><Target/></button>
-          <button className="add-btn" onClick={() => setModal("expense")}><Plus/> Додати витрату</button>
+                    <button className="theme-btn" onClick={() => setModal("wrapped")} aria-label="rivna Wrapped"><Sparkles/></button>
+                    <button className="add-btn" onClick={() => setModal("expense")}><Plus/> Додати витрату</button>
         </div>
       </header>
 
