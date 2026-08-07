@@ -351,3 +351,19 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .category-grid button.selected{border-color:var(--purple);background:color-mix(in srgb,var(--purple) 8%,var(--panel))}
 .category-grid-icon{width:30px;height:30px;border-radius:10px;display:grid;place-items:center}
 .category-grid small{font-size:10px;color:var(--text);text-align:center;line-height:1.2;font-weight:600;white-space:normal}
+
+
+.goal-card{position:relative}
+.goal-card-top{display:flex;align-items:center;justify-content:space-between}
+.goal-asset-badge{font-size:9px;font-weight:800;color:var(--purple);background:color-mix(in srgb,var(--purple) 12%,var(--panel));padding:4px 8px;border-radius:999px}
+.goal-actions-row{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.goal-action-btn{display:flex;align-items:center;justify-content:center;gap:5px;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:8px;font-size:11px;font-weight:600;color:var(--text);cursor:pointer}
+.goal-action-btn:hover{border-color:var(--purple);color:var(--purple)}
+.goal-action-btn.danger:hover{border-color:#d94b4b;color:#d94b4b}
+.goal-history-list{display:flex;flex-direction:column;gap:2px;max-height:400px;overflow-y:auto}
+.goal-history-row{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line)}
+.goal-history-row span{width:32px;height:32px;border-radius:50%;background:var(--bg);display:grid;place-items:center;color:var(--purple);flex:none}
+.goal-history-row div{flex:1}
+.goal-history-row strong{display:block;font-size:13px}
+.goal-history-row small{color:var(--muted);font-size:11px}
+.goal-history-row b{font-size:13px;font-weight:700}
