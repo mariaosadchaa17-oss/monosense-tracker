@@ -67,6 +67,7 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .balance-card{background:linear-gradient(120deg,#12151a 0%,#242832 45%,#12151a 100%);box-shadow:0 22px 55px rgba(10,12,15,.35);position:relative;overflow:visible}
 .balance-card:before{content:"";position:absolute;inset:0;border-radius:22px;overflow:hidden;background:linear-gradient(115deg,rgba(255,255,255,.08) 0%,transparent 40%),linear-gradient(295deg,rgba(255,255,255,.05) 0%,transparent 35%);pointer-events:none}
 .balance-card>*{position:relative;z-index:1}
+.balance-card .card-top{z-index:5}
 :root[data-cardstyle="aurora"] .balance-card{background:linear-gradient(135deg,#1b1233 0%,#3a2a63 45%,#151022 100%)}
 :root[data-cardstyle="mesh"] .balance-card{background:radial-gradient(circle at 20% 20%,#2c2450 0%,transparent 50%),radial-gradient(circle at 80% 80%,#1a3a3a 0%,transparent 50%),#12151a}
 :root[data-cardstyle="minimal"] .balance-card{background:var(--ink);box-shadow:0 12px 30px rgba(0,0,0,.2)}
