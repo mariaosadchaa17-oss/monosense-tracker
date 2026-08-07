@@ -538,8 +538,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
         </div>
       </header>
 
-{page === "Головна" && <Dashboard balance={balance} baseCurrency={baseCurrency} accounts={accounts} transactions={normalizedTransactions} goals={goals} authenticated={initialLoggedIn} openPage={setPage} addAccount={() => setModal("account")} changeCurrency={setBaseCurrency} monthlyFees={monthlyFees} plannedIncome={plannedMonthlyIncome}/>}
-{page === "Операції" && <TransactionsView transactions={filteredTransactions} search={search} setSearch={setSearch} remove={removeTransaction} exportCsv={() => exportCsv(transactions, notify)} exportExcel={()=>exportExcel(transactions,notify)} initialAccount={accountFilter}/>}      {page === "Бюджет" && (initialLoggedIn?<LiveBudgetView budgets={savedBudgets} transactions={normalizedTransactions} periodType={budgetPeriodType} setPeriodType={setBudgetPeriodType} anchor={budgetAnchor} setAnchor={setBudgetAnchor} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={(id: string|number)=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>:<BudgetView budgets={savedBudgets} transactions={normalizedTransactions} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={(id: string|number)=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>)}
+      {page === "Головна" && <Dashboard balance={balance} baseCurrency={baseCurrency} accounts={accounts} transactions={normalizedTransactions} goals={goals} authenticated={initialLoggedIn} openPage={setPage} addAccount={() => setModal("account")} changeCurrency={setBaseCurrency} monthlyFees={monthlyFees} plannedIncome={plannedMonthlyIncome} recurring={recurring} addRecurring={()=>setModal("recurring")}/>}{page === "Операції" && <TransactionsView transactions={filteredTransactions} search={search} setSearch={setSearch} remove={removeTransaction} exportCsv={() => exportCsv(transactions, notify)} exportExcel={()=>exportExcel(transactions,notify)} initialAccount={accountFilter}/>}      {page === "Бюджет" && (initialLoggedIn?<LiveBudgetView budgets={savedBudgets} transactions={normalizedTransactions} periodType={budgetPeriodType} setPeriodType={setBudgetPeriodType} anchor={budgetAnchor} setAnchor={setBudgetAnchor} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={(id: string|number)=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>:<BudgetView budgets={savedBudgets} transactions={normalizedTransactions} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={(id: string|number)=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>)}
       {page === "Рахунки" && <AccountsView accounts={accounts} rates={rates} customRates={customRates} add={() => {setEditingAccount(null);setModal("account")}} edit={account=>{setEditingAccount(account);setModal("account")}} addRate={()=>setModal("rate")} transfer={()=>{setTransferPresetTo(undefined);setModal("transfer")}} remove={removeAccount}/>}
       {page === "Накопичення" && <GoalsView goals={goals} authenticated={initialLoggedIn} add={()=>{setEditingGoal(null);setModal("goal")}} contribute={(id,amount)=>financeAction({action:"contributeGoal",id,amount},"Ціль поповнено")} recurring={recurring} addRecurring={()=>setModal("recurring")} edit={goal=>{setEditingGoal(goal);setModal("goal")}} openAction={(goal,mode)=>setGoalAction({goal,mode})}/>}      
       {page === "Аналітика" && <AnalyticsView transactions={normalizedTransactions} baseCurrency={baseCurrency} recurring={recurring}/>}
@@ -631,7 +630,7 @@ function Login({ dark, setDark, showPassword, setShowPassword, login }: {dark:bo
     </section>
   </main>;
 }
-function Dashboard({ balance, baseCurrency, accounts, transactions, goals, authenticated, openPage, addAccount, changeCurrency, monthlyFees, plannedIncome }: {balance:number;baseCurrency:string;accounts:Account[];transactions:Transaction[];goals:GoalItem[];authenticated:boolean;openPage:(p:Page)=>void;addAccount:()=>void;changeCurrency:(c:string)=>void;monthlyFees:number;plannedIncome:number}) {
+function Dashboard({ balance, baseCurrency, accounts, transactions, goals, authenticated, openPage, addAccount, changeCurrency, monthlyFees, plannedIncome, recurring, addRecurring }: {balance:number;baseCurrency:string;accounts:Account[];transactions:Transaction[];goals:GoalItem[];authenticated:boolean;openPage:(p:Page)=>void;addAccount:()=>void;changeCurrency:(c:string)=>void;monthlyFees:number;plannedIncome:number;recurring:RecurringItem[];addRecurring:()=>void}) {
   const [renderedAt]=useState(()=>Date.now()),now=new Date(renderedAt),month=now.getMonth(),year=now.getFullYear();
   const realDates=transactions.some(transaction=>Boolean(transaction.bookedAt));
   const currentTransactions=realDates?transactions.filter(transaction=>{const date=new Date(transaction.bookedAt!);return date.getMonth()===month&&date.getFullYear()===year}):transactions;
@@ -646,8 +645,10 @@ function Dashboard({ balance, baseCurrency, accounts, transactions, goals, authe
     {monthlyFees>0&&<p className="fee-note">Комісії за перекази цього місяця: {symbol} {formatMoney(monthlyFees)}</p>}
     <div className="insight"><Sparkles/> {previousExpense?`Темп витрат ${Math.abs(difference)}% ${difference<=0?"нижчий":"вищий"} за минулий місяць`:"Прогноз уточнюється з кожною операцією"}</div></article></div>
 <section className="accounts"><div className="section-title"><div><h2>Мої рахунки</h2><p>Баланс усіх активів</p></div><button onClick={() => openPage("Рахунки")}>Усі рахунки <ArrowRight/></button></div><div className="account-row">{accounts.slice(0,4).map(a => <AccountCard key={a.id} account={a}/>) }<button className="new-account" onClick={addAccount}><span className="new-account-icon"><Plus/></span><span>{accounts.length?"Додати рахунок":"Додай свій перший рахунок"}</span></button></div></section>    <div className="dashboard-grid"><section className="panel transactions"><div className="section-title"><div><h2>Останні операції</h2><p>Найновіші записи</p></div><button onClick={() => openPage("Операції")}>Усі операції <ArrowRight/></button></div><TransactionList transactions={transactions.slice(0,4)}/></section><section className="panel budget-panel"><div className="section-title"><div><h2>Бюджет: {monthLabel}</h2><p>{daysInMonth-now.getDate()} днів до кінця місяця</p></div><button onClick={() => openPage("Бюджет")}><MoreHorizontal/></button></div><div className="budget-total"><div><small>Витрачено цього місяця</small><strong>{symbol} {formatMoney(expense)}</strong></div><b>{forecast?Math.round(expense/forecast*100):0}% часу</b></div><div className="main-progress"><i style={{width:`${Math.min(100,now.getDate()/daysInMonth*100)}%`}}/></div><button className="budget-open" onClick={()=>openPage("Бюджет")}>Переглянути ліміти категорій <ArrowRight/></button></section></div>
-    {primaryGoal && <button className="panel dashboard-goal" onClick={()=>openPage("Накопичення")}><span className="goal-icon"><PiggyBank/></span><div><small>Головна фінансова ціль</small><strong>{primaryGoal.name}</strong><span><i style={{width:`${goalProgress}%`,background:primaryGoal.color}}/></span><p>{goalProgress}% · {primaryGoal.currency} {formatMoney(primaryGoal.current)} з {formatMoney(primaryGoal.target)}</p></div><ArrowRight/></button>}</>;
-}
+    {primaryGoal && <button className="panel dashboard-goal" onClick={()=>openPage("Накопичення")}><span className="goal-icon"><PiggyBank/></span><div><small>Головна фінансова ціль</small><strong>{primaryGoal.name}</strong><span><i style={{width:`${goalProgress}%`,background:primaryGoal.color}}/></span><p>{goalProgress}% · {primaryGoal.currency} {formatMoney(primaryGoal.current)} з {formatMoney(primaryGoal.target)}</p></div><ArrowRight/></button>}
+        <section className="panel recurring-panel"><div className="section-title"><div><h2>Регулярні платежі</h2><p>Підписки, оренда та комунальні</p></div><button className="small-primary" onClick={addRecurring}><Plus/> Додати</button></div><div className="recurring-list">{recurring.filter(r=>r.kind==="expense").length?recurring.filter(r=>r.kind==="expense").map(r=><div key={r.id}><span className="recurring-icon"><Repeat2/></span><strong>{r.name}</strong><small>{r.frequency} · наступний {new Date(r.next).toLocaleDateString("uk-UA")}</small><b>{r.currency} {formatMoney(r.amount)}</b><em>{r.auto?"Автоматично":"Нагадування"}</em></div>):<p className="empty-inline">Регулярних платежів поки немає</p>}</div></section>
+      </>;
+    }
 
 function TransactionsView({ transactions, search, setSearch, remove, exportCsv,exportExcel,initialAccount }: {transactions:Transaction[];search:string;setSearch:(s:string)=>void;remove:(id:number|string)=>void;exportCsv:()=>void;exportExcel:()=>void;initialAccount?:string}) {
   const [account,setAccount]=useState(initialAccount||"");
@@ -963,10 +964,11 @@ function AccountsView({accounts,rates,customRates,add,edit,addRate,transfer,remo
 const ASSET_TYPE_LABELS:Record<string,string>={savings:"Накопичення",deposit:"Депозит",bond:"Облігація",security:"Цінний папір"};
 function GoalsView({goals,authenticated,add,contribute,recurring,addRecurring,edit,openAction}:{goals:GoalItem[];authenticated:boolean;add:()=>void;contribute:(id:string,amount:number)=>void;recurring:RecurringItem[];addRecurring:()=>void;edit:(goal:GoalItem)=>void;openAction:(goal:GoalItem,mode:"withdraw"|"break"|"history")=>void}) {
   const shown=goals.length?goals:(authenticated?[]:[{id:"demo1",name:"Резервний фонд",target:200000,current:120000,currency:"UAH",color:"#6558E8"},{id:"demo2",name:"Подорож до Японії",target:150000,current:38500,currency:"UAH",color:"#159B70"}]);
-  return <>
-    {authenticated && !goals.length && <EmptyState icon={<PiggyBank/>} text="У тебе ще немає фінансових цілей — створи першу банку, щоб почати накопичувати"/>}
-    <section className="panel full-view"><div className="section-title"><div><h2>Фінансові цілі</h2><p>Накопичення, депозити та цінні папери</p></div><button className="small-primary" onClick={add}><Plus/> Нова ціль</button></div>
-      <div className="goals-grid">{shown.map(g=>{
+  const isEmpty=authenticated&&!goals.length;
+    return <>
+      <section className="panel full-view"><div className="section-title"><div><h2>Фінансові цілі</h2><p>Накопичення, депозити та цінні папери</p></div>{!isEmpty&&<button className="small-primary" onClick={add}><Plus/> Нова ціль</button>}</div>
+        {isEmpty && <div className="goals-empty"><span className="empty-state-icon"><PiggyBank/></span><p>У тебе ще немає фінансових цілей — створи першу банку, щоб почати накопичувати</p><button className="round-add-btn" onClick={add} aria-label="Нова ціль"><Plus/></button></div>}
+      {!isEmpty && <div className="goals-grid">{shown.map(g=>{
         const percent=Math.min(100,Math.round(g.current/g.target*100)),symbol=currencySymbol(g.currency);
         return <article className="goal-card" key={g.id}>
           <div className="goal-card-top"><span className="goal-icon"><PiggyBank/></span>{g.assetType&&g.assetType!=="savings"&&<em className="goal-asset-badge">{ASSET_TYPE_LABELS[g.assetType]}</em>}</div>
@@ -983,11 +985,10 @@ function GoalsView({goals,authenticated,add,contribute,recurring,addRecurring,ed
             <button className="goal-action-btn danger" onClick={()=>openAction(g,"break")}><Trash2 size={13}/> Розбити банку</button>
           </div>
         </article>;
-      })}</div>
-    </section>
-    <section className="panel recurring-panel"><div className="section-title"><div><h2>Регулярні платежі</h2><p>Підписки, оренда та комунальні</p></div><button className="small-primary" onClick={addRecurring}><Plus/> Додати</button></div><div className="recurring-list">{recurring.filter(r=>r.kind==="expense").length?recurring.filter(r=>r.kind==="expense").map(r=><div key={r.id}><span className="recurring-icon"><Repeat2/></span><strong>{r.name}</strong><small>{r.frequency} · наступний {new Date(r.next).toLocaleDateString("uk-UA")}</small><b>{r.currency} {formatMoney(r.amount)}</b><em>{r.auto?"Автоматично":"Нагадування"}</em></div>):<p className="empty-inline">Регулярних платежів поки немає</p>}</div></section>
-  </>;
-}
+      })}</div>}
+          </section>
+    </>;
+    }
 function AnalyticsView({transactions,baseCurrency,recurring}:{transactions:Transaction[];baseCurrency:string;recurring:RecurringItem[]}) {
   const plannedIncomeItems=recurring.filter(r=>r.kind==="income");
   const [period,setPeriod]=useState<"month"|"week">("month"),[renderedAt]=useState(()=>Date.now()),now=new Date(renderedAt);
