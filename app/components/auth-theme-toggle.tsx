@@ -2,8 +2,8 @@
 import { useEffect, useState } from "react";
 
 const THEMES = [
-  { id: "mulberry-mint", label: "Mulberry mint", logo: "/logo-rivna-mulberry.png" },
-  { id: "espresso-cream", label: "Espresso cream", logo: "/logo-rivna-cream.png" },
+  { id: "mulberry-mint", label: "Mulberry mint", logo: "logo-rivna-mulberry_1.png" },
+  { id: "espresso-cream", label: "Espresso cream", logo: "/logo-rivna-cream_1.png" },
 ];
 
 export function AuthThemeToggle() {
