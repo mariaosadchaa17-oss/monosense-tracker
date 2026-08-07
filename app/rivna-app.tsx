@@ -697,6 +697,20 @@ function Dashboard({ balance, baseCurrency, accounts, transactions, goals, authe
   const income=currentTransactions.filter(transaction=>transaction.amount>0&&transaction.kind!=="transfer"&&transaction.kind!=="exchange").reduce((sum,transaction)=>sum+(transaction.baseAmount??transaction.amount),0),expense=currentTransactions.filter(transaction=>transaction.amount<0&&transaction.kind!=="transfer"&&transaction.kind!=="exchange").reduce((sum,transaction)=>sum+Math.abs(transaction.baseAmount??transaction.amount),0);
   const previousExpense=previousTransactions.filter(transaction=>transaction.amount<0&&transaction.kind!=="transfer"&&transaction.kind!=="exchange").reduce((sum,transaction)=>sum+Math.abs(transaction.baseAmount??transaction.amount),0),difference=previousExpense?Math.round((expense-previousExpense)/previousExpense*100):0;
   const daysInMonth=new Date(year,month+1,0).getDate(),forecast=Math.round(expense/Math.max(1,now.getDate())*daysInMonth),projectedBalance=balance-Math.max(0,forecast-expense),monthLabel=new Intl.DateTimeFormat("uk-UA",{month:"long"}).format(now);
+  const avgMonthlyExpense=useMemo(()=>{
+      const cutoff=new Date();cutoff.setMonth(cutoff.getMonth()-6);
+      const monthsCovered:Set<string>=new Set();
+      let total=0;
+      transactions.filter(t=>t.amount<0&&t.kind!=="transfer"&&t.kind!=="exchange"&&t.bookedAt&&new Date(t.bookedAt)>=cutoff).forEach(t=>{
+        total+=Math.abs(t.baseAmount??t.amount);
+        const key=t.bookedAt!.slice(0,7);
+        monthsCovered.add(key);
+      });
+      const divisor=Math.max(1,monthsCovered.size);
+      return total/divisor;
+    },[transactions]);
+    const savingsBalance=goals.reduce((sum,g)=>sum+g.current,0);
+    const runwayMonths=avgMonthlyExpense>0?savingsBalance/avgMonthlyExpense:0;
   const upcomingObligations=recurring.filter(r=>r.kind==="expense"&&new Date(r.next).getMonth()===month&&new Date(r.next).getFullYear()===year&&new Date(r.next).getDate()>=now.getDate()).reduce((sum,r)=>sum+r.amount,0);
     const goalReserve=goals.reduce((sum,g)=>sum+(g.current>0?0:0),0);
     const daysLeft=Math.max(1,daysInMonth-now.getDate()+1);
@@ -705,6 +719,7 @@ function Dashboard({ balance, baseCurrency, accounts, transactions, goals, authe
       const symbol=currencySymbol(baseCurrency);
     return <>
       <div className="safe-to-spend"><div><small>Можна витратити сьогодні</small><strong>{symbol} {formatMoney(safeToSpend)}</strong></div><p>Баланс мінус заплановані обов'язкові платежі, поділено на дні до кінця місяця</p></div>
+          {savingsBalance>0 && <div className={runwayMonths<3?"safe-to-spend runway-widget low":"safe-to-spend runway-widget"}><div><small>Подушка безпеки</small><strong>{Math.round(runwayMonths*10)/10} міс.</strong></div><p>Накопичення ({symbol}{formatMoney(savingsBalance)}) поділено на середні витрати ({symbol}{formatMoney(avgMonthlyExpense)}/міс. за останні 6 міс.)</p></div>}
       <div className="summary-grid"><article className="balance-card"><div className="card-top"><span>Загальний баланс</span><details className="currency-select"><summary>{baseCurrency} <ChevronDown/></summary><div className="currency-options">{["UAH","USD","EUR","GBP","PLN"].map(c=><button key={c} type="button" className={c===baseCurrency?"selected":""} onClick={e=>{e.preventDefault();changeCurrency(c);(e.currentTarget.closest("details") as HTMLDetailsElement|null)?.removeAttribute("open")}}>{c}</button>)}</div></details></div><h2>{symbol} {formatMoney(balance)}<small>.00</small></h2><div className="balance-meta"><span><ArrowUpRight/> +{symbol} {formatMoney(income)} <small>доходи</small></span><span><ArrowDownLeft/> −{symbol} {formatMoney(expense)} <small>витрати</small></span></div><div className="balance-footer"><span>За {monthLabel}</span><span className={difference>0?"negative":"positive"}>{previousExpense?`${difference>0?"+":""}${difference}% до минулого місяця`:"Перший період"}</span></div></article>
     <article className="forecast-card"><div className="card-heading"><div><span>Прогноз на кінець місяця</span><h3>{symbol} {formatMoney(projectedBalance)}</h3></div><span className="forecast-icon"><Sparkles/></span></div><div className="forecast-line"><i style={{width:`${Math.min(100,now.getDate()/daysInMonth*100)}%`}}/><b/></div><p>За поточного темпу витрат · прогноз витрат {symbol} {formatMoney(forecast)}</p>{plannedIncome>0&&<p className="fee-note">Запланований дохід цього місяця: {symbol} {formatMoney(plannedIncome)}</p>}
     {monthlyFees>0&&<p className="fee-note">Комісії за перекази цього місяця: {symbol} {formatMoney(monthlyFees)}</p>}
