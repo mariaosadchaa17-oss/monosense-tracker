@@ -114,7 +114,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [dark, setDark] = useState(()=>typeof window!=="undefined"&&localStorage.getItem("rivna-theme")==="dark");
   const [skin, setSkin] = useState(()=>typeof window!=="undefined"?localStorage.getItem("rivna-skin")||"default":"default");
   const [cardStyle, setCardStyle] = useState(()=>typeof window!=="undefined"?localStorage.getItem("rivna-cardstyle")||"default":"default");
-  const [modal, setModal] = useState<"expense" | "account" | "goal" | "debt" | "recurring" | "transfer" | "budget" | "category" | "invite" | "rate" | "split" | "purchase-sim" | "wrapped" | null>(null);
+  const [modal, setModal] = useState<"expense" | "account" | "goal" | "debt" | "recurring" | "transfer" | "budget" | "category" | "invite" | "rate" | "split" | "purchase-sim" | "wrapped" | "rule" | null>(null);
   const [transactions, setTransactions] = useState(initialLoggedIn?[]:seedTransactions);
   const [accounts, setAccounts] = useState(initialLoggedIn?[]:seedAccounts);
   const [amount, setAmount] = useState("");
