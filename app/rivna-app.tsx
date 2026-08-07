@@ -144,11 +144,6 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     const onInstall=(event:Event)=>{event.preventDefault();setInstallPrompt(event)};
     window.addEventListener("beforeinstallprompt",onInstall);
     const timer=window.setTimeout(()=>{
-      if(localStorage.getItem("rivna-just-onboarded")==="1"){
-        localStorage.removeItem("rivna-just-onboarded");
-        setToast(`Вітаємо в rivna! 🎉 Все готово — починай керувати фінансами`);
-        window.setTimeout(()=>setToast(""),4000);
-      }
       const params=new URLSearchParams(location.search);
       const pageParam=params.get("page");
       const validPages:Page[]=["Головна","Операції","Бюджет","Рахунки","Накопичення","Аналітика","Борги","Налаштування"];
@@ -250,15 +245,23 @@ useEffect(() => {
   const filteredTransactions = transactions.filter(t => `${t.title} ${t.category}`.toLowerCase().includes(search.toLowerCase()));
  const [seenAlerts,setSeenAlerts]=useState<string[]>(()=>typeof window!=="undefined"?JSON.parse(localStorage.getItem("rivna-seen-alerts")||"[]"):[]);
    const [notifOpen,setNotifOpen]=useState(false);
-   const activeAlerts=useMemo(()=>{
-     const now=new Date();
-     const monthKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-     const monthSpent:Record<string,number>=transactions.filter(t=>t.amount<0&&t.kind!=="transfer"&&t.kind!=="exchange"&&t.bookedAt?.startsWith(monthKey)).reduce((sum,t)=>{sum[t.category]=(sum[t.category]||0)+Math.abs(t.amount);return sum},{} as Record<string,number>);
-     return savedBudgets.filter(b=>b.month.startsWith(monthKey)).map(b=>{
-       const used=monthSpent[b.name]||0,percent=Math.round(used/b.limit*100);
-       return {key:`${b.name}-${monthKey}-${percent>=100?"100":"80"}`,name:b.name,percent};
-     }).filter(a=>a.percent>=80);
-   },[savedBudgets,transactions]);
+   const [welcomeAlert,setWelcomeAlert]=useState<{key:string;name:string;percent:-1}|null>(null);
+     useEffect(()=>{
+       if(localStorage.getItem("rivna-just-onboarded")==="1"){
+         localStorage.removeItem("rivna-just-onboarded");
+         setWelcomeAlert({key:"welcome",name:"Вітаємо в rivna! Все готово — починай керувати фінансами",percent:-1});
+       }
+     },[]);
+     const activeAlerts=useMemo(()=>{
+       const now=new Date();
+       const monthKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+       const monthSpent:Record<string,number>=transactions.filter(t=>t.amount<0&&t.kind!=="transfer"&&t.kind!=="exchange"&&t.bookedAt?.startsWith(monthKey)).reduce((sum,t)=>{sum[t.category]=(sum[t.category]||0)+Math.abs(t.amount);return sum},{} as Record<string,number>);
+       const budgetAlerts=savedBudgets.filter(b=>b.month.startsWith(monthKey)).map(b=>{
+         const used=monthSpent[b.name]||0,percent=Math.round(used/b.limit*100);
+         return {key:`${b.name}-${monthKey}-${percent>=100?"100":"80"}`,name:b.name,percent};
+       }).filter(a=>a.percent>=80);
+       return welcomeAlert?[welcomeAlert,...budgetAlerts]:budgetAlerts;
+     },[savedBudgets,transactions,welcomeAlert]);
    const hasNewAlerts=activeAlerts.some(a=>!seenAlerts.includes(a.key));
    function openNotifications(){
      setNotifOpen(v=>!v);
@@ -527,7 +530,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
             <button className="theme-btn notification" onClick={openNotifications} aria-label="Сповіщення"><Bell/>{hasNewAlerts&&<i/>}</button>
             {notifOpen && <div className="notification-panel">
               <strong>Сповіщення</strong>
-              {activeAlerts.length?activeAlerts.map(a=><div key={a.key} className="notification-item"><span className={a.percent>=100?"negative":""}>{a.name}</span><small>{a.percent}% ліміту використано</small></div>):<p className="empty-inline">Нових сповіщень немає</p>}
+              {activeAlerts.length?activeAlerts.map(a=><div key={a.key} className="notification-item"><span className={a.percent>=100?"negative":""}>{a.name}</span>{a.percent>=0&&<small>{a.percent}% ліміту використано</small>}</div>):<p className="empty-inline">Нових сповіщень немає</p>}
             </div>}
           </div>
           <button className="add-btn" onClick={() => setModal("expense")}><Plus/> Додати витрату</button>
