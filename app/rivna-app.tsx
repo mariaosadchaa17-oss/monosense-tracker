@@ -1004,10 +1004,16 @@ function AnalyticsView({transactions,baseCurrency,recurring,balance,rates,custom
     <section className="panel monthly-panel"><div className="section-title"><div><h2>Динаміка витрат</h2><p>{period==="month"?"Останні шість місяців":"Останні вісім тижнів"}</p></div><span className={delta>0?"comparison negative":"comparison positive"}>{previous?`${delta>0?"+":""}${delta}% до попереднього періоду`:"Ще немає порівняння"}</span></div><div className="monthly-chart">{buckets.map(bucket=><div key={bucket.key}><strong>{bucket.value?`${symbol}${formatMoney(bucket.value)}`:"—"}</strong><span><i style={{height:`${Math.max(bucket.value?8:2,bucket.value/maxValue*100)}%`}}/></span><small>{bucket.label}</small></div>)}</div></section>
     <div className="analytics-grid"><section className="panel"><div className="section-title"><div><h2>Витрати за категоріями</h2><p>Розподіл поточного періоду</p></div></div><div className="category-chart">{grouped.length?grouped.map(([name,value],index)=><div key={name}><span style={{background:`hsl(${250-index*34} 72% ${58+index*3}%)`}}/><strong>{name}</strong><i><b style={{width:`${value/(grouped[0]?.[1]||1)*100}%`}}/></i><em>{Math.round(value/total*100)}%</em></div>):<p className="empty-inline">Додайте операції для аналітики</p>}</div></section><section className="panel impulse-report"><span className="wizard-icon"><Sparkles/></span><h2>Звіт про імпульсивні витрати</h2><strong>{expenses.filter(transaction=>transaction.impulse).length} покупок</strong><p>Позначайте незаплановані покупки під час створення операції. Rivna покаже їхню частку та вплив на план.</p><div className="donut" style={{"--percent":`${total?impulsive/total*100:0}%`} as React.CSSProperties}><span>{total?Math.round(impulsive/total*100):0}%</span></div></section></div>
     <section className="panel recurring-panel"><div className="section-title"><div><h2>Заплановані доходи</h2><p>Регулярні надходження</p></div></div><div className="recurring-list">{plannedIncomeItems.length?plannedIncomeItems.map(r=><div key={r.id}><span className="recurring-icon"><ArrowDownLeft/></span><strong>{r.name}</strong><small>{r.frequency} · наступний {new Date(r.next).toLocaleDateString("uk-UA")}</small><b className="income-amount">+{r.currency} {formatMoney(r.amount)}</b><em>{r.auto?"Автоматично":"Нагадування"}</em></div>):<p className="empty-inline">Планових доходів поки немає — додай через «Регулярний платіж», обравши «Дохід»</p>}</div></section>
-        <CashflowCalendar balance={balance} recurring={recurring} rates={rates} customRates={customRates} baseCurrency={baseCurrency}/>
+        <CashflowCalendar balance={balance} recurring={recurring} transactions={transactions} rates={rates} customRates={customRates} baseCurrency={baseCurrency}/>
       </>;
     }
-function CashflowCalendar({balance,recurring,rates,customRates,baseCurrency}:{balance:number;recurring:RecurringItem[];rates:{currency:string;rate:number}[];customRates:{currency:string;rate:number}[];baseCurrency:string}){
+function CashflowCalendar({balance,recurring,transactions,rates,customRates,baseCurrency}:{balance:number;recurring:RecurringItem[];transactions:Transaction[];rates:{currency:string;rate:number}[];customRates:{currency:string;rate:number}[];baseCurrency:string}){
+  const avgDailySpend=useMemo(()=>{
+    const cutoff=new Date();cutoff.setDate(cutoff.getDate()-30);
+    const recent=transactions.filter(t=>t.amount<0&&t.kind!=="transfer"&&t.kind!=="exchange"&&t.bookedAt&&new Date(t.bookedAt)>=cutoff);
+    const total=recent.reduce((sum,t)=>sum+Math.abs(t.baseAmount??t.amount),0);
+    return total/30;
+  },[transactions]);
   const [monthOffset,setMonthOffset]=useState(0);
   const today=new Date();
   const viewDate=new Date(today.getFullYear(),today.getMonth()+monthOffset,1);
@@ -1017,32 +1023,29 @@ function CashflowCalendar({balance,recurring,rates,customRates,baseCurrency}:{ba
   const symbol=currencySymbol(baseCurrency);
 
   const events=useMemo(()=>{
-    const map:Record<string,{name:string;amount:number;kind:"income"|"expense"}[]>=Object.create(null);
-    const monthStart=new Date(year,month,1),monthEnd=new Date(year,month+1,1);
-    recurring.forEach(r=>{
-      let occurrence=new Date(r.next);
-      let guard=0;
-      while(occurrence<monthStart&&guard<120){
-        if(r.frequency==="weekly")occurrence.setDate(occurrence.getDate()+7);
-        else if(r.frequency==="yearly")occurrence.setFullYear(occurrence.getFullYear()+1);
-        else occurrence.setMonth(occurrence.getMonth()+1);
-        guard++;
-      }
-      while(occurrence<monthEnd&&guard<240){
-        if(occurrence>=monthStart){
-          const key=occurrence.toISOString().slice(0,10);
-          const converted=r.amount*conversionRate(r.currency,rates,customRates)/conversionRate(baseCurrency,rates,customRates);
+      const map:Record<string,{name:string;amount:number;kind:"income"|"expense"}[]>=Object.create(null);
+      recurring.forEach(r=>{
+        const anchor=new Date(r.next);
+        const converted=r.amount*conversionRate(r.currency,rates,customRates)/conversionRate(baseCurrency,rates,customRates);
+        const addEvent=(date:Date)=>{
+          const key=date.toISOString().slice(0,10);
           if(!map[key])map[key]=[];
           map[key].push({name:r.name,amount:converted,kind:r.kind});
+        };
+        if(r.frequency==="monthly"){
+          addEvent(new Date(year,month,Math.min(anchor.getDate(),daysInMonth)));
+        } else if(r.frequency==="weekly"){
+          const weekday=anchor.getDay();
+          for(let d=1;d<=daysInMonth;d++){
+            const date=new Date(year,month,d);
+            if(date.getDay()===weekday)addEvent(date);
+          }
+        } else if(r.frequency==="yearly"&&anchor.getMonth()===month){
+          addEvent(new Date(year,month,Math.min(anchor.getDate(),daysInMonth)));
         }
-        if(r.frequency==="weekly")occurrence.setDate(occurrence.getDate()+7);
-        else if(r.frequency==="yearly")occurrence.setFullYear(occurrence.getFullYear()+1);
-        else occurrence.setMonth(occurrence.getMonth()+1);
-        guard++;
-      }
-    });
-    return map;
-  },[recurring,rates,customRates,baseCurrency,year,month]);
+      });
+      return map;
+    },[recurring,rates,customRates,baseCurrency,year,month,daysInMonth]);
 
   const cells:{date:Date|null;key:string}[]=[];
   for(let i=0;i<firstWeekday;i++)cells.push({date:null,key:`pad-${i}`});
@@ -1055,14 +1058,15 @@ function CashflowCalendar({balance,recurring,rates,customRates,baseCurrency}:{ba
     const date=new Date(year,month,d);
     const key=date.toISOString().slice(0,10);
     if(!isCurrentMonth||d>=today.getDate()){
-      const dayEvents=events[key]||[];
-      dayEvents.forEach(e=>{running+=e.kind==="income"?e.amount:-e.amount});
-      runningByDay[key]=running;
-    }
+          const dayEvents=events[key]||[];
+          dayEvents.forEach(e=>{running+=e.kind==="income"?e.amount:-e.amount});
+          running-=avgDailySpend;
+          runningByDay[key]=running;
+        }
   }
 
   return <section className="panel full-view">
-    <div className="section-title"><div><h2>Календар прогнозу</h2><p>Заплановані доходи та витрати на місяць</p></div>
+    <div className="section-title"><div><h2>Календар прогнозу</h2><p>Регулярні платежі + середні щоденні витрати (₴{formatMoney(avgDailySpend)}/день за останні 30 днів)</p></div>
       <div className="period-nav-row" style={{gridTemplateColumns:"auto auto auto",width:"auto",display:"flex",gap:8}}>
         <button type="button" className="period-nav-btn" onClick={()=>setMonthOffset(v=>v-1)}>← </button>
         <strong style={{alignSelf:"center",fontSize:13,textTransform:"capitalize"}}>{new Intl.DateTimeFormat("uk-UA",{month:"long",year:"numeric"}).format(viewDate)}</strong>
