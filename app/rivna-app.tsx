@@ -642,6 +642,7 @@ function Dashboard({ balance, baseCurrency, accounts, transactions, goals, authe
     const goalReserve=goals.reduce((sum,g)=>sum+(g.current>0?0:0),0);
     const daysLeft=Math.max(1,daysInMonth-now.getDate()+1);
     const safeToSpend=Math.max(0,(balance-upcomingObligations-expense)/daysLeft);
+    const primaryGoal=goals[0]||(authenticated?null:{id:"demo-goal",name:"Резервний фонд",target:200000,current:120000,currency:"UAH",color:"#6558E8"}),goalProgress=primaryGoal?Math.min(100,Math.round(primaryGoal.current/Math.max(1,primaryGoal.target)*100)):0;
   const symbol=currencySymbol(baseCurrency);
   return <>
       <div className="safe-to-spend"><div><small>Можна витратити сьогодні</small><strong>{symbol} {formatMoney(safeToSpend)}</strong></div><p>Баланс мінус заплановані обов'язкові платежі, поділено на дні до кінця місяця</p></div>
