@@ -418,3 +418,13 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .safe-to-spend strong{display:block;font-size:26px;font-weight:700;margin-top:4px;color:var(--purple)}
 .safe-to-spend p{margin:0;color:var(--muted);font-size:10px;max-width:200px;text-align:right;line-height:1.5}
 @media(max-width:720px){.safe-to-spend{flex-direction:column;align-items:flex-start;gap:8px}.safe-to-spend p{text-align:left;max-width:none}}
+
+
+.anomaly-list{display:flex;flex-direction:column;gap:2px}
+.anomaly-item{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line)}
+.anomaly-item:last-child{border-bottom:0}
+.anomaly-icon{width:32px;height:32px;border-radius:50%;background:color-mix(in srgb,#f4b740 15%,var(--panel));color:#c48312;display:grid;place-items:center;flex:none}
+.anomaly-item div{flex:1}
+.anomaly-item strong{display:block;font-size:13px}
+.anomaly-item small{color:var(--muted);font-size:11px}
+.anomaly-item b{font-size:14px;font-weight:700}

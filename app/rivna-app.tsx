@@ -1023,8 +1023,40 @@ function AnalyticsView({transactions,baseCurrency,recurring,balance,rates,custom
     <div className="analytics-grid"><section className="panel"><div className="section-title"><div><h2>Витрати за категоріями</h2><p>Розподіл поточного періоду</p></div></div><div className="category-chart">{grouped.length?grouped.map(([name,value],index)=><div key={name}><span style={{background:`hsl(${250-index*34} 72% ${58+index*3}%)`}}/><strong>{name}</strong><i><b style={{width:`${value/(grouped[0]?.[1]||1)*100}%`}}/></i><em>{Math.round(value/total*100)}%</em></div>):<p className="empty-inline">Додайте операції для аналітики</p>}</div></section><section className="panel impulse-report"><span className="wizard-icon"><Sparkles/></span><h2>Звіт про імпульсивні витрати</h2><strong>{expenses.filter(transaction=>transaction.impulse).length} покупок</strong><p>Позначайте незаплановані покупки під час створення операції. Rivna покаже їхню частку та вплив на план.</p><div className="donut" style={{"--percent":`${total?impulsive/total*100:0}%`} as React.CSSProperties}><span>{total?Math.round(impulsive/total*100):0}%</span></div></section></div>
     <section className="panel recurring-panel"><div className="section-title"><div><h2>Заплановані доходи</h2><p>Регулярні надходження</p></div></div><div className="recurring-list">{plannedIncomeItems.length?plannedIncomeItems.map(r=><div key={r.id}><span className="recurring-icon"><ArrowDownLeft/></span><strong>{r.name}</strong><small>{r.frequency} · наступний {new Date(r.next).toLocaleDateString("uk-UA")}</small><b className="income-amount">+{r.currency} {formatMoney(r.amount)}</b><em>{r.auto?"Автоматично":"Нагадування"}</em></div>):<p className="empty-inline">Планових доходів поки немає — додай через «Регулярний платіж», обравши «Дохід»</p>}</div></section>
         <CashflowCalendar balance={balance} recurring={recurring} transactions={transactions} rates={rates} customRates={customRates} baseCurrency={baseCurrency}/>
-      </>;
-    }
+            <AnomalyAlerts transactions={transactions} baseCurrency={baseCurrency}/>
+          </>;
+        }
+function AnomalyAlerts({transactions,baseCurrency}:{transactions:Transaction[];baseCurrency:string}){
+  const symbol=currencySymbol(baseCurrency);
+  const anomalies=useMemo(()=>{
+    const now=new Date();
+    const thisWeekStart=new Date(now);thisWeekStart.setDate(now.getDate()-7);
+    const historyStart=new Date(now);historyStart.setDate(now.getDate()-56);
+    const expenses=transactions.filter(t=>t.amount<0&&t.kind!=="transfer"&&t.kind!=="exchange"&&t.bookedAt);
+    const byCategory:Record<string,{recent:number;history:number[]}>={};
+    expenses.forEach(t=>{
+      const date=new Date(t.bookedAt!);
+      const amount=Math.abs(t.baseAmount??t.amount);
+      if(!byCategory[t.category])byCategory[t.category]={recent:0,history:[]};
+      if(date>=thisWeekStart)byCategory[t.category].recent+=amount;
+      else if(date>=historyStart)byCategory[t.category].history.push(amount);
+    });
+    const results:{category:string;recent:number;avg:number;percent:number}[]=[];
+    Object.entries(byCategory).forEach(([category,data])=>{
+      if(data.recent<=0)return;
+      const weeksOfHistory=7;
+      const avgWeekly=data.history.reduce((s,v)=>s+v,0)/weeksOfHistory;
+      if(avgWeekly<=0)return;
+      const percent=Math.round(((data.recent-avgWeekly)/avgWeekly)*100);
+      if(percent>=30)results.push({category,recent:data.recent,avg:avgWeekly,percent});
+    });
+    return results.sort((a,b)=>b.percent-a.percent);
+  },[transactions]);
+  if(!anomalies.length)return null;
+  return <section className="panel"><div className="section-title"><div><h2>Незвичні витрати</h2><p>Порівняно зі звичним темпом за останні 8 тижнів</p></div></div>
+    <div className="anomaly-list">{anomalies.map(a=><div key={a.category} className="anomaly-item"><span className="anomaly-icon"><Sparkles size={14}/></span><div><strong>{a.category}</strong><small>Зазвичай {symbol}{formatMoney(a.avg)}/тиждень</small></div><b className="negative">+{a.percent}%</b></div>)}</div>
+  </section>;
+}
 function CashflowCalendar({balance,recurring,transactions,rates,customRates,baseCurrency}:{balance:number;recurring:RecurringItem[];transactions:Transaction[];rates:{currency:string;rate:number}[];customRates:{currency:string;rate:number}[];baseCurrency:string}){
   const avgDailySpend=useMemo(()=>{
     const cutoff=new Date();cutoff.setDate(cutoff.getDate()-30);
