@@ -113,7 +113,8 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [dark, setDark] = useState(()=>typeof window!=="undefined"&&localStorage.getItem("rivna-theme")==="dark");
   const [skin, setSkin] = useState(()=>typeof window!=="undefined"?localStorage.getItem("rivna-skin")||"default":"default");
   const [cardStyle, setCardStyle] = useState(()=>typeof window!=="undefined"?localStorage.getItem("rivna-cardstyle")||"default":"default");
-const [modal, setModal] = useState<"expense" | "account" | "goal" | "debt" | "recurring" | "transfer" | "budget" | "category" | "invite" | "rate" | "split" | null>(null);  const [transactions, setTransactions] = useState(initialLoggedIn?[]:seedTransactions);
+  const [modal, setModal] = useState<"expense" | "account" | "goal" | "debt" | "recurring" | "transfer" | "budget" | "category" | "invite" | "rate" | "split" | "purchase-sim" | null>(null);
+  const [transactions, setTransactions] = useState(initialLoggedIn?[]:seedTransactions);
   const [accounts, setAccounts] = useState(initialLoggedIn?[]:seedAccounts);
   const [amount, setAmount] = useState("");
   const [note, setNote] = useState("");
@@ -582,6 +583,8 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
             </div>}
           </div>
           <button className="add-btn" onClick={() => setModal("expense")}><Plus/> Додати витрату</button>
+          <button className="theme-btn" onClick={() => setModal("purchase-sim")} aria-label="Симулятор великої покупки"><Target/></button>
+          <button className="add-btn" onClick={() => setModal("expense")}><Plus/> Додати витрату</button>
         </div>
       </header>
 
@@ -633,6 +636,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
     {goalAction && <GoalActionModal action={goalAction} accounts={accounts} withdraw={withdrawGoal} breakGoal={breakGoal} close={()=>setGoalAction(null)}/>}
     {modal === "debt" && <DebtModal accounts={accounts} categories={categories} submit={addDebt} close={()=>setModal(null)}/>}
     {modal === "split" && <SplitBillModal submit={splitBill} close={()=>setModal(null)}/>}
+    {modal === "purchase-sim" && <BigPurchaseSimulator balance={balance} recurring={recurring} rates={rates} customRates={customRates} baseCurrency={baseCurrency} close={()=>setModal(null)}/>}
     {settleTarget && <SettleDebtModal debt={settleTarget} accounts={accounts} submit={accountId=>{financeAction({action:"settleDebt",id:settleTarget.id,accountId},"Борг закрито, кошти зараховано");setSettleTarget(null)}} close={()=>setSettleTarget(null)}/>}
     {payTarget && <PayInstallmentModal debt={payTarget} accounts={accounts} submit={(accountId,amount)=>{financeAction({action:"payInstallment",id:payTarget.id,accountId,amount},"Платіж внесено");setPayTarget(null)}} close={()=>setPayTarget(null)}/>}
     {modal === "recurring" && <RecurringModal accounts={accounts} categories={categories} rates={rates} customRates={customRates} submit={addRecurring} close={()=>setModal(null)}/>}
@@ -1256,6 +1260,38 @@ function InvestmentSimulator({goals,baseCurrency}:{goals:GoalItem[];baseCurrency
     <div className="monthly-chart" style={{marginTop:20}}>{points.map((p,i)=><div key={i}><strong>{i===points.length-1?`${symbol}${formatMoney(p.capital)}`:""}</strong><span><i style={{height:`${Math.max(3,p.capital/maxCapital*100)}%`}}/></span><small>{Math.round(p.month/12*10)/10}р</small></div>)}</div>
     {selectedGoal && <div className="form-message success">При такому темпі ти досягнеш цілі "{selectedGoal.name}" ({symbol} {formatMoney(selectedGoal.target)}) приблизно за {(()=>{const target=selectedGoal.target;const found=points.find(p=>p.capital>=target);return found?`${Math.round(found.month/12*10)/10} років`:`понад ${years} років`})()}.</div>}
   </section>;
+}
+function BigPurchaseSimulator({balance,recurring,rates,customRates,baseCurrency,close}:{balance:number;recurring:RecurringItem[];rates:{currency:string;rate:number}[];customRates:{currency:string;rate:number}[];baseCurrency:string;close:()=>void}){
+  const [amount,setAmount]=useState("");
+  const [date,setDate]=useState(new Date().toISOString().slice(0,10));
+  const symbol=currencySymbol(baseCurrency);
+  const purchaseDate=new Date(date);
+  const today=new Date();
+  const daysUntil=Math.max(0,Math.round((purchaseDate.getTime()-today.getTime())/86400000));
+  const monthlyObligations=recurring.filter(r=>r.kind==="expense").reduce((sum,r)=>sum+r.amount*conversionRate(r.currency,rates,customRates)/conversionRate(baseCurrency,rates,customRates),0);
+  const monthsUntil=Math.max(0,daysUntil/30);
+  const projectedObligations=monthlyObligations*monthsUntil;
+  const balanceAfterPurchase=balance-projectedObligations-(Number(amount)||0);
+  const canAfford=balanceAfterPurchase>=0;
+  const bufferMonths=monthlyObligations>0?balanceAfterPurchase/monthlyObligations:0;
+
+  return <div className="modal-backdrop" onMouseDown={close}><div className="expense-modal tall-modal" onMouseDown={e=>e.stopPropagation()}>
+    <ModalHead label="Планування" title="Симулятор великої покупки" close={close}/>
+    <div className="form-two">
+      <label>Сума покупки<input type="number" min="0" value={amount} onChange={e=>setAmount(e.target.value)}/></label>
+      <label>Дата<input type="date" value={date} onChange={e=>setDate(e.target.value)}/></label>
+    </div>
+    <div className="metric-grid" style={{marginTop:16}}>
+      <article className="metric"><small>Баланс станом на дату</small><strong>{symbol} {formatMoney(balance-projectedObligations)}</strong><span>До покупки, з урахуванням платежів</span></article>
+      <article className="metric"><small>Залишок після покупки</small><strong className={canAfford?"":"negative"}>{symbol} {formatMoney(balanceAfterPurchase)}</strong><span className={canAfford?"positive":"negative"}>{canAfford?"Вистачає":"Може не вистачити"}</span></article>
+      <article className="metric"><small>Запас на обов'язкові платежі</small><strong>{bufferMonths>=0?`${Math.round(bufferMonths*10)/10} міс.`:"—"}</strong><span>Після покупки</span></article>
+    </div>
+    <div className={canAfford?"form-message success":"form-message error"}>
+      {canAfford
+        ?`Після покупки на ${symbol}${formatMoney(Number(amount)||0)} у тебе залишиться ${symbol}${formatMoney(balanceAfterPurchase)} — цього вистачить приблизно на ${Math.max(0,Math.round(bufferMonths*10)/10)} місяців обов'язкових платежів.`
+        :`Цієї покупки зараз може не вистачити коштів: бракує ${symbol}${formatMoney(Math.abs(balanceAfterPurchase))} з урахуванням запланованих платежів до ${new Date(date).toLocaleDateString("uk-UA")}.`}
+    </div>
+  </div></div>;
 }
 function SettlementPanel({baseCurrency,createDebt}:{baseCurrency:string;createDebt:(person:string,amount:number)=>void}){
   const [balances,setBalances]=useState<{person:string;amount:number}[]>([]);
