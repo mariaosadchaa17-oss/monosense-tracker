@@ -541,7 +541,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
       {page === "Головна" && <Dashboard balance={balance} baseCurrency={baseCurrency} accounts={accounts} transactions={normalizedTransactions} goals={goals} authenticated={initialLoggedIn} openPage={setPage} addAccount={() => setModal("account")} changeCurrency={setBaseCurrency} monthlyFees={monthlyFees} plannedIncome={plannedMonthlyIncome} recurring={recurring} addRecurring={()=>setModal("recurring")}/>}{page === "Операції" && <TransactionsView transactions={filteredTransactions} search={search} setSearch={setSearch} remove={removeTransaction} exportCsv={() => exportCsv(transactions, notify)} exportExcel={()=>exportExcel(transactions,notify)} initialAccount={accountFilter}/>}      {page === "Бюджет" && (initialLoggedIn?<LiveBudgetView budgets={savedBudgets} transactions={normalizedTransactions} periodType={budgetPeriodType} setPeriodType={setBudgetPeriodType} anchor={budgetAnchor} setAnchor={setBudgetAnchor} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={(id: string|number)=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>:<BudgetView budgets={savedBudgets} transactions={normalizedTransactions} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={(id: string|number)=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>)}
       {page === "Рахунки" && <AccountsView accounts={accounts} rates={rates} customRates={customRates} add={() => {setEditingAccount(null);setModal("account")}} edit={account=>{setEditingAccount(account);setModal("account")}} addRate={()=>setModal("rate")} transfer={()=>{setTransferPresetTo(undefined);setModal("transfer")}} remove={removeAccount}/>}
       {page === "Накопичення" && <GoalsView goals={goals} authenticated={initialLoggedIn} add={()=>{setEditingGoal(null);setModal("goal")}} contribute={(id,amount)=>financeAction({action:"contributeGoal",id,amount},"Ціль поповнено")} recurring={recurring} addRecurring={()=>setModal("recurring")} edit={goal=>{setEditingGoal(goal);setModal("goal")}} openAction={(goal,mode)=>setGoalAction({goal,mode})}/>}      
-      {page === "Аналітика" && <AnalyticsView transactions={normalizedTransactions} baseCurrency={baseCurrency} recurring={recurring}/>}
+      {page === "Аналітика" && <AnalyticsView transactions={normalizedTransactions} baseCurrency={baseCurrency} recurring={recurring} balance={balance} rates={rates} customRates={customRates}/>}
       {page === "Борги" && <DebtsView debts={allDebts} add={()=>setModal("debt")} settle={debt=>debt.direction==="owed_to_me"?setSettleTarget(debt):financeAction({action:"settleDebt",id:debt.id},"Борг закрито")} payOff={accountId=>{setTransferPresetTo(accountId);setModal("transfer")}} openPay={setPayTarget}/>}
       {page === "Налаштування" && <SettingsView dark={dark} setDark={setDark} skin={skin} setSkin={setSkin} cardStyle={cardStyle} setCardStyle={setCardStyle} importCsv={importCsv} categories={categories} audit={audit} pushEnabled={pushEnabled} enablePush={enablePush} installApp={installApp} addCategory={()=>setModal("category")} deleteCategory={id=>financeAction({action:"deleteCategory",id},"Категорію видалено")} logout={async () => {
         if (initialLoggedIn) {
@@ -989,7 +989,7 @@ function GoalsView({goals,authenticated,add,contribute,recurring,addRecurring,ed
           </section>
     </>;
     }
-function AnalyticsView({transactions,baseCurrency,recurring}:{transactions:Transaction[];baseCurrency:string;recurring:RecurringItem[]}) {
+function AnalyticsView({transactions,baseCurrency,recurring,balance,rates,customRates}:{transactions:Transaction[];baseCurrency:string;recurring:RecurringItem[];balance:number;rates:{currency:string;rate:number}[];customRates:{currency:string;rate:number}[]}) {
   const plannedIncomeItems=recurring.filter(r=>r.kind==="income");
   const [period,setPeriod]=useState<"month"|"week">("month"),[renderedAt]=useState(()=>Date.now()),now=new Date(renderedAt);
   const weekStart=(date:Date)=>{const result=new Date(date);result.setHours(0,0,0,0);result.setDate(result.getDate()-((result.getDay()+6)%7));return result};
@@ -1003,7 +1003,90 @@ function AnalyticsView({transactions,baseCurrency,recurring}:{transactions:Trans
   return <><div className="period-switch"><button className={period==="month"?"active":""} onClick={()=>setPeriod("month")}>За місяцями</button><button className={period==="week"?"active":""} onClick={()=>setPeriod("week")}>За тижнями</button></div><div className="metric-grid"><article className="metric"><small>Витрати за {period==="month"?"місяць":"тиждень"}</small><strong>{symbol} {formatMoney(total)}</strong><span>Поточний період</span></article><article className="metric"><small>Доходи</small><strong>{symbol} {formatMoney(income)}</strong><span className="positive">Чистий потік {symbol} {formatMoney(income-total)}</span></article><article className="metric"><small>Імпульсивні покупки</small><strong>{symbol} {formatMoney(impulsive)}</strong><span>{total?Math.round(impulsive/total*100):0}% усіх витрат</span></article></div>
     <section className="panel monthly-panel"><div className="section-title"><div><h2>Динаміка витрат</h2><p>{period==="month"?"Останні шість місяців":"Останні вісім тижнів"}</p></div><span className={delta>0?"comparison negative":"comparison positive"}>{previous?`${delta>0?"+":""}${delta}% до попереднього періоду`:"Ще немає порівняння"}</span></div><div className="monthly-chart">{buckets.map(bucket=><div key={bucket.key}><strong>{bucket.value?`${symbol}${formatMoney(bucket.value)}`:"—"}</strong><span><i style={{height:`${Math.max(bucket.value?8:2,bucket.value/maxValue*100)}%`}}/></span><small>{bucket.label}</small></div>)}</div></section>
     <div className="analytics-grid"><section className="panel"><div className="section-title"><div><h2>Витрати за категоріями</h2><p>Розподіл поточного періоду</p></div></div><div className="category-chart">{grouped.length?grouped.map(([name,value],index)=><div key={name}><span style={{background:`hsl(${250-index*34} 72% ${58+index*3}%)`}}/><strong>{name}</strong><i><b style={{width:`${value/(grouped[0]?.[1]||1)*100}%`}}/></i><em>{Math.round(value/total*100)}%</em></div>):<p className="empty-inline">Додайте операції для аналітики</p>}</div></section><section className="panel impulse-report"><span className="wizard-icon"><Sparkles/></span><h2>Звіт про імпульсивні витрати</h2><strong>{expenses.filter(transaction=>transaction.impulse).length} покупок</strong><p>Позначайте незаплановані покупки під час створення операції. Rivna покаже їхню частку та вплив на план.</p><div className="donut" style={{"--percent":`${total?impulsive/total*100:0}%`} as React.CSSProperties}><span>{total?Math.round(impulsive/total*100):0}%</span></div></section></div>
-    <section className="panel recurring-panel"><div className="section-title"><div><h2>Заплановані доходи</h2><p>Регулярні надходження</p></div></div><div className="recurring-list">{plannedIncomeItems.length?plannedIncomeItems.map(r=><div key={r.id}><span className="recurring-icon"><ArrowDownLeft/></span><strong>{r.name}</strong><small>{r.frequency} · наступний {new Date(r.next).toLocaleDateString("uk-UA")}</small><b className="income-amount">+{r.currency} {formatMoney(r.amount)}</b><em>{r.auto?"Автоматично":"Нагадування"}</em></div>):<p className="empty-inline">Планових доходів поки немає — додай через «Регулярний платіж», обравши «Дохід»</p>}</div></section></>;
+    <section className="panel recurring-panel"><div className="section-title"><div><h2>Заплановані доходи</h2><p>Регулярні надходження</p></div></div><div className="recurring-list">{plannedIncomeItems.length?plannedIncomeItems.map(r=><div key={r.id}><span className="recurring-icon"><ArrowDownLeft/></span><strong>{r.name}</strong><small>{r.frequency} · наступний {new Date(r.next).toLocaleDateString("uk-UA")}</small><b className="income-amount">+{r.currency} {formatMoney(r.amount)}</b><em>{r.auto?"Автоматично":"Нагадування"}</em></div>):<p className="empty-inline">Планових доходів поки немає — додай через «Регулярний платіж», обравши «Дохід»</p>}</div></section>
+        <CashflowCalendar balance={balance} recurring={recurring} rates={rates} customRates={customRates} baseCurrency={baseCurrency}/>
+      </>;
+    }
+function CashflowCalendar({balance,recurring,rates,customRates,baseCurrency}:{balance:number;recurring:RecurringItem[];rates:{currency:string;rate:number}[];customRates:{currency:string;rate:number}[];baseCurrency:string}){
+  const [monthOffset,setMonthOffset]=useState(0);
+  const today=new Date();
+  const viewDate=new Date(today.getFullYear(),today.getMonth()+monthOffset,1);
+  const year=viewDate.getFullYear(),month=viewDate.getMonth();
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const firstWeekday=(new Date(year,month,1).getDay()+6)%7;
+  const symbol=currencySymbol(baseCurrency);
+
+  const events=useMemo(()=>{
+    const map:Record<string,{name:string;amount:number;kind:"income"|"expense"}[]>=Object.create(null);
+    const monthStart=new Date(year,month,1),monthEnd=new Date(year,month+1,1);
+    recurring.forEach(r=>{
+      let occurrence=new Date(r.next);
+      let guard=0;
+      while(occurrence<monthStart&&guard<120){
+        if(r.frequency==="weekly")occurrence.setDate(occurrence.getDate()+7);
+        else if(r.frequency==="yearly")occurrence.setFullYear(occurrence.getFullYear()+1);
+        else occurrence.setMonth(occurrence.getMonth()+1);
+        guard++;
+      }
+      while(occurrence<monthEnd&&guard<240){
+        if(occurrence>=monthStart){
+          const key=occurrence.toISOString().slice(0,10);
+          const converted=r.amount*conversionRate(r.currency,rates,customRates)/conversionRate(baseCurrency,rates,customRates);
+          if(!map[key])map[key]=[];
+          map[key].push({name:r.name,amount:converted,kind:r.kind});
+        }
+        if(r.frequency==="weekly")occurrence.setDate(occurrence.getDate()+7);
+        else if(r.frequency==="yearly")occurrence.setFullYear(occurrence.getFullYear()+1);
+        else occurrence.setMonth(occurrence.getMonth()+1);
+        guard++;
+      }
+    });
+    return map;
+  },[recurring,rates,customRates,baseCurrency,year,month]);
+
+  const cells:{date:Date|null;key:string}[]=[];
+  for(let i=0;i<firstWeekday;i++)cells.push({date:null,key:`pad-${i}`});
+  for(let d=1;d<=daysInMonth;d++)cells.push({date:new Date(year,month,d),key:`d-${d}`});
+
+  let running=balance;
+  const runningByDay:Record<string,number>={};
+  const isCurrentMonth=year===today.getFullYear()&&month===today.getMonth();
+  for(let d=1;d<=daysInMonth;d++){
+    const date=new Date(year,month,d);
+    const key=date.toISOString().slice(0,10);
+    if(!isCurrentMonth||d>=today.getDate()){
+      const dayEvents=events[key]||[];
+      dayEvents.forEach(e=>{running+=e.kind==="income"?e.amount:-e.amount});
+      runningByDay[key]=running;
+    }
+  }
+
+  return <section className="panel full-view">
+    <div className="section-title"><div><h2>Календар прогнозу</h2><p>Заплановані доходи та витрати на місяць</p></div>
+      <div className="period-nav-row" style={{gridTemplateColumns:"auto auto auto",width:"auto",display:"flex",gap:8}}>
+        <button type="button" className="period-nav-btn" onClick={()=>setMonthOffset(v=>v-1)}>← </button>
+        <strong style={{alignSelf:"center",fontSize:13,textTransform:"capitalize"}}>{new Intl.DateTimeFormat("uk-UA",{month:"long",year:"numeric"}).format(viewDate)}</strong>
+        <button type="button" className="period-nav-btn" onClick={()=>setMonthOffset(v=>v+1)}>→</button>
+      </div>
+    </div>
+    <div className="cashflow-grid">
+      {["Пн","Вт","Ср","Чт","Пт","Сб","Нд"].map(d=><div key={d} className="cashflow-weekday">{d}</div>)}
+      {cells.map(cell=>{
+        if(!cell.date)return <div key={cell.key} className="cashflow-cell empty"/>;
+        const key=cell.date.toISOString().slice(0,10);
+        const dayEvents=events[key]||[];
+        const dayBalance=runningByDay[key];
+        const isPast=isCurrentMonth&&cell.date.getDate()<today.getDate();
+        const isDanger=dayBalance!==undefined&&dayBalance<0;
+        return <div key={cell.key} className={`cashflow-cell${isPast?" past":""}${isDanger?" danger":""}`}>
+          <span className="cashflow-day">{cell.date.getDate()}</span>
+          {dayEvents.map((e,i)=><div key={i} className={e.kind==="income"?"cashflow-event income":"cashflow-event"}>{e.kind==="income"?"+":"−"}{symbol}{formatMoney(e.amount)}</div>)}
+          {dayBalance!==undefined && <div className="cashflow-balance">{symbol}{formatMoney(dayBalance)}</div>}
+        </div>;
+      })}
+    </div>
+    {Object.values(runningByDay).some(v=>v<0) && <div className="alert-card"><Bell/><div><strong>Можливий касовий розрив</strong><p>В окремі дні цього місяця прогнозований баланс іде в мінус.</p></div></div>}
+  </section>;
 }
 function DebtsView({debts,add,settle,payOff,openPay}:{debts:DebtItem[];add:()=>void;settle:(debt:DebtItem)=>void;payOff:(accountId:string)=>void;openPay:(debt:DebtItem)=>void}) { const mine=debts.filter(d=>d.direction==="owed_to_me");const owe=debts.filter(d=>d.direction==="i_owe");return <section className="panel full-view"><div className="section-title"><div><h2>Борги та кредити</h2><p>Хто винен мені та кому винна я</p></div><button className="small-primary" onClick={add}><Plus/> Додати борг</button></div><div className="debt-summary"><article><ArrowDownLeft/><div><small>Мені винні</small><strong>{currencySymbol("UAH")} {formatMoney(mine.reduce((s,d)=>s+d.amount,0))}</strong></div></article><article><ArrowUpRight/><div><small>Я винна</small><strong>{currencySymbol("UAH")} {formatMoney(owe.reduce((s,d)=>s+d.amount,0))}</strong></div></article></div><div className="debt-list">{debts.map(d=><div key={d.id}><span className={d.direction==="owed_to_me"?"debt-in":"debt-out"}>{d.direction==="owed_to_me"?<ArrowDownLeft/>:<ArrowUpRight/>}</span><div><strong>{d.person}</strong><small>{d.note||"Без нотатки"}{d.due?` · до ${new Date(d.due).toLocaleDateString("uk-UA")}`:""}</small></div><b>{d.currency} {formatMoney(d.amount)}</b>{d.isVirtual?<button className="small-primary" onClick={()=>d.accountId&&payOff(d.accountId)}>Погасити</button>:d.isInstallment&&d.direction==="i_owe"?<><button className="small-primary" onClick={()=>openPay(d)}>Погасити</button><button className="icon-button danger" onClick={()=>settle(d)}><Trash2 size={14}/></button></>:<button onClick={()=>settle(d)}>Закрити</button>}</div>)}{!debts.length&&<p className="empty">Активних боргів немає</p>}</div></section>; }
 function SettingsView({dark,setDark,skin,setSkin,cardStyle,setCardStyle,logout,notify,importCsv,categories,audit,addCategory,deleteCategory,pushEnabled,enablePush,installApp}:{dark:boolean;setDark:(v:boolean)=>void;skin:string;setSkin:(v:string)=>void;cardStyle:string;setCardStyle:(v:string)=>void;logout:()=>void;notify:(s:string)=>void;importCsv:(file:File)=>void;categories:CategoryItem[];audit:AuditItem[];addCategory:()=>void;deleteCategory:(id:string)=>void;pushEnabled:boolean;enablePush:()=>void;installApp:()=>void}) {

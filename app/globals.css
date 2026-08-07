@@ -393,3 +393,17 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .round-add-btn{width:52px;height:52px;border-radius:50%;border:0;background:var(--purple);color:#fff;display:grid;place-items:center;cursor:pointer}
 .round-add-btn:hover{background:var(--purple-dark)}
 .round-add-btn svg{width:22px}
+
+
+.cashflow-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:16px}
+.cashflow-weekday{font-size:10px;font-weight:700;color:var(--muted);text-align:center;padding-bottom:6px}
+.cashflow-cell{min-height:70px;border:1px solid var(--line);border-radius:10px;padding:6px;font-size:9px;display:flex;flex-direction:column;gap:2px}
+.cashflow-cell.empty{border:0}
+.cashflow-cell.past{opacity:.4}
+.cashflow-cell.danger{border-color:#d94b4b;background:rgba(217,75,75,.06)}
+.cashflow-day{font-size:11px;font-weight:700;color:var(--text)}
+.cashflow-event{font-size:8px;color:#d94b4b}
+.cashflow-event.income{color:var(--green,#159b70)}
+.cashflow-balance{margin-top:auto;font-size:9px;font-weight:700;color:var(--muted)}
+.cashflow-cell.danger .cashflow-balance{color:#d94b4b}
+@media(max-width:720px){.cashflow-grid{gap:3px}.cashflow-cell{min-height:52px;padding:4px;font-size:7px}.cashflow-day{font-size:9px}}
