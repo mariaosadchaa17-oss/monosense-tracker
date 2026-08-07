@@ -320,7 +320,7 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .passkey-section{margin-top:2px}
 .auth-v3-passkey{width:100%}
 .passkey-error{margin:8px 0 0;font-size:11px;color:#D85A30;text-align:center}
-.brand-mark-logo{display:block;width:120px;height:44px;background-color:var(--ink);-webkit-mask-image:url('/logo-rivna-green.png');mask-image:url('/logo-rivna-green.png');-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:left center;mask-position:left center}
+.brand-mark-logo{display:block;width:120px;height:44px;background-color:var(--ink);-webkit-mask-image:url('/logo-rivna-green.webp');mask-image:url('/logo-rivna-green.webp');-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:left center;mask-position:left center}
 
 .period-choice-cards{grid-template-columns:1fr 1fr 1fr}
 .period-choice-cards button{position:relative;display:flex;flex-direction:column;gap:8px}
@@ -339,7 +339,7 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .empty-state p{margin:0;font-size:13px}
 
 .app-loader{min-height:100vh;display:grid;place-items:center;gap:18px;background:var(--bg)}
-.app-loader-logo{display:block;width:150px;height:52px;background-color:var(--ink);-webkit-mask-image:url('/logo-rivna-green.png');mask-image:url('/logo-rivna-green.png');-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;opacity:.85}
+.app-loader-logo{display:block;width:150px;height:52px;background-color:var(--ink);-webkit-mask-image:url('/logo-rivna-green.webp');mask-image:url('/logo-rivna-green.webp');-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center;opacity:.85}
 .app-loader-spinner{width:26px;height:26px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--purple);animation:app-loader-spin .7s linear infinite}
 @keyframes app-loader-spin{to{transform:rotate(360deg)}}
 .sync-bar{position:fixed;top:0;left:0;right:0;height:3px;z-index:80;background:var(--line);overflow:hidden}
