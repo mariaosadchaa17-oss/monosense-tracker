@@ -167,15 +167,16 @@ export async function POST(request: Request) {
         is_installment:Boolean(body.isInstallment),installment_months:body.installmentMonths?Number(body.installmentMonths):null,
       }).select().single();
       break;
-    case "settleDebt":
-          result = await supabase.from("debts").update({settled:true}).eq("id",body.id).eq("household_id",householdId);
-          if(!result.error&&body.accountId){
+    case "settleDebt": {
+          if(body.accountId){
             const { data: debtRow } = await supabase.from("debts").select("amount,currency,person").eq("id",body.id).eq("household_id",householdId).single();
-            if(debtRow){
-              await supabase.rpc("create_finance_transaction",{p_account_id:body.accountId,p_category_id:null,p_type:"income",p_amount:Number(debtRow.amount),p_currency:debtRow.currency,p_note:`Повернення боргу: ${debtRow.person}`,p_booked_at:new Date().toISOString(),p_is_impulsive:false});
-            }
+            if(!debtRow){result={error:{message:"Борг не знайдено"}};break;}
+            const { error: rpcError } = await supabase.rpc("create_finance_transaction",{p_account_id:String(body.accountId),p_category_id:null,p_type:"income",p_amount:Number(debtRow.amount),p_currency:debtRow.currency,p_note:`Повернення боргу: ${debtRow.person}`,p_booked_at:new Date().toISOString(),p_is_impulsive:false});
+            if(rpcError){result={error:rpcError};break;}
           }
+          result = await supabase.from("debts").update({settled:true}).eq("id",body.id).eq("household_id",householdId);
           break;
+        }
     case "createRecurring":
       result = await supabase.from("recurring_rules").insert({
         household_id:householdId,account_id:body.accountId,category_id:body.categoryId||null,
