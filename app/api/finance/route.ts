@@ -167,6 +167,16 @@ export async function POST(request: Request) {
         is_installment:Boolean(body.isInstallment),installment_months:body.installmentMonths?Number(body.installmentMonths):null,
       }).select().single();
       break;
+      case "payInstallment": {
+            const { data: debtRow } = await supabase.from("debts").select("amount,currency,person,is_installment,installment_months").eq("id",body.id).eq("household_id",householdId).single();
+            if(!debtRow){result={error:{message:"Борг не знайдено"}};break;}
+            const payAmount=Number(body.amount);
+            const rpcResult = await supabase.rpc("create_finance_transaction",{p_account_id:String(body.accountId),p_category_id:null,p_type:"expense",p_amount:payAmount,p_currency:debtRow.currency,p_note:`Погашення розстрочки: ${debtRow.person}`,p_booked_at:new Date().toISOString(),p_is_impulsive:false});
+            if(rpcResult.error){result={error:rpcResult.error};break;}
+            const remaining=Math.max(0,Number(debtRow.amount)-payAmount);
+            result = await supabase.from("debts").update({amount:remaining,settled:remaining<=0}).eq("id",body.id).eq("household_id",householdId).select().single();
+            break;
+          }
     case "settleDebt": {
           if(body.accountId){
             const { data: debtRow } = await supabase.from("debts").select("amount,currency,person").eq("id",body.id).eq("household_id",householdId).single();
