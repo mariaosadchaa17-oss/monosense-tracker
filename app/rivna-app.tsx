@@ -248,12 +248,26 @@ useEffect(() => {
   },[budgetPeriodType,budgetAnchor]);
   const normalizedTransactions=useMemo(()=>transactions.map(transaction=>({...transaction,baseAmount:transaction.amount*conversionRate(transaction.currency||"UAH",rates,customRates)/conversionRate(baseCurrency,rates,customRates)})),[transactions,rates,customRates,baseCurrency]);
   const filteredTransactions = transactions.filter(t => `${t.title} ${t.category}`.toLowerCase().includes(search.toLowerCase()));
-  const hasAlerts=useMemo(()=>{
-      const now=new Date();
-      const monthKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
-      const monthSpent:Record<string,number>=transactions.filter(t=>t.amount<0&&t.kind!=="transfer"&&t.kind!=="exchange"&&t.bookedAt?.startsWith(monthKey)).reduce((sum,t)=>{sum[t.category]=(sum[t.category]||0)+Math.abs(t.amount);return sum},{} as Record<string,number>);
-      return savedBudgets.some(b=>b.month.startsWith(monthKey)&&(monthSpent[b.name]||0)/b.limit>=0.8);
-    },[savedBudgets,transactions]);
+ const [seenAlerts,setSeenAlerts]=useState<string[]>(()=>typeof window!=="undefined"?JSON.parse(localStorage.getItem("rivna-seen-alerts")||"[]"):[]);
+   const [notifOpen,setNotifOpen]=useState(false);
+   const activeAlerts=useMemo(()=>{
+     const now=new Date();
+     const monthKey=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,"0")}`;
+     const monthSpent:Record<string,number>=transactions.filter(t=>t.amount<0&&t.kind!=="transfer"&&t.kind!=="exchange"&&t.bookedAt?.startsWith(monthKey)).reduce((sum,t)=>{sum[t.category]=(sum[t.category]||0)+Math.abs(t.amount);return sum},{} as Record<string,number>);
+     return savedBudgets.filter(b=>b.month.startsWith(monthKey)).map(b=>{
+       const used=monthSpent[b.name]||0,percent=Math.round(used/b.limit*100);
+       return {key:`${b.name}-${monthKey}-${percent>=100?"100":"80"}`,name:b.name,percent};
+     }).filter(a=>a.percent>=80);
+   },[savedBudgets,transactions]);
+   const hasNewAlerts=activeAlerts.some(a=>!seenAlerts.includes(a.key));
+   function openNotifications(){
+     setNotifOpen(v=>!v);
+     if(!notifOpen&&activeAlerts.length){
+       const merged=Array.from(new Set([...seenAlerts,...activeAlerts.map(a=>a.key)]));
+       setSeenAlerts(merged);
+       localStorage.setItem("rivna-seen-alerts",JSON.stringify(merged));
+     }
+   }
   const allDebts=useMemo(()=>{
     const creditDebts=accounts.filter(a=>(a.creditLimit||0)>0&&a.balance<0).map(a=>({id:`credit-${a.id}`,person:a.bank,direction:"i_owe" as const,amount:Math.abs(a.balance),currency:a.currency,note:"Кредитні кошти",isVirtual:true,accountId:String(a.id)}));
     return [...debts,...creditDebts];
@@ -509,7 +523,13 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
         <div><p className="hello">{topProfile?.name?`Вітаємо, ${topProfile.name}`:"Вітаємо"} <span>☀</span></p><h1>{page === "Головна" ? "Ваші фінанси" : page}</h1></div>
         <div className="header-actions">
           <button className="theme-btn" onClick={() => setDark(!dark)} aria-label="Змінити тему">{dark ? <Sun/> : <Moon/>}</button>
-          <button className="theme-btn notification" onClick={() => notify(hasAlerts?"Є ліміти близькі до вичерпання":"Нових сповіщень немає")} aria-label="Сповіщення"><Bell/>{hasAlerts&&<i/>}</button>
+          <div className="notification-wrap">
+            <button className="theme-btn notification" onClick={openNotifications} aria-label="Сповіщення"><Bell/>{hasNewAlerts&&<i/>}</button>
+            {notifOpen && <div className="notification-panel">
+              <strong>Сповіщення</strong>
+              {activeAlerts.length?activeAlerts.map(a=><div key={a.key} className="notification-item"><span className={a.percent>=100?"negative":""}>{a.name}</span><small>{a.percent}% ліміту використано</small></div>):<p className="empty-inline">Нових сповіщень немає</p>}
+            </div>}
+          </div>
           <button className="add-btn" onClick={() => setModal("expense")}><Plus/> Додати витрату</button>
         </div>
       </header>

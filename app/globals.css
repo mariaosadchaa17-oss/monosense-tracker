@@ -378,3 +378,11 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .goal-history-row strong{display:block;font-size:13px}
 .goal-history-row small{color:var(--muted);font-size:11px}
 .goal-history-row b{font-size:13px;font-weight:700}
+
+.notification-wrap{position:relative}
+.notification-panel{position:absolute;right:0;top:calc(100% + 8px);width:260px;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;box-shadow:var(--shadow);z-index:30}
+.notification-panel strong{display:block;font-size:12px;margin-bottom:8px}
+.notification-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-top:1px solid var(--line);font-size:12px}
+.notification-item:first-of-type{border-top:0}
+.notification-item span.negative{color:#d94b4b;font-weight:700}
+.notification-item small{color:var(--muted);font-size:10px}
