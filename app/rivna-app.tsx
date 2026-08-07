@@ -1213,6 +1213,50 @@ function AchievementsPanel({goals,budgets,debts,transactions}:{goals:GoalItem[];
     <div className="achievements-grid">{ACHIEVEMENTS.map(a=>{const unlocked=a.check(ctx);const Icon=a.icon;return <div key={a.id} className={unlocked?"achievement-badge unlocked":"achievement-badge"}><span className="achievement-icon"><Icon size={20}/></span><strong>{a.label}</strong><small>{a.desc}</small></div>})}</div>
   </section>;
 }
+function InvestmentSimulator({goals,baseCurrency}:{goals:GoalItem[];baseCurrency:string}){
+  const [initial,setInitial]=useState("10000");
+  const [monthly,setMonthly]=useState("2000");
+  const [rate,setRate]=useState("12");
+  const [years,setYears]=useState("5");
+  const [linkedGoal,setLinkedGoal]=useState("");
+  const symbol=currencySymbol(baseCurrency);
+  const points=useMemo(()=>{
+    const monthlyRate=Number(rate)/100/12;
+    const totalMonths=Number(years)*12;
+    let capital=Number(initial)||0;
+    const contributed=Number(initial)||0;
+    let totalContributed=contributed;
+    const result:{month:number;capital:number;contributed:number}[]=[{month:0,capital,contributed:totalContributed}];
+    for(let m=1;m<=totalMonths;m++){
+      capital=capital*(1+monthlyRate)+(Number(monthly)||0);
+      totalContributed+=Number(monthly)||0;
+      if(m%Math.max(1,Math.round(totalMonths/24))===0||m===totalMonths)result.push({month:m,capital,contributed:totalContributed});
+    }
+    return result;
+  },[initial,monthly,rate,years]);
+  const final=points[points.length-1];
+  const profit=final?final.capital-final.contributed:0;
+  const maxCapital=Math.max(...points.map(p=>p.capital),1);
+  const selectedGoal=goals.find(g=>g.id===linkedGoal);
+
+  return <section className="panel full-view">
+    <div className="section-title"><div><h2>Симулятор накопичень</h2><p>Розрахунок складеного відсотка</p></div></div>
+    <div className="wizard-grid" style={{marginBottom:16}}>
+      <label>Початковий внесок<input type="number" min="0" value={initial} onChange={e=>setInitial(e.target.value)}/></label>
+      <label>Щомісячне поповнення<input type="number" min="0" value={monthly} onChange={e=>setMonthly(e.target.value)}/></label>
+      <label>% річних<input type="number" min="0" step=".1" value={rate} onChange={e=>setRate(e.target.value)}/></label>
+      <label>Термін, роки<input type="number" min="1" max="40" value={years} onChange={e=>setYears(e.target.value)}/></label>
+    </div>
+    {goals.length>0 && <label>Прив'язати до цілі (необов'язково)<select value={linkedGoal} onChange={e=>setLinkedGoal(e.target.value)}><option value="">Не прив'язано</option>{goals.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</select></label>}
+    <div className="metric-grid" style={{marginTop:16}}>
+      <article className="metric"><small>Підсумковий капітал</small><strong>{symbol} {formatMoney(final?.capital||0)}</strong><span>За {years} р.</span></article>
+      <article className="metric"><small>Всього внесено</small><strong>{symbol} {formatMoney(final?.contributed||0)}</strong><span>Твої гроші</span></article>
+      <article className="metric"><small>Прибуток від відсотків</small><strong className="income-amount">{symbol} {formatMoney(profit)}</strong><span className="positive">Заробили відсотки</span></article>
+    </div>
+    <div className="monthly-chart" style={{marginTop:20}}>{points.map((p,i)=><div key={i}><strong>{i===points.length-1?`${symbol}${formatMoney(p.capital)}`:""}</strong><span><i style={{height:`${Math.max(3,p.capital/maxCapital*100)}%`}}/></span><small>{Math.round(p.month/12*10)/10}р</small></div>)}</div>
+    {selectedGoal && <div className="form-message success">При такому темпі ти досягнеш цілі "{selectedGoal.name}" ({symbol} {formatMoney(selectedGoal.target)}) приблизно за {(()=>{const target=selectedGoal.target;const found=points.find(p=>p.capital>=target);return found?`${Math.round(found.month/12*10)/10} років`:`понад ${years} років`})()}.</div>}
+  </section>;
+}
 function SettlementPanel({baseCurrency,createDebt}:{baseCurrency:string;createDebt:(person:string,amount:number)=>void}){
   const [balances,setBalances]=useState<{person:string;amount:number}[]>([]);
   useEffect(()=>{fetch("/api/finance/splits").then(r=>r.ok?r.json():null).then(data=>setBalances(data?.balances||[])).catch(()=>{})},[]);
