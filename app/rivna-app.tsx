@@ -1054,6 +1054,7 @@ function LiveBudgetView({
         }
 function AccountsView({accounts,rates,customRates,add,edit,addRate,transfer,remove,reorderAccounts}:{accounts:Account[];rates:{currency:string;rate:number;date:string}[];customRates:{currency:string;rate:number;date:string}[];add:()=>void;edit:(account:Account)=>void;addRate:()=>void;transfer:()=>void;remove:(id:number|string)=>void;reorderAccounts:(draggedId:string,targetId:string)=>void}) { const visible=rates.filter(r=>["USD","EUR"].includes(r.currency)); return <section className="panel full-view"><div className="section-title"><div><h2>Усі рахунки</h2><p>UAH, USD та інші валюти</p></div><div className="title-actions"><button className="secondary" onClick={transfer}><ArrowRight/> Переказ / обмін</button><button className="small-primary" onClick={add}><Plus/> Новий рахунок</button></div></div>{!accounts.length&&<button className="new-account" style={{width:"100%",minHeight:"140px",marginBottom:"20px"}} onClick={add}><span className="new-account-icon"><Plus/></span><span>Додай свій перший рахунок, щоб почати</span></button>}<div className="accounts-grid">{accounts.map(a=><div className="account-wrap" key={a.id} draggable onDragStart={e=>e.dataTransfer.setData("text/plain",String(a.id))} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();reorderAccounts(e.dataTransfer.getData("text/plain"),String(a.id))}}><div onClick={()=>edit(a)}><AccountCard account={a}/></div><div className="account-actions"><button className="remove-account" onClick={()=>remove(a.id)}><Trash2/> Видалити</button></div></div>)}</div><div className="rate-card"><Landmark/><div><strong>Офіційний курс НБУ</strong><p>{visible.length ? visible.map(r=>`${r.currency} ${r.rate.toFixed(4)}`).join(" · ") : "Оновлення курсів…"}{customRates.length?` · Власний: ${customRates.slice(0,3).map(r=>`${r.currency} ${r.rate}`).join(", ")}`:""}</p></div><button className="secondary" onClick={addRate}>Власний курс</button></div></section>; }
 const ASSET_TYPE_LABELS:Record<string,string>={savings:"Накопичення",deposit:"Депозит",bond:"Облігація",security:"Цінний папір"};
+const ASSET_TYPE_ICONS:Record<string,React.ComponentType<{size?:number}>>={savings:PiggyBank,deposit:Landmark,bond:HandCoins,security:BarChart3};
 function GoalsView({goals,authenticated,add,contribute,recurring,addRecurring,edit,openAction}:{goals:GoalItem[];authenticated:boolean;add:()=>void;contribute:(id:string,amount:number)=>void;recurring:RecurringItem[];addRecurring:()=>void;edit:(goal:GoalItem)=>void;openAction:(goal:GoalItem,mode:"withdraw"|"break"|"history")=>void}) {
   const shown=goals.length?goals:(authenticated?[]:[{id:"demo1",name:"Резервний фонд",target:200000,current:120000,currency:"UAH",color:"#6558E8"},{id:"demo2",name:"Подорож до Японії",target:150000,current:38500,currency:"UAH",color:"#159B70"}]);
   const isEmpty=authenticated&&!goals.length;
@@ -1062,21 +1063,22 @@ function GoalsView({goals,authenticated,add,contribute,recurring,addRecurring,ed
         {isEmpty && <div className="goals-empty"><span className="empty-state-icon"><PiggyBank/></span><p>У тебе ще немає фінансових цілей — створи першу банку, щоб почати накопичувати</p><button className="round-add-btn" onClick={add} aria-label="Нова ціль"><Plus/></button></div>}
       {!isEmpty && <div className="goals-grid">{shown.map(g=>{
         const percent=Math.min(100,Math.round(g.current/g.target*100)),symbol=currencySymbol(g.currency);
-        return <article className="goal-card" key={g.id}>
-          <div className="goal-card-top"><span className="goal-icon"><PiggyBank/></span>{g.assetType&&g.assetType!=="savings"&&<em className="goal-asset-badge">{ASSET_TYPE_LABELS[g.assetType]}</em>}</div>
-          <small>{g.date?`До ${new Date(g.date).toLocaleDateString("uk-UA")}`:"Фінансова ціль"}{g.annualRate?` · ${g.annualRate}% річних${g.compoundInterest?" · капіталізація":""}`:""}</small>
-          <h3>{g.name}</h3>
-          <strong>{symbol} {formatMoney(g.current)} <span>з {formatMoney(g.target)}</span></strong>
-          <div><i style={{width:`${percent}%`,background:g.color}}/></div>
-          <p>{percent}% накопичено</p>
-          <button onClick={()=>contribute(g.id,1000)}>Поповнити на {symbol} 1 000</button>
-          <div className="goal-actions-row">
-            <button className="goal-action-btn" onClick={()=>edit(g)}><Settings size={13}/> Редагувати</button>
-            <button className="goal-action-btn" onClick={()=>openAction(g,"history")}><BarChart3 size={13}/> Історія</button>
-            <button className="goal-action-btn" onClick={()=>openAction(g,"withdraw")}><ArrowUpRight size={13}/> Зняти</button>
-            <button className="goal-action-btn danger" onClick={()=>openAction(g,"break")}><Trash2 size={13}/> Розбити банку</button>
-          </div>
-        </article>;
+                const AssetIcon=ASSET_TYPE_ICONS[g.assetType||"savings"]||PiggyBank;
+                return <article className="goal-card" key={g.id}>
+                  <div className="goal-card-top"><span className="goal-icon"><AssetIcon size={18}/></span>{g.assetType&&g.assetType!=="savings"&&<em className="goal-asset-badge">{ASSET_TYPE_LABELS[g.assetType]}</em>}</div>
+                  <small>{g.date?`До ${new Date(g.date).toLocaleDateString("uk-UA")}`:"Фінансова ціль"}{g.annualRate?` · ${g.annualRate}% річних${g.compoundInterest?" · капіталізація":""}`:""}</small>
+                  <h3>{g.name}</h3>
+                  <strong>{symbol} {formatMoney(g.current)}</strong>
+                  <p>з {symbol} {formatMoney(g.target)}</p>
+                  <div><i style={{width:`${percent}%`,background:g.color}}/></div>
+                  <div className="goal-actions-row goal-actions-compact">
+                    <button className="goal-action-btn" onClick={()=>contribute(g.id,1000)} aria-label="Поповнити"><Plus size={14}/></button>
+                    <button className="goal-action-btn" onClick={()=>edit(g)} aria-label="Редагувати"><Settings size={14}/></button>
+                    <button className="goal-action-btn" onClick={()=>openAction(g,"history")} aria-label="Історія"><BarChart3 size={14}/></button>
+                    <button className="goal-action-btn" onClick={()=>openAction(g,"withdraw")} aria-label="Зняти"><ArrowUpRight size={14}/></button>
+                    <button className="goal-action-btn danger" onClick={()=>openAction(g,"break")} aria-label="Розбити банку"><Trash2 size={14}/></button>
+                  </div>
+                </article>;
       })}</div>}
           </section>
     </>;
