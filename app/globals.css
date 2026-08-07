@@ -231,7 +231,7 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 @keyframes auth-v3-bob3{0%,100%{transform:translateY(0) rotate(3deg)}50%{transform:translateY(-13px) rotate(-1deg)}}
 .auth-v3-card{position:relative;z-index:1;width:min(360px,100%);background:#FBF3F5;border:0.5px solid #E3CCD3;border-radius:28px;padding:2rem}
 :root[data-skin="espresso-cream"] .auth-v3-card{background:#2A211C;border-color:#4A3222}
-.auth-v3-logo{width:180px;height:auto;display:block;margin:0 auto 4px}
+.auth-v3-logo{width:230px;height:auto;display:block;margin:0 auto 4px}
 .auth-v3-signature{font-size:10px;color:#8F6270;text-align:center;letter-spacing:.3px;margin:0 0 20px}
 :root[data-skin="espresso-cream"] .auth-v3-signature{color:#C9A98A}
 .auth-v3-theme-btn{position:absolute;top:24px;right:24px;z-index:2;width:36px;height:36px;border-radius:50%;border:0.5px solid #E3CCD3;background:#FBF3F5;display:grid;place-items:center;cursor:pointer}
