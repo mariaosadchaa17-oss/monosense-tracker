@@ -428,3 +428,12 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .anomaly-item strong{display:block;font-size:13px}
 .anomaly-item small{color:var(--muted);font-size:11px}
 .anomaly-item b{font-size:14px;font-weight:700}
+
+
+.achievements-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px}
+.achievement-badge{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:16px 10px;border:1px solid var(--line);border-radius:14px;background:var(--bg);opacity:.4}
+.achievement-badge.unlocked{opacity:1;border-color:var(--purple);background:color-mix(in srgb,var(--purple) 6%,var(--bg))}
+.achievement-icon{width:38px;height:38px;border-radius:50%;background:var(--line);color:var(--muted);display:grid;place-items:center}
+.achievement-badge.unlocked .achievement-icon{background:var(--purple);color:#fff}
+.achievement-badge strong{font-size:11px}
+.achievement-badge small{font-size:9px;color:var(--muted)}
