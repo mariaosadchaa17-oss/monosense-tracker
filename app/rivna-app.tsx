@@ -1245,7 +1245,7 @@ function InvestmentSimulator({goals,baseCurrency}:{goals:GoalItem[];baseCurrency
 
   return <section className="panel full-view">
     <div className="section-title"><div><h2>Симулятор накопичень</h2><p>Розрахунок складеного відсотка</p></div></div>
-    <div className="wizard-grid" style={{marginBottom:16}}>
+    <div className="wizard-grid sim-fields" style={{marginBottom:16}}>
       <label>Початковий внесок<input type="number" min="0" value={initial} onChange={e=>setInitial(e.target.value)}/></label>
       <label>Щомісячне поповнення<input type="number" min="0" value={monthly} onChange={e=>setMonthly(e.target.value)}/></label>
       <label>% річних<input type="number" min="0" step=".1" value={rate} onChange={e=>setRate(e.target.value)}/></label>
@@ -1257,7 +1257,7 @@ function InvestmentSimulator({goals,baseCurrency}:{goals:GoalItem[];baseCurrency
       <article className="metric"><small>Всього внесено</small><strong>{symbol} {formatMoney(final?.contributed||0)}</strong><span>Твої гроші</span></article>
       <article className="metric"><small>Прибуток від відсотків</small><strong className="income-amount">{symbol} {formatMoney(profit)}</strong><span className="positive">Заробили відсотки</span></article>
     </div>
-    <div className="monthly-chart" style={{marginTop:20}}>{points.map((p,i)=><div key={i}><strong>{i===points.length-1?`${symbol}${formatMoney(p.capital)}`:""}</strong><span><i style={{height:`${Math.max(3,p.capital/maxCapital*100)}%`}}/></span><small>{Math.round(p.month/12*10)/10}р</small></div>)}</div>
+    <div className="monthly-chart" style={{marginTop:20}}>{points.map((p,i)=><div key={i}><strong>{i===points.length-1?`${symbol}${formatMoney(p.capital)}`:""}</strong><span><i style={{height:`${Math.max(3,p.capital/maxCapital*100)}%`}}/></span><small>{i%2===0?`${Math.round(p.month/12*10)/10}р`:""}</small></div>)}</div>
     {selectedGoal && <div className="form-message success">При такому темпі ти досягнеш цілі "{selectedGoal.name}" ({symbol} {formatMoney(selectedGoal.target)}) приблизно за {(()=>{const target=selectedGoal.target;const found=points.find(p=>p.capital>=target);return found?`${Math.round(found.month/12*10)/10} років`:`понад ${years} років`})()}.</div>}
   </section>;
 }

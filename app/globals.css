@@ -451,3 +451,6 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .wrapped-dots i{flex:1;height:3px;border-radius:99px;background:rgba(255,255,255,.25)}
 .wrapped-dots i.active{background:#fff}
 .wrapped-actions{display:flex;gap:10px;align-items:center}
+
+.sim-fields label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:650}
+.sim-fields input,.sim-fields select{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:9px 11px;font-size:13px;color:var(--text)}
