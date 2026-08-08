@@ -127,7 +127,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [dark, setDark] = useState(()=>typeof window!=="undefined"&&localStorage.getItem("rivna-theme")==="dark");
   const [skin, setSkin] = useState(()=>typeof window!=="undefined"?localStorage.getItem("rivna-skin")||"default":"default");
   const [cardStyle, setCardStyle] = useState(()=>typeof window!=="undefined"?localStorage.getItem("rivna-cardstyle")||"default":"default");
-  const [modal, setModal] = useState<"expense" | "account" | "goal" | "debt" | "recurring" | "transfer" | "budget" | "category" | "invite" | "rate" | "split" | "purchase-sim" | "wrapped" | "rule" | null>(null);
+  const [modal, setModal] = useState<"expense" | "account" | "goal" | "debt" | "recurring" | "transfer" | "budget" | "category" | "invite" | "rate" | "split" | "purchase-sim" | "wrapped" | "rule" | "edit-transaction" | null>(null);
   const [transactions, setTransactions] = useState(initialLoggedIn?[]:seedTransactions);
   const [accounts, setAccounts] = useState(initialLoggedIn?[]:seedAccounts);
   const [amount, setAmount] = useState("");
@@ -154,7 +154,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [pushEnabled,setPushEnabled]=useState(false);
   const [editingAccount,setEditingAccount]=useState<Account|null>(null);
   const [editingGoal,setEditingGoal]=useState<GoalItem|null>(null);
-  const [settleTarget,setSettleTarget]=useState<DebtItem|null>(null);
+  const [editingTransaction,setEditingTransaction]=useState<Transaction|null>(null);
   const [payTarget,setPayTarget]=useState<DebtItem|null>(null);
   const [accountFilter,setAccountFilter]=useState("");
   const [isOnline,setIsOnline]=useState(true);
@@ -227,6 +227,24 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
         if (tr.from_transaction_id) transferDirection[String(tr.from_transaction_id)] = "out";
         if (tr.to_transaction_id) transferDirection[String(tr.to_transaction_id)] = "in";
       });
+  const limitEvents=(data.creditLimitChanges||[]).map((item:Record<string,unknown>)=>{
+          const oldLimit=Number(item.old_limit),newLimit=Number(item.new_limit),diff=newLimit-oldLimit;
+          return {
+            id:`limit-${item.id}`,title:diff>0?"Підвищення кредитного ліміту":"Зниження кредитного ліміту",
+            category:"Кредитний ліміт",date:new Intl.DateTimeFormat("uk-UA",{dateStyle:"medium",timeStyle:"short"}).format(new Date(String(item.changed_at))),
+            bookedAt:String(item.changed_at),account:String((item.accounts as {name?:string}|null)?.name||""),
+            amount:diff,currency:"UAH",kind:"credit_limit_change",
+          };
+        });
+    const limitEvents=(data.creditLimitChanges||[]).map((item:Record<string,unknown>)=>{
+            const oldLimit=Number(item.old_limit),newLimit=Number(item.new_limit),diff=newLimit-oldLimit;
+            return {
+              id:`limit-${item.id}`,title:diff>0?"Підвищення кредитного ліміту":"Зниження кредитного ліміту",
+              category:"Кредитний ліміт",date:new Intl.DateTimeFormat("uk-UA",{dateStyle:"medium",timeStyle:"short"}).format(new Date(String(item.changed_at))),
+              bookedAt:String(item.changed_at),account:String((item.accounts as {name?:string}|null)?.name||""),
+              amount:diff,currency:"UAH",kind:"credit_limit_change",
+            };
+          });
       setTransactions((data.transactions || []).map((item: Record<string, unknown>) => {
         const id = String(item.id);
         const isTransferLeg = item.type === "transfer" || item.type === "exchange";
@@ -239,8 +257,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
         bookedAt:String(item.booked_at),account:String((item.accounts as {name?:string}|null)?.name||""),
         owner:String((item.accounts as {owner_label?:string}|null)?.owner_label||""),
         tags:((item.transaction_tags as {tags?:{name?:string}|null}[]|null)||[]).map(link=>String(link.tags?.name||"")).filter(Boolean),
-        amount:Number(item.amount)*(isIncomeLike?1:-1),currency:String(item.currency||"UAH"),impulse:Boolean(item.is_impulsive),kind:String(item.type||"expense"),
-      };}));
+        amount:Number(item.amount)*(isIncomeLike?1:-1),currency:String(item.currency||"UAH"),impulse:Boolean(item.is_impulsive),kind:String(item.type||"expense"), };}).concat(limitEvents));
       setGoals((data.goals||[]).map((item:Record<string,unknown>)=>({id:String(item.id),name:String(item.name),target:Number(item.target_amount),current:Number(item.current_amount),currency:String(item.currency),date:item.target_date?String(item.target_date):undefined,color:String(item.color||"#6558E8"),assetType:String(item.asset_type||"savings"),annualRate:item.annual_rate?Number(item.annual_rate):undefined,compoundInterest:Boolean(item.compound_interest),roundBalanceTo:item.round_balance_to?Number(item.round_balance_to):undefined,roundExpenseTo:item.round_expense_to?Number(item.round_expense_to):undefined,expensePercent:item.expense_percent?Number(item.expense_percent):undefined,sourceAccountId:item.source_account_id?String(item.source_account_id):undefined})));      setDebts((data.debts||[]).map((item:Record<string,unknown>)=>({id:String(item.id),person:String(item.person),direction:item.direction==="i_owe"?"i_owe":"owed_to_me",amount:Number(item.amount),currency:String(item.currency),due:item.due_date?String(item.due_date):undefined,note:String(item.note||""),isInstallment:Boolean(item.is_installment),installmentMonths:item.installment_months?Number(item.installment_months):undefined})));
       setRecurring((data.recurring||[]).map((item:Record<string,unknown>)=>({id:String(item.id),name:String(item.name),amount:Number(item.amount),currency:String(item.currency),frequency:String(item.frequency),next:String(item.next_run_at),auto:Boolean(item.auto_create),kind:item.kind==="income"?"income":"expense"})));
       setTransfers((data.transfers||[]).map((item:Record<string,unknown>)=>({id:String(item.id),fromTransactionId:item.from_transaction_id?String(item.from_transaction_id):null,toTransactionId:item.to_transaction_id?String(item.to_transaction_id):null,feeAmount:Number(item.fee_amount)||0,feeCurrency:String(item.fee_currency||""),bookedAt:String(item.booked_at||"")})));
@@ -415,9 +432,15 @@ useEffect(() => {
       notify("Операцію видалено");
       return;
     }
+async function updateTransaction(payload:Record<string,unknown>){
+  if(await financeAction({action:"updateTransaction",...payload},"Операцію оновлено"))setEditingTransaction(null);
+}
     setTransactions(transactions.filter(t => t.id !== id));
     notify("Операцію видалено");
   }
+async function updateTransaction(payload:Record<string,unknown>){
+  if(await financeAction({action:"updateTransaction",...payload},"Операцію оновлено"))setEditingTransaction(null);
+}
   async function financeAction(payload:Record<string,unknown>, success:string) {
     if(!initialLoggedIn){
       const action=String(payload.action||""),id=String(payload.id||"");
@@ -699,6 +722,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
     {modal === "budget" && <BudgetModal categories={categories} period={budgetPeriodType} initialDate={budgetModalDefaultDate} baseCurrency={baseCurrency} submit={addBudget} close={()=>setModal(null)}/>}
     {modal === "category" && <CategoryModal submit={addCategory} close={()=>setModal(null)}/>}
     {modal === "rule" && <RuleModal categories={categories} goals={goals} submit={addRule} close={()=>setModal(null)}/>}
+    {editingTransaction && <EditTransactionModal transaction={editingTransaction} categories={categories} close={()=>setEditingTransaction(null)} submit={updateTransaction}/>}
     {modal === "invite" && <InviteModal submit={createInvite} close={()=>setModal(null)}/>}
     {modal === "rate" && <CustomRateModal submit={addCustomRate} close={()=>setModal(null)}/>}
     {toast && <div className="toast">{toast}</div>}
@@ -787,7 +811,7 @@ function Dashboard({ balance, baseCurrency, accounts, transactions, goals, authe
       </>;
     }
 
-function TransactionsView({ transactions, search, setSearch, remove, exportCsv,exportExcel,exportJson,initialAccount }: {transactions:Transaction[];search:string;setSearch:(s:string)=>void;remove:(id:number|string)=>void;exportCsv:()=>void;exportExcel:()=>void;exportJson:()=>void;initialAccount?:string}) {
+function TransactionsView({ transactions, search, setSearch, remove, exportCsv,exportExcel,exportJson,initialAccount,onEdit }: {transactions:Transaction[];search:string;setSearch:(s:string)=>void;remove:(id:number|string)=>void;exportCsv:()=>void;exportExcel:()=>void;exportJson:()=>void;initialAccount?:string;onEdit:(t:Transaction)=>void}) {
   const [account,setAccount]=useState("");const [category,setCategory]=useState("");const [owner,setOwner]=useState("");const [tag,setTag]=useState("");const [from,setFrom]=useState("");const [to,setTo]=useState("");
   const [sortField,setSortField]=useState<"date"|"amount"|null>(null);
   const [sortDir,setSortDir]=useState<"asc"|"desc">("desc");
@@ -804,7 +828,7 @@ const shown=sortField?[...filtered].sort((a,b)=>{
   return ((a.bookedAt||"").localeCompare(b.bookedAt||""))*dir;
 }):filtered;
 const clear=()=>{setAccount("");setCategory("");setOwner("");setTag("");setFrom("");setTo("");};
-  return <section className="panel full-view"><div className="view-toolbar"><label className="search-box"><Search/><input placeholder="Пошук за назвою або категорією" value={search} onChange={e=>setSearch(e.target.value)}/></label><button className="secondary" onClick={clear}><X/> Очистити</button><button className="secondary" onClick={exportCsv}><Download/> CSV</button><button className="secondary" onClick={exportExcel}><Download/> Excel</button><button className="secondary" onClick={exportJson}><Download/> JSON</button></div><div className="filter-grid"><label>Рахунок<select value={account} onChange={e=>setAccount(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.account)).map(v=><option key={v}>{v}</option>)}</select></label><label>Категорія<select value={category} onChange={e=>setCategory(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.category)).map(v=><option key={v}>{v}</option>)}</select></label><label>Тег<select value={tag} onChange={e=>setTag(e.target.value)}><option value="">Усі</option>{unique(transactions.flatMap(t=>t.tags||[])).map(v=><option key={v}>{v}</option>)}</select></label><label>Власник<select value={owner} onChange={e=>setOwner(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.owner)).map(v=><option key={v}>{v}</option>)}</select></label><label>Від<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>До<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label></div><div className="data-head"><span>Операція</span><span>Категорія</span><span className="sortable" onClick={()=>toggleSort("date")}>Дата {sortField==="date"?(sortDir==="asc"?"↑":"↓"):"↕"}</span><span className="sortable" onClick={()=>toggleSort("amount")}>Сума {sortField==="amount"?(sortDir==="asc"?"↑":"↓"):"↕"}</span><span/></div>{shown.map(t=><div className="data-row" key={t.id}><strong>{t.title}{t.impulse&&<em>Імпульсивна</em>}<small className="row-tags">{t.tags?.map(x=>`#${x}`).join(" ")}</small></strong><span>{t.category}<small>{t.account}{t.owner?` · ${t.owner}`:""}</small></span><span>{t.date}</span><b className={t.amount>0?"income-amount":""}>{t.amount>0?"+":"−"} {currencySymbol(t.currency||"UAH")} {formatMoney(t.amount)}</b><button className="icon-button danger" onClick={()=>remove(t.id)}><Trash2/></button></div>)}{shown.length===0&&<EmptyState icon={<Search/>} text={transactions.length?"Нічого не знайдено за цим фільтром":"Тут з'являться твої операції — додай першу через кнопку «Додати витрату»"}/>}</section>;
+  return <section className="panel full-view"><div className="view-toolbar"><label className="search-box"><Search/><input placeholder="Пошук за назвою або категорією" value={search} onChange={e=>setSearch(e.target.value)}/></label><button className="secondary" onClick={clear}><X/> Очистити</button><button className="secondary" onClick={exportCsv}><Download/> CSV</button><button className="secondary" onClick={exportExcel}><Download/> Excel</button><button className="secondary" onClick={exportJson}><Download/> JSON</button></div><div className="filter-grid"><label>Рахунок<select value={account} onChange={e=>setAccount(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.account)).map(v=><option key={v}>{v}</option>)}</select></label><label>Категорія<select value={category} onChange={e=>setCategory(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.category)).map(v=><option key={v}>{v}</option>)}</select></label><label>Тег<select value={tag} onChange={e=>setTag(e.target.value)}><option value="">Усі</option>{unique(transactions.flatMap(t=>t.tags||[])).map(v=><option key={v}>{v}</option>)}</select></label><label>Власник<select value={owner} onChange={e=>setOwner(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.owner)).map(v=><option key={v}>{v}</option>)}</select></label><label>Від<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>До<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label></div><div className="data-head"><span>Операція</span><span>Категорія</span><span className="sortable" onClick={()=>toggleSort("date")}>Дата {sortField==="date"?(sortDir==="asc"?"↑":"↓"):"↕"}</span><span className="sortable" onClick={()=>toggleSort("amount")}>Сума {sortField==="amount"?(sortDir==="asc"?"↑":"↓"):"↕"}</span><span/></div>{shown.map(t=><div className="data-row" key={t.id}><strong>{t.title}{t.impulse&&<em>Імпульсивна</em>}<small className="row-tags">{t.tags?.map(x=>`#${x}`).join(" ")}</small></strong><span>{t.category}<small>{t.account}{t.owner?` · ${t.owner}`:""}</small></span><span>{t.date}</span><b className={t.amount>0?"income-amount":""}>{t.amount>0?"+":"−"} {currencySymbol(t.currency||"UAH")} {formatMoney(t.amount)}</b>{t.kind!=="transfer"&&t.kind!=="exchange"&&<button className="icon-button" onClick={()=>onEdit(t)}><Settings size={14}/></button>}<button className="icon-button danger" onClick={()=>remove(t.id)}><Trash2/></button></div>)}{shown.length===0&&<EmptyState icon={<Search/>} text={transactions.length?"Нічого не знайдено за цим фільтром":"Тут з'являться твої операції — додай першу через кнопку «Додати витрату»"}/>}</section>;
 }
 function BudgetView({budgets,transactions,add,baseCurrency,remove}: {budgets: BudgetItem[]; transactions: Transaction[]; add: ()=>void; baseCurrency: string; remove: (id: number|string)=>void}) {
   const active = budgets.length
@@ -1537,7 +1561,7 @@ function AccountCard({account}:{account:Account}) {
 }
 function BankMark({bank}:{bank:string}){const value=bank.toLowerCase();if(value.includes("mono"))return <span className="bank-logo mono-logo">mono</span>;if(value.includes("приват")||value.includes("privat"))return <span className="bank-logo privat-logo">П</span>;if(value.includes("пумб")||value.includes("pumb"))return <span className="bank-logo pumb-logo">ПУМБ</span>;if(value.includes("ощад"))return <span className="bank-logo oschad-logo">О</span>;if(value.includes("райффайзен")||value.includes("raiffeisen"))return <span className="bank-logo raif-logo">RAIFF</span>;if(value.includes("а-банк")||value.includes("abank"))return <span className="bank-logo abank-logo">А-Банк</span>;if(value.includes("сенс")||value.includes("sense"))return <span className="bank-logo sense-logo">Sense</span>;if(value.includes("укрсиб")||value.includes("ukrsib"))return <span className="bank-logo ukrsib-logo">УСБ</span>;if(value.includes("отп")||value.includes("otp"))return <span className="bank-logo otp-logo">OTP</span>;if(value.includes("кредо")||value.includes("kredo"))return <span className="bank-logo kredo-logo">Kredo</span>;if(value.includes("пайонер")||value.includes("піонер")||value.includes("payoneer"))return <span className="bank-logo pioneer-logo">Payoneer</span>;if(value.includes("готів"))return <span className="bank-icon"><Landmark/></span>;return <span className="bank-icon">{bank.slice(0,1).toUpperCase()||<CreditCard/>}</span>}
 function bankStyle(bank:string,index=2){const value=bank.toLowerCase();if(value.includes("mono"))return "mono";if(value.includes("приват")||value.includes("privat"))return "privat";if(value.includes("пумб")||value.includes("pumb"))return "pumb";if(value.includes("ощад"))return "oschad";if(value.includes("райффайзен")||value.includes("raiffeisen"))return "raif";if(value.includes("а-банк")||value.includes("abank"))return "abank";if(value.includes("сенс")||value.includes("sense"))return "sense";if(value.includes("укрсиб")||value.includes("ukrsib"))return "ukrsib";if(value.includes("отп")||value.includes("otp"))return "otp";if(value.includes("кредо")||value.includes("kredo"))return "kredo";if(value.includes("пайонер")||value.includes("піонер")||value.includes("pioneer"))return "pioneer";return index%3===0?"mono":index%3===1?"privat":"stash"}
-function TransactionList({transactions}:{transactions:Transaction[]}) { return <div className="tx-list">{transactions.map(t=><div className="tx" key={t.id}><span className={`tx-icon ${t.amount>0?"income":"shop"}`}>{t.amount>0?<ArrowDownLeft/>:<ShoppingBag/>}</span><div className="tx-info"><strong>{t.title}{t.impulse&&<em>Імпульсивна</em>}</strong><small>{t.category} · {t.date}</small></div><strong className={t.amount>0?"income-amount":""}>{t.amount>0?"+":"−"} {currencySymbol(t.currency||"UAH")} {formatMoney(t.amount)}</strong></div>)}</div>; }
+function TransactionList({transactions}:{transactions:Transaction[]}) { return <div className="tx-list">{transactions.map(t=><div className="tx" key={t.id}><span className={`tx-icon ${t.kind==="credit_limit_change"?"limit":t.amount>0?"income":"shop"}`}>{t.kind==="credit_limit_change"?<CreditCard/>:t.amount>0?<ArrowDownLeft/>:<ShoppingBag/>}</span><div className="tx-info"><strong>{t.title}{t.impulse&&<em>Імпульсивна</em>}</strong><small>{t.category} · {t.date}</small></div><strong className={t.amount>0?"income-amount":""}>{t.amount>0?"+":"−"} {currencySymbol(t.currency||"UAH")} {formatMoney(t.amount)}</strong></div>)}</div>; }
 function EmptyState({icon,text}:{icon:React.ReactNode;text:string}){
   return <div className="empty-state"><span className="empty-state-icon">{icon}</span><p>{text}</p></div>;
 }
@@ -1694,6 +1718,19 @@ function SettleDebtModal({debt,accounts,submit,close}:{debt:DebtItem;accounts:Ac
     <p style={{color:"var(--muted)",fontSize:13}}>{debt.currency} {formatMoney(debt.amount)} буде зараховано на обраний рахунок і борг закрито.</p>
     <label>Рахунок<select value={accountId} onChange={e=>setAccountId(e.target.value)} required>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></label>
     <button className="primary">Зарахувати та закрити</button>
+  </form></div>;
+}
+function EditTransactionModal({transaction,categories,close,submit}:{transaction:Transaction;categories:CategoryItem[];close:()=>void;submit:(payload:Record<string,unknown>)=>void}){
+  const isIncome=transaction.amount>0&&transaction.kind!=="transfer"&&transaction.kind!=="exchange";
+  const [type,setType]=useState<"expense"|"income">(isIncome?"income":"expense");
+  return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);submit({id:transaction.id,amount:Number(f.get("amount")),type,categoryId:f.get("category")||null,note:f.get("note"),bookedAt:f.get("date")?new Date(String(f.get("date"))).toISOString():undefined})}} onMouseDown={e=>e.stopPropagation()}>
+    <ModalHead label="Редагування" title="Змінити операцію" close={close}/>
+    <div className="operation-type"><button type="button" className={type==="expense"?"active":""} onClick={()=>setType("expense")}><ArrowUpRight/> Витрата</button><button type="button" className={type==="income"?"active":""} onClick={()=>setType("income")}><ArrowDownLeft/> Дохід</button></div>
+    <label>Сума<input name="amount" type="number" min=".01" step=".01" required defaultValue={Math.abs(transaction.amount)}/></label>
+    <label>Категорія<select name="category" defaultValue="">{categories.filter(c=>c.kind===type).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
+    <label>Дата<input name="date" type="datetime-local" defaultValue={transaction.bookedAt?new Date(transaction.bookedAt).toISOString().slice(0,16):undefined}/></label>
+    <label>Нотатка<input name="note" defaultValue={transaction.title}/></label>
+    <button className="primary">Зберегти зміни</button>
   </form></div>;
 }
 function PayInstallmentModal({debt,accounts,submit,close}:{debt:DebtItem;accounts:Account[];submit:(accountId:string,amount:number)=>void;close:()=>void}){
