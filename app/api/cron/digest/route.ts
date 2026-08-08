@@ -3,7 +3,11 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function GET(request: Request) {
   const authorization = request.headers.get("authorization");
-  if (!process.env.CRON_SECRET || authorization !== `Bearer ${process.env.CRON_SECRET}`) {
+  const url = new URL(request.url);
+  const querySecret = url.searchParams.get("secret");
+  const validHeader = authorization === `Bearer ${process.env.CRON_SECRET}`;
+  const validQuery = querySecret && querySecret === process.env.CRON_SECRET;
+  if (!process.env.CRON_SECRET || (!validHeader && !validQuery)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
