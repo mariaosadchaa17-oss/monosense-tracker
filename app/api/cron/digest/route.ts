@@ -73,14 +73,20 @@ export async function GET(request: Request) {
       goals.forEach((g) => { text += `• ${g.name}: ${Math.round((g.current_amount / g.target_amount) * 100)}%\n`; });
     }
 
-    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    const debugInfo: Record<string, unknown> = { telegramChatId: pref.telegram_chat_id || null, digestEmailEnabled: pref.digest_email_enabled };
+
+        const botToken = process.env.TELEGRAM_BOT_TOKEN;
         if (botToken && pref.telegram_chat_id) {
-          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+          const tgResponse = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ chat_id: pref.telegram_chat_id, text }),
           });
-          sent++;
+          const tgResult = await tgResponse.json();
+          debugInfo.telegram = { ok: tgResponse.ok, result: tgResult };
+          if (tgResponse.ok) sent++;
+        } else {
+          debugInfo.telegram = "skipped: no botToken or chat_id";
         }
 
         const resendKey = process.env.RESEND_API_KEY;
@@ -89,7 +95,7 @@ export async function GET(request: Request) {
           const toEmail = authUser?.user?.email;
           if (toEmail) {
             const html = `<pre style="font-family:inherit;white-space:pre-wrap">${text.replace(/</g, "&lt;")}</pre>`;
-            await fetch("https://api.resend.com/emails", {
+            const mailResponse = await fetch("https://api.resend.com/emails", {
               method: "POST",
               headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
               body: JSON.stringify({
@@ -99,9 +105,18 @@ export async function GET(request: Request) {
                 html,
               }),
             });
-            sent++;
+            const mailResult = await mailResponse.json();
+            debugInfo.email = { ok: mailResponse.ok, to: toEmail, result: mailResult };
+            if (mailResponse.ok) sent++;
+          } else {
+            debugInfo.email = "skipped: no user email found";
           }
+        } else {
+          debugInfo.email = "skipped: no resendKey or digest_email_enabled false";
+        }
+
+        if (url.searchParams.get("force") === "1") {
+          return NextResponse.json({ sent, debug: debugInfo });
         }
       }
       return NextResponse.json({ sent });
-}
