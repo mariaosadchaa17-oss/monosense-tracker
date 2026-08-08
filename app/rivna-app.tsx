@@ -1109,13 +1109,16 @@ function GoalsView({goals,authenticated,add,contribute,recurring,addRecurring,ed
         const percent=Math.min(100,Math.round(g.current/g.target*100)),symbol=currencySymbol(g.currency);
                 const AssetIcon=ASSET_TYPE_ICONS[g.assetType||"savings"]||PiggyBank;
                 return <article className="goal-card" key={g.id}>
-                  <div className="goal-card-top"><span className="goal-icon"><AssetIcon size={18}/></span>{g.assetType&&g.assetType!=="savings"&&<em className="goal-asset-badge">{ASSET_TYPE_LABELS[g.assetType]}</em>}</div>
-                  <small>{g.date?`До ${new Date(g.date).toLocaleDateString("uk-UA")}`:"Фінансова ціль"}{g.annualRate?` · ${g.annualRate}% річних${g.compoundInterest?" · капіталізація":""}`:""}</small>
-                  <h3>{g.name}</h3>
-                  <strong>{symbol} {formatMoney(g.current)}</strong>
-                  <p>з {symbol} {formatMoney(g.target)}</p>
-                  <div><i style={{width:`${percent}%`,background:g.color}}/></div>
-                  <div className="goal-actions-row goal-actions-compact">
+                                  <div className="goal-card-top">
+                                    <span className="goal-icon"><AssetIcon size={18}/></span>
+                                    {g.assetType&&g.assetType!=="savings"&&<em className="goal-asset-badge">{ASSET_TYPE_LABELS[g.assetType]}</em>}
+                                  </div>
+                                  <small className="goal-card-label">{g.date?`До ${new Date(g.date).toLocaleDateString("uk-UA")}`:"Фінансова ціль"}{g.annualRate?` · ${g.annualRate}% річних${g.compoundInterest?" · капіталізація":""}`:""}</small>
+                                  <h3 className="goal-card-name">{g.name}</h3>
+                                  <strong className="goal-card-amount">{symbol} {formatMoney(g.current)}</strong>
+                                  <p className="goal-card-target">з {symbol} {formatMoney(g.target)}</p>
+                                  <div className="goal-card-bar"><i style={{width:`${percent}%`,background:g.color}}/></div>
+                                  <div className="goal-actions-row">
                     <button className="goal-action-btn" onClick={()=>contribute(g.id,1000)} aria-label="Поповнити"><Plus size={14}/></button>
                     <button className="goal-action-btn" onClick={()=>edit(g)} aria-label="Редагувати"><Settings size={14}/></button>
                     <button className="goal-action-btn" onClick={()=>openAction(g,"history")} aria-label="Історія"><BarChart3 size={14}/></button>
