@@ -206,7 +206,24 @@ export async function POST(request: Request) {
   const text = typeof message?.text === "string" ? message.text.trim() : "";
   if (!chatId) return NextResponse.json({ ok: true });
 
-  if (text === "/start") {
+  if (text.startsWith("/start")) {
+      const linkToken = text.slice(6).trim();
+      if (linkToken) {
+        const { data: linkRow } = await admin.from("telegram_link_tokens").select("user_id").eq("token", linkToken).maybeSingle();
+        if (linkRow) {
+          await admin.from("notification_preferences").upsert({ user_id: linkRow.user_id, telegram_chat_id: chatId }, { onConflict: "user_id" });
+          await admin.from("telegram_link_tokens").delete().eq("token", linkToken);
+          await sendMessage(chatId, "✅ Акаунт прив'язано! Тепер отримуватимеш дайджести й можеш записувати витрати прямо тут.");
+          await ensureMainKeyboard(chatId);
+          return NextResponse.json({ ok: true });
+        }
+        await sendMessage(chatId, "Посилання для прив'язки недійсне або застаріле. Спробуй ще раз у Rivna → Налаштування.");
+        return NextResponse.json({ ok: true });
+      }
+      await sendMessage(chatId, `Вітаю! Ваш chat ID: ${chatId}\nВставте це число в Rivna → Налаштування → Telegram chat ID, щоб зв'язати акаунт.`);
+      await ensureMainKeyboard(chatId);
+      return NextResponse.json({ ok: true });
+    }if (text === "/start") {
     await sendMessage(chatId, `Вітаю! Ваш chat ID: ${chatId}\nВставте це число в Rivna → Налаштування → Telegram chat ID, щоб зв'язати акаунт.`);
     await ensureMainKeyboard(chatId);
     return NextResponse.json({ ok: true });
