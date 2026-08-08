@@ -413,7 +413,7 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 
 
 .safe-to-spend-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:8px}
-.safe-to-spend{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;aspect-ratio:1.3/1;display:flex;flex-direction:column;justify-content:center}
+.safe-to-spend{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;height:100px;display:flex;flex-direction:column;justify-content:center}
 .safe-to-spend small{color:var(--muted);font-size:10px;font-weight:650;text-transform:uppercase}
 .safe-to-spend strong{display:block;font-size:22px;font-weight:700;margin-top:6px;color:var(--purple)}
 .safe-to-spend p{display:none}
