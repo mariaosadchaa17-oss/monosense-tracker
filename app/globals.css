@@ -473,3 +473,6 @@ header h1{font-size:32px;letter-spacing:-1.5px}.theme-btn{width:44px;height:44px
 .goal-action-btn{display:flex;align-items:center;justify-content:center;border:1px solid var(--line);background:var(--panel);border-radius:9px;padding:8px;color:var(--text);cursor:pointer}
 .goal-action-btn:hover{border-color:var(--purple);color:var(--purple)}
 .goal-action-btn.danger:hover{border-color:#d94b4b;color:#d94b4b}
+
+.sortable{cursor:pointer;user-select:none;display:flex;align-items:center;gap:3px}
+.sortable:hover{color:var(--purple)}

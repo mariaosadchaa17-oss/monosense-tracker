@@ -119,6 +119,7 @@ export async function POST(request: Request) {
         p_sent_amount: Number(body.sentAmount), p_received_amount: Number(body.receivedAmount),
         p_exchange_rate: Number(body.exchangeRate) || 1, p_fee_amount: Number(body.feeAmount) || 0,
         p_fee_currency: body.feeCurrency || null, p_note: String(body.note || "").slice(0, 500),
+        p_booked_at: body.bookedAt || new Date().toISOString(),
         p_credit_limit_delta: Number(body.creditLimitDelta) || 0,
       });
       break;
