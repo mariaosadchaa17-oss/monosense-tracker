@@ -14,18 +14,20 @@ export async function GET(request: Request) {
   const now = new Date();
   const isMonday = now.getDay() === 1;
   const isFirstOfMonth = now.getDate() === 1;
+  const force = url.searchParams.get("force") === "1";
 
   const { data: prefs } = await supabase
-      .from("notification_preferences")
-      .select("user_id,digest_enabled,digest_frequency,telegram_chat_id,digest_email_enabled")
-      .eq("digest_enabled", true);
+    .from("notification_preferences")
+    .select("user_id,digest_enabled,digest_frequency,telegram_chat_id,digest_email_enabled")
+    .eq("digest_enabled", true);
 
   let sent = 0;
+  let lastDebug: Record<string, unknown> | null = null;
+
   for (const pref of prefs || []) {
-    const force = url.searchParams.get("force") === "1";
-        const shouldSend = force || (pref.digest_frequency === "weekly" ? isMonday : isFirstOfMonth);
-        if (!shouldSend) continue;
-        if (!pref.telegram_chat_id && !pref.digest_email_enabled) continue;
+    const shouldSend = force || (pref.digest_frequency === "weekly" ? isMonday : isFirstOfMonth);
+    if (!shouldSend) continue;
+    if (!pref.telegram_chat_id && !pref.digest_email_enabled) continue;
 
     const { data: membership } = await supabase.from("household_members").select("household_id").eq("user_id", pref.user_id).limit(1).maybeSingle();
     if (!membership) continue;
@@ -75,48 +77,51 @@ export async function GET(request: Request) {
 
     const debugInfo: Record<string, unknown> = { telegramChatId: pref.telegram_chat_id || null, digestEmailEnabled: pref.digest_email_enabled };
 
-        const botToken = process.env.TELEGRAM_BOT_TOKEN;
-        if (botToken && pref.telegram_chat_id) {
-          const tgResponse = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ chat_id: pref.telegram_chat_id, text }),
-          });
-          const tgResult = await tgResponse.json();
-          debugInfo.telegram = { ok: tgResponse.ok, result: tgResult };
-          if (tgResponse.ok) sent++;
-        } else {
-          debugInfo.telegram = "skipped: no botToken or chat_id";
-        }
+    const botToken = process.env.TELEGRAM_BOT_TOKEN;
+    if (botToken && pref.telegram_chat_id) {
+      const tgResponse = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chat_id: pref.telegram_chat_id, text }),
+      });
+      const tgResult = await tgResponse.json();
+      debugInfo.telegram = { ok: tgResponse.ok, result: tgResult };
+      if (tgResponse.ok) sent++;
+    } else {
+      debugInfo.telegram = "skipped: no botToken or chat_id";
+    }
 
-        const resendKey = process.env.RESEND_API_KEY;
-        if (resendKey && pref.digest_email_enabled) {
-          const { data: authUser } = await supabase.auth.admin.getUserById(pref.user_id);
-          const toEmail = authUser?.user?.email;
-          if (toEmail) {
-            const html = `<pre style="font-family:inherit;white-space:pre-wrap">${text.replace(/</g, "&lt;")}</pre>`;
-            const mailResponse = await fetch("https://api.resend.com/emails", {
-              method: "POST",
-              headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
-              body: JSON.stringify({
-                from: "Rivna <onboarding@resend.dev>",
-                to: toEmail,
-                subject: `📊 Твій ${periodLabel} у rivna`,
-                html,
-              }),
-            });
-            const mailResult = await mailResponse.json();
-            debugInfo.email = { ok: mailResponse.ok, to: toEmail, result: mailResult };
-            if (mailResponse.ok) sent++;
-          } else {
-            debugInfo.email = "skipped: no user email found";
-          }
-        } else {
-          debugInfo.email = "skipped: no resendKey or digest_email_enabled false";
-        }
-
-        if (url.searchParams.get("force") === "1") {
-          return NextResponse.json({ sent, debug: debugInfo });
-        }
+    const resendKey = process.env.RESEND_API_KEY;
+    if (resendKey && pref.digest_email_enabled) {
+      const { data: authUser } = await supabase.auth.admin.getUserById(pref.user_id);
+      const toEmail = authUser?.user?.email;
+      if (toEmail) {
+        const html = `<pre style="font-family:inherit;white-space:pre-wrap">${text.replace(/</g, "&lt;")}</pre>`;
+        const mailResponse = await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
+          body: JSON.stringify({
+            from: "Rivna <onboarding@resend.dev>",
+            to: toEmail,
+            subject: `📊 Твій ${periodLabel} у rivna`,
+            html,
+          }),
+        });
+        const mailResult = await mailResponse.json();
+        debugInfo.email = { ok: mailResponse.ok, to: toEmail, result: mailResult };
+        if (mailResponse.ok) sent++;
+      } else {
+        debugInfo.email = "skipped: no user email found";
       }
-      return NextResponse.json({ sent });
+    } else {
+      debugInfo.email = "skipped: no resendKey or digest_email_enabled false";
+    }
+
+    lastDebug = debugInfo;
+  }
+
+  if (force) {
+    return NextResponse.json({ sent, debug: lastDebug });
+  }
+  return NextResponse.json({ sent });
+}
