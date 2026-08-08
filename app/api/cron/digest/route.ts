@@ -22,7 +22,8 @@ export async function GET(request: Request) {
 
   let sent = 0;
   for (const pref of prefs || []) {
-    const shouldSend = pref.digest_frequency === "weekly" ? isMonday : isFirstOfMonth;
+    const force = url.searchParams.get("force") === "1";
+        const shouldSend = force || (pref.digest_frequency === "weekly" ? isMonday : isFirstOfMonth);
         if (!shouldSend) continue;
         if (!pref.telegram_chat_id && !pref.digest_email_enabled) continue;
 
