@@ -796,8 +796,7 @@ function TransactionsView({ transactions, search, setSearch, remove, exportCsv,e
     else{setSortField(field);setSortDir("desc")}
   }
   useEffect(()=>{if(initialAccount)setAccount(initialAccount)},[initialAccount]);
-  const [category,setCategory]=useState("");const [owner,setOwner]=useState("");const [tag,setTag]=useState("");const [from,setFrom]=useState("");const [to,setTo]=useState("");
-  const unique=(values:(string|undefined)[])=>Array.from(new Set(values.filter(Boolean) as string[])).sort();
+    const unique=(values:(string|undefined)[])=>Array.from(new Set(values.filter(Boolean) as string[])).sort();
 const filtered=transactions.filter(t=>(!account||t.account===account)&&(!category||t.category===category)&&(!owner||t.owner===owner)&&(!tag||t.tags?.includes(tag))&&(!from||!t.bookedAt||t.bookedAt>=`${from}T00:00:00`)&&(!to||!t.bookedAt||t.bookedAt<=`${to}T23:59:59`));
 const shown=sortField?[...filtered].sort((a,b)=>{
   const dir=sortDir==="asc"?1:-1;
