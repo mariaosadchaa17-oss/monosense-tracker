@@ -236,15 +236,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
             amount:diff,currency:"UAH",kind:"credit_limit_change",
           };
         });
-    const limitEvents=(data.creditLimitChanges||[]).map((item:Record<string,unknown>)=>{
-            const oldLimit=Number(item.old_limit),newLimit=Number(item.new_limit),diff=newLimit-oldLimit;
-            return {
-              id:`limit-${item.id}`,title:diff>0?"Підвищення кредитного ліміту":"Зниження кредитного ліміту",
-              category:"Кредитний ліміт",date:new Intl.DateTimeFormat("uk-UA",{dateStyle:"medium",timeStyle:"short"}).format(new Date(String(item.changed_at))),
-              bookedAt:String(item.changed_at),account:String((item.accounts as {name?:string}|null)?.name||""),
-              amount:diff,currency:"UAH",kind:"credit_limit_change",
-            };
-          });
+
       setTransactions((data.transactions || []).map((item: Record<string, unknown>) => {
         const id = String(item.id);
         const isTransferLeg = item.type === "transfer" || item.type === "exchange";
