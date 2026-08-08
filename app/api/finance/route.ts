@@ -17,7 +17,8 @@ export async function GET() {
     supabase.from("exchange_rates").select("*").eq("household_id",householdId).order("rate_date",{ascending:false}).limit(20),
     supabase.from("profiles").select("planning_period,base_currency").eq("id",context.user.id).single(),
     supabase.from("households").select("base_currency").eq("id",householdId).single(),
-  ]);
+    supabase.from("credit_limit_changes").select("*,accounts(name)").eq("household_id",householdId).order("changed_at",{ascending:false}).limit(100),
+    ]);
 const error = [accounts, transactions, categories, budgets, goals, debts, recurring, transfers, audit,exchangeRates,profile,household,creditLimitChanges].find(result => result.error)?.error;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({
@@ -98,6 +99,7 @@ export async function POST(request: Request) {
         supabase.from("transfers").select("id").eq("to_transaction_id", body.id).maybeSingle(),
         supabase.from("transactions").select("amount,debt_id").eq("id", body.id).eq("household_id", householdId).maybeSingle(),
       ]);
+
       const linkedTransfer = fromMatch.data || toMatch.data;
       result = linkedTransfer
         ? await supabase.rpc("delete_account_transfer", { p_transfer_id: linkedTransfer.id })
