@@ -12,14 +12,15 @@ export async function GET(request: Request) {
   const isFirstOfMonth = now.getDate() === 1;
 
   const { data: prefs } = await supabase
-    .from("notification_preferences")
-    .select("user_id,digest_enabled,digest_frequency,telegram_chat_id")
-    .eq("digest_enabled", true);
+      .from("notification_preferences")
+      .select("user_id,digest_enabled,digest_frequency,telegram_chat_id,digest_email_enabled")
+      .eq("digest_enabled", true);
 
   let sent = 0;
   for (const pref of prefs || []) {
     const shouldSend = pref.digest_frequency === "weekly" ? isMonday : isFirstOfMonth;
-    if (!shouldSend || !pref.telegram_chat_id) continue;
+        if (!shouldSend) continue;
+        if (!pref.telegram_chat_id && !pref.digest_email_enabled) continue;
 
     const { data: membership } = await supabase.from("household_members").select("household_id").eq("user_id", pref.user_id).limit(1).maybeSingle();
     if (!membership) continue;
@@ -68,14 +69,34 @@ export async function GET(request: Request) {
     }
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
-    if (botToken) {
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: pref.telegram_chat_id, text }),
-      });
-      sent++;
-    }
-  }
-  return NextResponse.json({ sent });
+        if (botToken && pref.telegram_chat_id) {
+          await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ chat_id: pref.telegram_chat_id, text }),
+          });
+          sent++;
+        }
+
+        const resendKey = process.env.RESEND_API_KEY;
+        if (resendKey && pref.digest_email_enabled) {
+          const { data: authUser } = await supabase.auth.admin.getUserById(pref.user_id);
+          const toEmail = authUser?.user?.email;
+          if (toEmail) {
+            const html = `<pre style="font-family:inherit;white-space:pre-wrap">${text.replace(/</g, "&lt;")}</pre>`;
+            await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
+              body: JSON.stringify({
+                from: "Rivna <onboarding@resend.dev>",
+                to: toEmail,
+                subject: `📊 Твій ${periodLabel} у rivna`,
+                html,
+              }),
+            });
+            sent++;
+          }
+        }
+      }
+      return NextResponse.json({ sent });
 }
