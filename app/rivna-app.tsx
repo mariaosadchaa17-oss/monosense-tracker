@@ -465,12 +465,12 @@ async function addGoal(e:React.SyntheticEvent<HTMLFormElement>){
     if(await financeAction(payload,editingGoal?"Ціль оновлено":"Ціль створено")){setModal(null);setEditingGoal(null);}
   }
   async function withdrawGoal(id:string,amount:number,targetAccountId:string){
-    if(await financeAction({action:"withdrawGoal",id,amount,targetAccountId},"Кошти знято"))setModal(null);
-  }
-  async function breakGoal(id:string,targetAccountId:string){
-    if(!window.confirm("Розбити банку? Уся сума перейде на обраний рахунок, ціль буде видалено."))return;
-    if(await financeAction({action:"breakGoal",id,targetAccountId},"Банку розбито"))setModal(null);
-  }
+    if(await financeAction({action:"withdrawGoal",id,amount,targetAccountId},"Кошти знято"))setGoalAction(null);
+      }
+      async function breakGoal(id:string,targetAccountId:string){
+        if(!window.confirm("Розбити банку? Уся сума перейде на обраний рахунок, ціль буде видалено."))return;
+        if(await financeAction({action:"breakGoal",id,targetAccountId},"Банку розбито"))setGoalAction(null);
+      }
     async function addRecurring(e:React.SyntheticEvent<HTMLFormElement>){e.preventDefault();const f=new FormData(e.currentTarget);const account=accounts.find(item=>String(item.id)===String(f.get("account")));if(!account)return notify("Оберіть рахунок");if(await financeAction({action:"createRecurring",accountId:account.id,categoryId:f.get("category")||null,name:f.get("name"),amount:Number(f.get("amount")),currency:account.currency,frequency:String(f.get("frequency")),nextRunAt:f.get("date")?String(f.get("date")):undefined,autoCreate:f.get("auto")==="on",kind:String(f.get("kind")||"expense")},f.get("kind")==="income"?"Плановий дохід додано":"Регулярний платіж створено"))setModal(null);}
 async function splitBill(participants:{person:string;amount:number}[],note:string){
     let failed=false;

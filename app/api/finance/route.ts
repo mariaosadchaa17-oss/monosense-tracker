@@ -170,17 +170,17 @@ export async function POST(request: Request) {
       break;
     }
     case "breakGoal": {
-      const { data: goalRow } = await supabase.from("goals").select("current_amount").eq("id",body.id).eq("household_id",householdId).single();
-      if(!goalRow){result={error:{message:"Ціль не знайдена"}};break;}
-      const total=Number(goalRow.current_amount);
-      if(body.targetAccountId&&total>0){
-        const { data: acc } = await supabase.from("accounts").select("balance").eq("id",body.targetAccountId).eq("household_id",householdId).single();
-        if(acc)await supabase.from("accounts").update({balance:Number(acc.balance)+total}).eq("id",body.targetAccountId).eq("household_id",householdId);
-      }
-      if(total>0)await supabase.from("goal_transactions").insert({goal_id:body.id,household_id:householdId,amount:-total,kind:"withdrawal",note:"Розбито банку"});
-      result = await supabase.from("goals").delete().eq("id",body.id).eq("household_id",householdId);
-      break;
-    }
+          const { data: goalRow } = await supabase.from("goals").select("current_amount,currency,name").eq("id",body.id).eq("household_id",householdId).single();
+          if(!goalRow){result={error:{message:"Ціль не знайдена"}};break;}
+          const total=Number(goalRow.current_amount);
+          if(body.targetAccountId&&total>0){
+            const { error: rpcError } = await supabase.rpc("create_finance_transaction",{p_account_id:String(body.targetAccountId),p_category_id:null,p_type:"income",p_amount:total,p_currency:goalRow.currency,p_note:`Розбито банку: ${goalRow.name}`,p_booked_at:new Date().toISOString(),p_is_impulsive:false});
+            if(rpcError){result={error:rpcError};break;}
+          }
+          if(total>0)await supabase.from("goal_transactions").insert({goal_id:body.id,household_id:householdId,amount:-total,kind:"withdrawal",note:"Розбито банку"});
+          result = await supabase.from("goals").delete().eq("id",body.id).eq("household_id",householdId);
+          break;
+        }
     case "contributeGoal":
       result = await supabase.rpc("contribute_to_goal",{p_goal_id:body.id,p_amount:Number(body.amount)});
       break;
