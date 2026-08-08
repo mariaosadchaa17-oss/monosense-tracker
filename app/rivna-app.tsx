@@ -156,6 +156,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [editingGoal,setEditingGoal]=useState<GoalItem|null>(null);
   const [editingTransaction,setEditingTransaction]=useState<Transaction|null>(null);
   const [payTarget,setPayTarget]=useState<DebtItem|null>(null);
+  const [settleTarget,setSettleTarget]=useState<DebtItem|null>(null);
   const [accountFilter,setAccountFilter]=useState("");
   const [isOnline,setIsOnline]=useState(true);
   const [offlineCount,setOfflineCount]=useState(0);
