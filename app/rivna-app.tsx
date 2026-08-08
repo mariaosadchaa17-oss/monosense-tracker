@@ -827,6 +827,17 @@ function TransactionsView({ transactions, search, setSearch, remove, exportCsv,e
   useEffect(()=>{if(initialAccount)setAccount(initialAccount)},[initialAccount]);
     const unique=(values:(string|undefined)[])=>Array.from(new Set(values.filter(Boolean) as string[])).sort();
 const filtered=transactions.filter(t=>(!account||t.account===account)&&(!category||t.category===category)&&(!owner||t.owner===owner)&&(!tag||t.tags?.includes(tag))&&(!from||!t.bookedAt||t.bookedAt>=`${from}T00:00:00`)&&(!to||!t.bookedAt||t.bookedAt<=`${to}T23:59:59`));
+const shown=sortField?[...filtered].sort((a,b)=>{
+  const dir=sortDir==="asc"?1:-1;
+  if(sortField==="amount")return (Math.abs(a.amount)-Math.abs(b.amount))*dir;
+  return ((a.bookedAt||"").localeCompare(b.bookedAt||""))*dir;
+}):(manualOrder.length?[...filtered].sort((a,b)=>{
+  const ia=manualOrder.indexOf(a.id),ib=manualOrder.indexOf(b.id);
+  if(ia===-1&&ib===-1)return 0;
+  if(ia===-1)return 1;
+  if(ib===-1)return -1;
+  return ia-ib;
+}):filtered);
 {shown.map(t=><div className="data-row" key={t.id} draggable={!sortField} onDragStart={e=>{e.dataTransfer.setData("text/plain",String(t.id))}} onDragOver={e=>{if(!sortField)e.preventDefault()}} onDrop={e=>{e.preventDefault();if(sortField)return;const draggedRaw=e.dataTransfer.getData("text/plain");const dragged=shown.find(x=>String(x.id)===draggedRaw)?.id;if(dragged!==undefined)reorderTx(dragged,t.id,shown.map(x=>x.id))}}>
   <strong>{t.title}{t.impulse&&<em>Імпульсивна</em>}<small className="row-tags">{t.tags?.map(x=>`#${x}`).join(" ")}</small></strong>
   <span>{t.category}<small>{t.account}{t.owner?` · ${t.owner}`:""}</small></span>
