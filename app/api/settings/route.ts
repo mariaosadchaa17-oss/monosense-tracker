@@ -8,7 +8,7 @@ export async function GET(){
   const admin=createAdminClient();
   const [{data:profile},{data:preferences},{data:household},{data:members},{data:invites}]=await Promise.all([
     admin.from("profiles").select("display_name,base_currency,planning_period").eq("id",context.user.id).single(),
-    admin.from("notification_preferences").select("telegram_chat_id,recurring_reminders,budget_80,budget_100").eq("user_id",context.user.id).maybeSingle(),
+    admin.from("notification_preferences").select("telegram_chat_id,recurring_reminders,budget_80,budget_100,digest_enabled,digest_frequency").eq("user_id",context.user.id).maybeSingle(),
     admin.from("households").select("name,base_currency").eq("id",context.householdId).single(),
     admin.from("household_members").select("user_id,role,joined_at").eq("household_id",context.householdId).order("joined_at"),
     admin.from("household_invitations").select("id,email,username,role,expires_at,accepted_at").eq("household_id",context.householdId).is("accepted_at",null).gt("expires_at",new Date().toISOString()),
@@ -38,8 +38,7 @@ export async function POST(request:Request){
     const name=String(body.name||"").trim().slice(0,80),currency=String(body.baseCurrency||"UAH").toUpperCase().slice(0,3);
     if(!name)return NextResponse.json({error:"Вкажіть ім’я"},{status:400});
     const {error:profileError}=await admin.from("profiles").update({display_name:name,base_currency:currency,planning_period:body.planningPeriod==="week"?"week":"month",updated_at:new Date().toISOString()}).eq("id",context.user.id);
-    const {error:preferenceError}=await admin.from("notification_preferences").upsert({user_id:context.user.id,telegram_chat_id:String(body.telegramChatId||"").trim()||null,recurring_reminders:Boolean(body.recurringReminders),budget_80:Boolean(body.budget80),budget_100:Boolean(body.budget100)},{onConflict:"user_id"});
-    if(["owner","admin"].includes(context.role))await admin.from("households").update({base_currency:currency}).eq("id",context.householdId);
+    const {error:preferenceError}=await admin.from("notification_preferences").upsert({user_id:context.user.id,telegram_chat_id:String(body.telegramChatId||"").trim()||null,recurring_reminders:Boolean(body.recurringReminders),budget_80:Boolean(body.budget80),budget_100:Boolean(body.budget100),digest_enabled:Boolean(body.digestEnabled),digest_frequency:body.digestFrequency==="monthly"?"monthly":"weekly"},{onConflict:"user_id"});    if(["owner","admin"].includes(context.role))await admin.from("households").update({base_currency:currency}).eq("id",context.householdId);
     const error=profileError||preferenceError;
     return error?NextResponse.json({error:error.message},{status:400}):NextResponse.json({ok:true});
   }
