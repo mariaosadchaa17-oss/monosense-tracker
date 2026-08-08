@@ -76,6 +76,19 @@ const formatMoney = (value: number) => new Intl.NumberFormat("uk-UA", { maximumF
 const currencySymbol=(currency:string)=>({UAH:"₴",USD:"$",EUR:"€",GBP:"£",PLN:"zł"} as Record<string,string>)[currency]||currency;
 const conversionRate=(currency:string,rates:{currency:string;rate:number}[],customRates:{currency:string;rate:number}[])=>currency==="UAH"?1:(customRates.find(rate=>rate.currency===currency)?.rate||rates.find(rate=>rate.currency===currency)?.rate||1);
 function toDateKey(date:Date){return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,"0")}-${String(date.getDate()).padStart(2,"0")}`}
+type OfflineQueueItem={id:string;payload:Record<string,unknown>;createdAt:number};
+function getOfflineQueue():OfflineQueueItem[]{
+  if(typeof window==="undefined")return [];
+  try{return JSON.parse(localStorage.getItem("rivna-offline-queue")||"[]");}catch{return [];}
+}
+function saveOfflineQueue(queue:OfflineQueueItem[]){
+  localStorage.setItem("rivna-offline-queue",JSON.stringify(queue));
+}
+function addToOfflineQueue(payload:Record<string,unknown>){
+  const queue=getOfflineQueue();
+  queue.push({id:`offline-${Date.now()}-${Math.random().toString(36).slice(2)}`,payload,createdAt:Date.now()});
+  saveOfflineQueue(queue);
+}
 function evaluateExpression(input:string):number|null{
   const trimmed=input.trim();
   if(!trimmed||!/^[0-9+\-*/.,\s()]+$/.test(trimmed))return null;
@@ -144,6 +157,8 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [settleTarget,setSettleTarget]=useState<DebtItem|null>(null);
   const [payTarget,setPayTarget]=useState<DebtItem|null>(null);
   const [accountFilter,setAccountFilter]=useState("");
+  const [isOnline,setIsOnline]=useState(true);
+  const [offlineCount,setOfflineCount]=useState(0);
   const [accountOrder,setAccountOrder]=useState<string[]>(()=>typeof window!=="undefined"?JSON.parse(localStorage.getItem("rivna-account-order")||"[]"):[]);
   const [goalAction,setGoalAction]=useState<{goal:GoalItem;mode:"withdraw"|"break"|"history"}|null>(null);
   const [transferPresetTo,setTransferPresetTo]=useState<string|undefined>(undefined);
@@ -155,6 +170,13 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   },[initialLoggedIn]);
 
   useEffect(() => {
+    setIsOnline(navigator.onLine);
+    setOfflineCount(getOfflineQueue().length);
+    const goOnline=()=>{setIsOnline(true);void syncOfflineQueue();};
+    const goOffline=()=>setIsOnline(false);
+    window.addEventListener("online",goOnline);
+    window.addEventListener("offline",goOffline);
+    if(navigator.onLine)void syncOfflineQueue();
     if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
     const onInstall=(event:Event)=>{event.preventDefault();setInstallPrompt(event)};
     window.addEventListener("beforeinstallprompt",onInstall);
@@ -169,9 +191,23 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       if(modalParam&&validModals.includes(modalParam))setModal(modalParam as typeof modal);
       if("Notification" in window)setPushEnabled(Notification.permission==="granted");
     },0);
-    return()=>{window.clearTimeout(timer);window.removeEventListener("beforeinstallprompt",onInstall)};
+    return()=>{window.clearTimeout(timer);window.removeEventListener("beforeinstallprompt",onInstall);window.removeEventListener("online",goOnline);window.removeEventListener("offline",goOffline)};
   }, []);
   function notify(message:string){setToast(message);window.setTimeout(()=>setToast(""),2200)}
+  async function syncOfflineQueue(){
+    const queue=getOfflineQueue();
+    if(!queue.length)return;
+    let remaining=[...queue];
+    for(const item of queue){
+      try{
+        const response=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(item.payload)});
+        if(response.ok)remaining=remaining.filter(q=>q.id!==item.id);
+      }catch{break;}
+    }
+    saveOfflineQueue(remaining);
+    setOfflineCount(remaining.length);
+    if(remaining.length<queue.length){notify(`Синхронізовано офлайн-операцій: ${queue.length-remaining.length}`);await refreshFinance();}
+  }
   async function refreshFinance() {
     if (!initialLoggedIn) return;
     setSyncing(true);
@@ -316,21 +352,28 @@ useEffect(() => {
     if (!value) return;
     const operationType=form.get("type")==="income"?"income":"expense",isIncome=operationType==="income";
     if (initialLoggedIn) {
-      const account = accounts.find(a=>String(a.id)===String(form.get("account")))||accounts[0];
-      if (!account) return notify("Спочатку створіть рахунок");
-      const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({
+          const account = accounts.find(a=>String(a.id)===String(form.get("account")))||accounts[0];
+          if (!account) return notify("Спочатку створіть рахунок");
+          const payload={
         action:"createTransaction", accountId:account.id, categoryId:form.get("category")||null, amount:value, currency:account.currency, note, type:operationType,
         isImpulsive:!isIncome&&form.get("impulse")==="on",splitTotal:isIncome?null:form.get("splitTotal")||null,personalShare:isIncome?null:form.get("personalShare")||null,
         bookedAt:form.get("date")?new Date(String(form.get("date"))).toISOString():undefined,
         tags:String(form.get("tags")||"").split(/\s+/).filter(Boolean),splitParticipants:String(form.get("splitParticipants")||"").split(",").map(value=>value.trim()).filter(Boolean),
         repeat:form.get("repeat")==="on",repeatFrequency:form.get("repeatFrequency"),repeatDay:form.get("repeatDay"),
         debtId:!isIncome?(form.get("debtId")||null):null,
-      })});
-      const result = await response.json();
-      if (!response.ok) return notify(result.error || "Не вдалося додати операцію");
-      setAmount(""); setNote(""); setModal(null); notify(isIncome?"Дохід збережено":"Витрату збережено");
-      await refreshFinance(); return;
-    }
+              };
+              if(!navigator.onLine){
+                addToOfflineQueue(payload);
+                setOfflineCount(getOfflineQueue().length);
+                setAmount(""); setNote(""); setModal(null); notify("Немає інтернету — операцію збережено локально, синхронізується автоматично");
+                return;
+              }
+              const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(payload)});
+              const result = await response.json();
+              if (!response.ok) return notify(result.error || "Не вдалося додати операцію");
+              setAmount(""); setNote(""); setModal(null); notify(isIncome?"Дохід збережено":"Витрату збережено");
+              await refreshFinance(); return;
+            }
     const account=accounts.find(item=>String(item.id)===String(form.get("account")))||accounts[0];
     setTransactions([{id:Date.now(),title:note||(isIncome?"Новий дохід":"Нова витрата"),category:categories.find(c=>c.id===form.get("category"))?.name||"Інше",date:"Щойно",amount:isIncome?value:-value,currency:account?.currency||"UAH",impulse:!isIncome&&form.get("impulse")==="on"},...transactions]);
     setAmount(""); setNote(""); setModal(null); notify(isIncome?"Дохід додано":"Витрату додано");
@@ -590,6 +633,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
               {activeAlerts.length?activeAlerts.map(a=><div key={a.key} className="notification-item"><span className={a.percent>=100?"negative":""}>{a.name}</span>{a.percent>=0&&<small>{a.percent}% ліміту використано</small>}</div>):<p className="empty-inline">Нових сповіщень немає</p>}
             </div>}
           </div>
+          {!isOnline && <span className="offline-badge">Офлайн{offlineCount>0?` · ${offlineCount}`:""}</span>}
           <button className="theme-btn" onClick={() => setModal("purchase-sim")} aria-label="Симулятор великої покупки"><Target/></button>
                     <button className="theme-btn" onClick={() => setModal("wrapped")} aria-label="rivna Wrapped"><Sparkles/></button>
                     <button className="add-btn" onClick={() => setModal("expense")}><Plus/> Додати витрату</button>
