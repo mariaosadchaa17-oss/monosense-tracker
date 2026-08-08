@@ -624,8 +624,8 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
       async function scanReceipt(file:File){
         setScanning(true);
         try{
-          const body=new FormData();body.append("image",file);
-          const response=await fetch("/api/scan-receipt",{method:"POST",body});
+          const body=new FormData();body.append("image",file);body.append("categories",JSON.stringify(categories.filter(c=>c.kind==="expense").map(c=>c.name)));
+                const response=await fetch("/api/scan-receipt",{method:"POST",body});
           const result=await response.json();
           if(!response.ok)return notify(result.error||"Не вдалося розпізнати фото");
           if(!result.transactions?.length)return notify("Нічого не розпізнано на фото");
@@ -1936,10 +1936,10 @@ async function exportExcel(items:Transaction[],notify:(s:string)=>void){const XL
 function ScanReceiptModal({items,accounts,categories,save,removeItem,close}:{items:{amount:number;title:string;date:string|null;category:string|null}[];accounts:Account[];categories:CategoryItem[];save:(item:{amount:number;title:string;date:string|null;category:string|null},accountId:string,categoryId:string)=>Promise<boolean>;removeItem:(index:number)=>void;close:()=>void}){
   const [savedIndexes,setSavedIndexes]=useState<number[]>([]);
   const guessCategoryId=(name:string|null)=>{
-    if(!name)return "";
-    const found=categories.find(c=>c.kind==="expense"&&c.name.toLowerCase().includes(name.toLowerCase()));
-    return found?.id||"";
-  };
+      if(!name)return "";
+      const found=categories.find(c=>c.kind==="expense"&&c.name.toLowerCase()===name.toLowerCase());
+      return found?.id||"";
+    };
   return <div className="modal-backdrop" onMouseDown={close}><div className="expense-modal tall-modal" onMouseDown={e=>e.stopPropagation()}>
     <ModalHead label="Розпізнано з фото" title="Перевір і збережи операції" close={close}/>
     {items.map((item,index)=>{

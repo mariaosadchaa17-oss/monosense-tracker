@@ -18,18 +18,29 @@ export async function POST(request: NextRequest) {
   }
 
   const formData = await request.formData();
-  const file = formData.get("image");
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "Файл не знайдено" }, { status: 400 });
-  }
+    const file = formData.get("image");
+    if (!(file instanceof File)) {
+      return NextResponse.json({ error: "Файл не знайдено" }, { status: 400 });
+    }
+    let knownCategories: string[] = [];
+    try {
+      knownCategories = JSON.parse(String(formData.get("categories") || "[]"));
+    } catch {
+      knownCategories = [];
+    }
 
   const bytes = await file.arrayBuffer();
   const base64 = Buffer.from(bytes).toString("base64");
   const mimeType = file.type || "image/jpeg";
 
-  const prompt = `Ти розпізнаєш фото чека або банківської виписки. Поверни ЛИШЕ валідний JSON без пояснень і без markdown-огорожі, у форматі:
-{"transactions":[{"amount":число (додатнє, загальна сума операції),"title":"назва магазину або опис операції","date":"YYYY-MM-DD або null","category":"коротка назва категорії українською або null"}]}
-Якщо на фото один чек — поверни один об'єкт у масиві. Якщо це виписка з кількома операціями — поверни кожну окремим об'єктом. Якщо нічого розпізнати не вдалось — поверни {"transactions":[]}.`;
+  const categoryHint = knownCategories.length
+      ? `Обери category СУВОРО з цього списку (пиши точно як у списку) або постав null, якщо жодна не підходить: ${knownCategories.join(", ")}.`
+      : `Постав category null, якщо не впевнений.`;
+    const prompt = `Ти розпізнаєш фото чека або банківської виписки. Поверни ЛИШЕ валідний JSON без пояснень і без markdown-огорожі, у форматі:
+  {"transactions":[{"amount":число (додатнє, загальна сума операції),"title":"назва магазину, закладу або опис товару/послуги — НІКОЛИ не дата і не час","date":"YYYY-MM-DD або null (рік має бути реальним, від 2015 до 2030)","category":"назва категорії або null"}]}
+  ВАЖЛИВО: поле title — це те, ЩО купили або ДЕ (назва магазину/закладу), а не коли. Якщо на фото є і назва, і дата/час — дату клади лише в date, а не в title.
+  ${categoryHint}
+  Якщо на фото один чек — поверни один об'єкт у масиві. Якщо це виписка з кількома операціями — поверни кожну окремим об'єктом. Якщо нічого розпізнати не вдалось — поверни {"transactions":[]}.`;
 
   let geminiResponse: Response;
   try {
@@ -71,14 +82,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Не вдалося розібрати відповідь розпізнавання" }, { status: 502 });
   }
 
-  const transactions: ScannedTransaction[] = (parsed.transactions || [])
-    .filter((t) => t && Number.isFinite(Number(t.amount)) && Number(t.amount) > 0)
-    .map((t) => ({
-      amount: Number(t.amount),
-      title: String(t.title || "Операція"),
-      date: t.date && /^\d{4}-\d{2}-\d{2}$/.test(t.date) ? t.date : null,
-      category: t.category ? String(t.category) : null,
-    }));
+  const looksLikeDateTime = (value: string) => /^\d{1,4}[.\-/]\d{1,2}([.\-/]\d{2,4})?[\s,]*\d{0,2}:?\d{0,2}/.test(value.trim());
+    const isSaneYear = (value: string) => {
+      const year = Number(value.slice(0, 4));
+      return year >= 2015 && year <= 2030;
+    };
+    const transactions: ScannedTransaction[] = (parsed.transactions || [])
+      .filter((t) => t && Number.isFinite(Number(t.amount)) && Number(t.amount) > 0)
+      .map((t) => {
+        const rawTitle = String(t.title || "").trim();
+        const title = rawTitle && !looksLikeDateTime(rawTitle) ? rawTitle : "Операція (перевір назву)";
+        const validDate = t.date && /^\d{4}-\d{2}-\d{2}$/.test(t.date) && isSaneYear(t.date) ? t.date : null;
+        const category = t.category && knownCategories.includes(String(t.category)) ? String(t.category) : null;
+        return { amount: Number(t.amount), title, date: validDate, category };
+      });
 
   return NextResponse.json({ transactions });
 }
