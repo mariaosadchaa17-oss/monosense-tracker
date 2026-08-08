@@ -1873,9 +1873,7 @@ header h1 {
     color: var(--muted)
 }
 
-.row-menu-wrap {
-    position: relative
-}
+.row-menu-wrap{position:relative}.scan-review-row{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;display:flex;flex-direction:column;gap:10px}
 
 .row-menu {
     position: absolute;

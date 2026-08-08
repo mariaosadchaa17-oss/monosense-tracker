@@ -127,7 +127,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [dark, setDark] = useState(()=>typeof window!=="undefined"&&localStorage.getItem("rivna-theme")==="dark");
   const [skin, setSkin] = useState(()=>typeof window!=="undefined"?localStorage.getItem("rivna-skin")||"default":"default");
   const [cardStyle, setCardStyle] = useState(()=>typeof window!=="undefined"?localStorage.getItem("rivna-cardstyle")||"default":"default");
-  const [modal, setModal] = useState<"expense" | "account" | "goal" | "debt" | "recurring" | "transfer" | "budget" | "category" | "invite" | "rate" | "split" | "purchase-sim" | "wrapped" | "rule" | "edit-transaction" | null>(null);
+  const [modal, setModal] = useState<"expense" | "account" | "goal" | "debt" | "recurring" | "transfer" | "budget" | "category" | "invite" | "rate" | "split" | "purchase-sim" | "wrapped" | "rule" | "edit-transaction" | "scan-review" | null>(null);
   const [transactions, setTransactions] = useState(initialLoggedIn?[]:seedTransactions);
   const [accounts, setAccounts] = useState(initialLoggedIn?[]:seedAccounts);
   const [amount, setAmount] = useState("");
@@ -593,6 +593,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
   async function installApp(){if(!installPrompt)return notify("Відкрийте меню браузера та оберіть «Додати на головний екран»");await (installPrompt as Event&{prompt:()=>Promise<void>}).prompt();setInstallPrompt(null);}
   async function importCsv(file: File) {
     const excel=/\.xlsx?$/i.test(file.name);
+
     if (initialLoggedIn) {
       const response = await fetch(excel?"/api/import/xlsx":"/api/import/csv", { method: "POST", headers: { "Content-Type": excel?"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":"text/csv" }, body: excel?await file.arrayBuffer():await file.text() });
       const result = await response.json();
@@ -616,10 +617,37 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
           return { id: Date.now() + index, title: cells[0] || "Імпорт", category: cells[1] || "Інше", date: cells[2] || "Імпортовано", amount: value };
         }).filter(item => Number.isFinite(item.amount) && item.amount !== 0);
     setTransactions([...imported, ...transactions]);
-    notify(`Імпортовано операцій: ${imported.length}`);
-  }
+        notify(`Імпортовано операцій: ${imported.length}`);
+      }
+      const [scanning,setScanning]=useState(false);
+      const [scanItems,setScanItems]=useState<{amount:number;title:string;date:string|null;category:string|null}[]>([]);
+      async function scanReceipt(file:File){
+        setScanning(true);
+        try{
+          const body=new FormData();body.append("image",file);
+          const response=await fetch("/api/scan-receipt",{method:"POST",body});
+          const result=await response.json();
+          if(!response.ok)return notify(result.error||"Не вдалося розпізнати фото");
+          if(!result.transactions?.length)return notify("Нічого не розпізнано на фото");
+          setScanItems(result.transactions);setModal("scan-review");
+        }catch{notify("Помилка мережі під час розпізнавання")}
+        finally{setScanning(false)}
+      }
+      async function saveScannedTransaction(item:{amount:number;title:string;date:string|null;category:string|null},accountId:string,categoryId:string){
+        const account=accounts.find(a=>String(a.id)===accountId)||accounts[0];
+        if(!account)return notify("Спочатку створіть рахунок"),false;
+        if(initialLoggedIn){
+          const payload={action:"createTransaction",accountId:account.id,categoryId:categoryId||null,amount:item.amount,currency:account.currency,note:item.title,type:"expense",bookedAt:item.date?new Date(item.date).toISOString():undefined};
+          const response=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+          const result=await response.json();
+          if(!response.ok){notify(result.error||"Не вдалося зберегти");return false}
+          await refreshFinance();notify("Операцію додано");return true;
+        }
+        setTransactions([{id:Date.now(),title:item.title,category:categories.find(c=>c.id===categoryId)?.name||"Інше",date:"Щойно",amount:-item.amount,currency:account.currency},...transactions]);
+        notify("Операцію додано");return true;
+      }
 
-  if (!loggedIn) return <Login dark={dark} setDark={setDark} showPassword={showPassword} setShowPassword={setShowPassword} login={() => setLoggedIn(true)}/>;
+      if (!loggedIn) return <Login dark={dark} setDark={setDark} showPassword={showPassword} setShowPassword={setShowPassword} login={() => setLoggedIn(true)}/>;
  if (!hasLoadedOnce) return <div className="app-loader"><span className="app-loader-logo"/><div className="app-loader-dots"><span/><span/><span/></div></div>;
 
   const nav: [Page, React.ReactNode][] = [
@@ -656,7 +684,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
         </div>
       </header>
 
-      {page === "Головна" && <Dashboard balance={balance} baseCurrency={baseCurrency} accounts={orderedAccounts} transactions={normalizedTransactions} goals={goals} authenticated={initialLoggedIn} openPage={setPage} addAccount={() => setModal("account")} changeCurrency={setBaseCurrency} monthlyFees={monthlyFees} plannedIncome={plannedMonthlyIncome} recurring={recurring} addRecurring={()=>setModal("recurring")} reorderAccounts={reorderAccounts}/>}{page === "Операції" && <TransactionsView transactions={filteredTransactions} search={search} setSearch={setSearch} remove={removeTransaction} exportCsv={() => exportCsv(transactions, notify)} exportExcel={()=>exportExcel(transactions,notify)} exportJson={()=>exportJson(transactions,notify)} initialAccount={accountFilter} onEdit={setEditingTransaction}/>}      {page === "Бюджет" && (initialLoggedIn?<LiveBudgetView budgets={savedBudgets} transactions={normalizedTransactions} periodType={budgetPeriodType} setPeriodType={setBudgetPeriodType} anchor={budgetAnchor} setAnchor={setBudgetAnchor} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={(id: string|number)=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>:<BudgetView budgets={savedBudgets} transactions={normalizedTransactions} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={(id: string|number)=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>)}
+      {page === "Головна" && <Dashboard balance={balance} baseCurrency={baseCurrency} accounts={orderedAccounts} transactions={normalizedTransactions} goals={goals} authenticated={initialLoggedIn} openPage={setPage} addAccount={() => setModal("account")} changeCurrency={setBaseCurrency} monthlyFees={monthlyFees} plannedIncome={plannedMonthlyIncome} recurring={recurring} addRecurring={()=>setModal("recurring")} reorderAccounts={reorderAccounts}/>}{page === "Операції" && <TransactionsView transactions={filteredTransactions} search={search} setSearch={setSearch} remove={removeTransaction} exportCsv={() => exportCsv(transactions, notify)} exportExcel={()=>exportExcel(transactions,notify)} exportJson={()=>exportJson(transactions,notify)} initialAccount={accountFilter} onEdit={setEditingTransaction} scanReceipt={scanReceipt} scanning={scanning}/>}      {page === "Бюджет" && (initialLoggedIn?<LiveBudgetView budgets={savedBudgets} transactions={normalizedTransactions} periodType={budgetPeriodType} setPeriodType={setBudgetPeriodType} anchor={budgetAnchor} setAnchor={setBudgetAnchor} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={(id: string|number)=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>:<BudgetView budgets={savedBudgets} transactions={normalizedTransactions} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={(id: string|number)=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>)}
       {page === "Рахунки" && <AccountsView accounts={orderedAccounts} rates={rates} customRates={customRates} add={() => {setEditingAccount(null);setModal("account")}} edit={account=>{setEditingAccount(account);setModal("account")}} addRate={()=>setModal("rate")} transfer={()=>{setTransferPresetTo(undefined);setModal("transfer")}} remove={removeAccount} reorderAccounts={reorderAccounts}/>}
       {page === "Накопичення" && <>
         <GoalsView goals={goals} authenticated={initialLoggedIn} add={()=>{setEditingGoal(null);setModal("goal")}} contribute={(id,amount)=>financeAction({action:"contributeGoal",id,amount},"Ціль поповнено")} recurring={recurring} addRecurring={()=>setModal("recurring")} edit={goal=>{setEditingGoal(goal);setModal("goal")}} openAction={(goal,mode)=>setGoalAction({goal,mode})}/>
@@ -699,6 +727,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
     </section>
 
     {modal === "expense" && <ExpenseModal amount={amount} setAmount={setAmount} note={note} setNote={setNote} accounts={accounts} categories={categories} debts={debts.filter(d=>d.direction==="i_owe"&&!d.isVirtual)} submit={addExpense} close={() => setModal(null)}/>}
+        {modal === "scan-review" && <ScanReceiptModal items={scanItems} accounts={accounts} categories={categories} save={saveScannedTransaction} removeItem={index=>setScanItems(items=>items.filter((_,i)=>i!==index))} close={()=>{setModal(null);setScanItems([])}}/>}
     {modal === "account" && <AccountModal account={editingAccount} submit={addAccount} close={() => {setEditingAccount(null);setModal(null)}} openTransactions={name=>{setAccountFilter(name);setModal(null);setEditingAccount(null);setPage("Операції")}}/>}
     {modal === "goal" && <GoalModal goal={editingGoal} accounts={accounts} submit={addGoal} close={()=>{setModal(null);setEditingGoal(null)}}/>}
     {goalAction && <GoalActionModal action={goalAction} accounts={accounts} withdraw={withdrawGoal} breakGoal={breakGoal} close={()=>setGoalAction(null)}/>}
@@ -804,7 +833,7 @@ function Dashboard({ balance, baseCurrency, accounts, transactions, goals, authe
       </>;
     }
 
-function TransactionsView({ transactions, search, setSearch, remove, exportCsv,exportExcel,exportJson,initialAccount,onEdit }: {transactions:Transaction[];search:string;setSearch:(s:string)=>void;remove:(id:number|string)=>void;exportCsv:()=>void;exportExcel:()=>void;exportJson:()=>void;initialAccount?:string;onEdit:(t:Transaction)=>void}) {
+function TransactionsView({ transactions, search, setSearch, remove, exportCsv,exportExcel,exportJson,initialAccount,onEdit,scanReceipt,scanning }: {transactions:Transaction[];search:string;setSearch:(s:string)=>void;remove:(id:number|string)=>void;exportCsv:()=>void;exportExcel:()=>void;exportJson:()=>void;initialAccount?:string;onEdit:(t:Transaction)=>void;scanReceipt:(file:File)=>void;scanning:boolean}) {
   const [account,setAccount]=useState("");const [category,setCategory]=useState("");const [owner,setOwner]=useState("");const [tag,setTag]=useState("");const [from,setFrom]=useState("");const [to,setTo]=useState("");
   const [editMode,setEditMode]=useState(false);
   const [manualOrder,setManualOrder]=useState<(string|number)[]>(()=>{try{return JSON.parse(localStorage.getItem("rivna-tx-order")||"[]")}catch{return []}});
@@ -839,7 +868,7 @@ const shown=sortField?[...filtered].sort((a,b)=>{
   return ia-ib;
 }):filtered);
 const clear=()=>{setAccount("");setCategory("");setOwner("");setTag("");setFrom("");setTo("");};
-  return <section className="panel full-view"><div className="view-toolbar"><label className="search-box"><Search/><input placeholder="Пошук за назвою або категорією" value={search} onChange={e=>setSearch(e.target.value)}/></label><button className="secondary" onClick={clear}><X/> Очистити</button><button className="secondary" onClick={exportCsv}><Download/> CSV</button><button className="secondary" onClick={exportExcel}><Download/> Excel</button><button className="secondary" onClick={exportJson}><Download/> JSON</button></div><div className="filter-grid"><label>Рахунок<select value={account} onChange={e=>setAccount(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.account)).map(v=><option key={v}>{v}</option>)}</select></label><label>Категорія<select value={category} onChange={e=>setCategory(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.category)).map(v=><option key={v}>{v}</option>)}</select></label><label>Тег<select value={tag} onChange={e=>setTag(e.target.value)}><option value="">Усі</option>{unique(transactions.flatMap(t=>t.tags||[])).map(v=><option key={v}>{v}</option>)}</select></label><label>Власник<select value={owner} onChange={e=>setOwner(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.owner)).map(v=><option key={v}>{v}</option>)}</select></label><label>Від<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>До<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label><button type="button" className={editMode?"icon-button settings-toggle active":"icon-button settings-toggle"} onClick={()=>setEditMode(v=>!v)} title="Редагувати операції"><Settings size={16}/></button></div><div className="data-head"><span>Операція</span><span>Категорія</span><span className="sortable" onClick={()=>toggleSort("date")}>Дата {sortField==="date"?(sortDir==="asc"?"↑":"↓"):"↕"}</span><span className="sortable" onClick={()=>toggleSort("amount")}>Сума {sortField==="amount"?(sortDir==="asc"?"↑":"↓"):"↕"}</span><span/></div>
+  return <section className="panel full-view"><div className="view-toolbar"><label className="search-box"><Search/><input placeholder="Пошук за назвою або категорією" value={search} onChange={e=>setSearch(e.target.value)}/></label><button className="secondary" onClick={clear}><X/> Очистити</button><button className="secondary" onClick={exportCsv}><Download/> CSV</button><button className="secondary" onClick={exportExcel}><Download/> Excel</button><button className="secondary" onClick={exportJson}><Download/> JSON</button><label className="secondary file-button">{scanning?"Розпізнаю…":<><Upload/> Скан чека</>}<input type="file" accept="image/*" capture="environment" style={{display:"none"}} onChange={e=>{const f=e.target.files?.[0];if(f)scanReceipt(f);e.target.value=""}}/></label></div><div className="filter-grid"><label>Рахунок<select value={account} onChange={e=>setAccount(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.account)).map(v=><option key={v}>{v}</option>)}</select></label><label>Категорія<select value={category} onChange={e=>setCategory(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.category)).map(v=><option key={v}>{v}</option>)}</select></label><label>Тег<select value={tag} onChange={e=>setTag(e.target.value)}><option value="">Усі</option>{unique(transactions.flatMap(t=>t.tags||[])).map(v=><option key={v}>{v}</option>)}</select></label><label>Власник<select value={owner} onChange={e=>setOwner(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.owner)).map(v=><option key={v}>{v}</option>)}</select></label><label>Від<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>До<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label><button type="button" className={editMode?"icon-button settings-toggle active":"icon-button settings-toggle"} onClick={()=>setEditMode(v=>!v)} title="Редагувати операції"><Settings size={16}/></button></div><div className="data-head"><span>Операція</span><span>Категорія</span><span className="sortable" onClick={()=>toggleSort("date")}>Дата {sortField==="date"?(sortDir==="asc"?"↑":"↓"):"↕"}</span><span className="sortable" onClick={()=>toggleSort("amount")}>Сума {sortField==="amount"?(sortDir==="asc"?"↑":"↓"):"↕"}</span><span/></div>
     {shown.map(t=>{const canEdit=t.kind!=="transfer"&&t.kind!=="exchange"&&t.kind!=="credit_limit_change";return <div className={editMode&&canEdit?"data-row editable":"data-row"} key={t.id} draggable={!sortField} onDragStart={e=>{e.dataTransfer.setData("text/plain",String(t.id))}} onDragOver={e=>{if(!sortField)e.preventDefault()}} onDrop={e=>{e.preventDefault();if(sortField)return;const draggedRaw=e.dataTransfer.getData("text/plain");const dragged=shown.find(x=>String(x.id)===draggedRaw)?.id;if(dragged!==undefined)reorderTx(dragged,t.id,shown.map(x=>x.id))}} onClick={()=>{if(editMode&&canEdit)onEdit(t)}}>
           <strong>{t.title}{t.impulse&&<em>Імпульсивна</em>}<small className="row-tags">{t.tags?.map(x=>`#${x}`).join(" ")}</small></strong>
           <span>{t.category}<small>{t.account}{t.owner?` · ${t.owner}`:""}</small></span>
@@ -1904,5 +1933,34 @@ function ModalHead({label,title,close}:{label:string;title:string;close:()=>void
 function exportCsv(items:Transaction[],notify:(s:string)=>void) { const csv=["Назва,Категорія,Дата,Сума,Валюта",...items.map(t=>`"${t.title}","${t.category}","${t.bookedAt||t.date}",${t.amount},${t.currency||"UAH"}`)].join("\n"); const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url;a.download="rivna-transactions.csv";a.click();URL.revokeObjectURL(url);notify("CSV-файл завантажено"); }
 function exportJson(items:Transaction[],notify:(s:string)=>void){const json=JSON.stringify(items.map(t=>({title:t.title,category:t.category,date:t.bookedAt||t.date,amount:t.amount,currency:t.currency||"UAH",account:t.account,tags:t.tags})),null,2);const blob=new Blob([json],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="rivna-transactions.json";a.click();URL.revokeObjectURL(url);notify("JSON-файл завантажено");}
 async function exportExcel(items:Transaction[],notify:(s:string)=>void){const XLSX=await import("xlsx");const rows=items.map(t=>({Назва:t.title,Категорія:t.category,Дата:t.bookedAt||t.date,Сума:t.amount,Валюта:t.currency||"UAH",Рахунок:t.account||"",Власник:t.owner||"",Теги:(t.tags||[]).map(tag=>`#${tag}`).join(" "),Імпульсивна:t.impulse?"Так":"Ні"}));const sheet=XLSX.utils.json_to_sheet(rows),book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,sheet,"Операції");XLSX.writeFile(book,"rivna-transactions.xlsx");notify("Excel-файл завантажено")}
+function ScanReceiptModal({items,accounts,categories,save,removeItem,close}:{items:{amount:number;title:string;date:string|null;category:string|null}[];accounts:Account[];categories:CategoryItem[];save:(item:{amount:number;title:string;date:string|null;category:string|null},accountId:string,categoryId:string)=>Promise<boolean>;removeItem:(index:number)=>void;close:()=>void}){
+  const [savedIndexes,setSavedIndexes]=useState<number[]>([]);
+  const guessCategoryId=(name:string|null)=>{
+    if(!name)return "";
+    const found=categories.find(c=>c.kind==="expense"&&c.name.toLowerCase().includes(name.toLowerCase()));
+    return found?.id||"";
+  };
+  return <div className="modal-backdrop" onMouseDown={close}><div className="expense-modal tall-modal" onMouseDown={e=>e.stopPropagation()}>
+    <ModalHead label="Розпізнано з фото" title="Перевір і збережи операції" close={close}/>
+    {items.map((item,index)=>{
+      if(savedIndexes.includes(index))return null;
+      return <ScanReviewRow key={index} item={item} accounts={accounts} categories={categories} guessCategoryId={guessCategoryId(item.category)} onSave={async(accountId,categoryId,editedTitle,editedAmount)=>{const ok=await save({...item,title:editedTitle,amount:editedAmount},accountId,categoryId);if(ok)setSavedIndexes(v=>[...v,index])}} onSkip={()=>removeItem(index)}/>
+    })}
+    {items.length>0&&items.every((_,index)=>savedIndexes.includes(index)) && <p className="empty-inline">Усі операції оброблено</p>}
+    <button type="button" className="secondary" onClick={close}>Готово</button>
+  </div></div>;
+}
+function ScanReviewRow({item,accounts,categories,guessCategoryId,onSave,onSkip}:{item:{amount:number;title:string;date:string|null;category:string|null};accounts:Account[];categories:CategoryItem[];guessCategoryId:string;onSave:(accountId:string,categoryId:string,title:string,amount:number)=>void;onSkip:()=>void}){
+  const [title,setTitle]=useState(item.title);
+  const [amount,setAmount]=useState(String(item.amount));
+  const [accountId,setAccountId]=useState(String(accounts[0]?.id||""));
+  const [categoryId,setCategoryId]=useState(guessCategoryId);
+  return <div className="scan-review-row">
+    <div className="form-two"><label>Назва<input value={title} onChange={e=>setTitle(e.target.value)}/></label><label>Сума<input type="number" min="0" step=".01" value={amount} onChange={e=>setAmount(e.target.value)}/></label></div>
+    <div className="form-two"><label>Рахунок<select value={accountId} onChange={e=>setAccountId(e.target.value)}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></label><label>Категорія<select value={categoryId} onChange={e=>setCategoryId(e.target.value)}><option value="">Без категорії</option>{categories.filter(c=>c.kind==="expense").map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label></div>
+    {item.date && <small className="field-help">Дата на чеку: {item.date}</small>}
+    <div className="form-two"><button type="button" className="primary" onClick={()=>onSave(accountId,categoryId,title,Number(amount))}>Зберегти</button><button type="button" className="secondary" onClick={onSkip}>Пропустити</button></div>
+  </div>;
+}
 function translateEntity(value:string){return ({transactions:"Операція",accounts:"Рахунок",transfers:"Переказ",budgets:"Бюджет"} as Record<string,string>)[value]||value}
 function translateAction(value:string){return ({insert:"створено",update:"змінено",delete:"видалено"} as Record<string,string>)[value]||value}
