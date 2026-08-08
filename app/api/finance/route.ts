@@ -93,6 +93,38 @@ export async function POST(request: Request) {
         }
       }
       break;
+      case "updateTransaction": {
+            const { data: oldTx } = await supabase.from("transactions").select("amount,type,account_id").eq("id",body.id).eq("household_id",householdId).single();
+            if(!oldTx){result={error:{message:"Операцію не знайдено"}};break;}
+            const newAmount=Number(body.amount),newType=body.type==="income"?"income":"expense";
+            const newAccountId=body.accountId||oldTx.account_id;
+            const oldEffect=oldTx.type==="expense"?-Number(oldTx.amount):Number(oldTx.amount);
+            const newEffect=newType==="expense"?-newAmount:newAmount;
+            if(String(newAccountId)===String(oldTx.account_id)){
+              const { data: acc } = await supabase.from("accounts").select("balance").eq("id",oldTx.account_id).eq("household_id",householdId).single();
+              if(acc)await supabase.from("accounts").update({balance:Number(acc.balance)-oldEffect+newEffect}).eq("id",oldTx.account_id).eq("household_id",householdId);
+            } else {
+              const [oldAcc,newAcc]=await Promise.all([
+                supabase.from("accounts").select("balance").eq("id",oldTx.account_id).eq("household_id",householdId).single(),
+                supabase.from("accounts").select("balance").eq("id",newAccountId).eq("household_id",householdId).single(),
+              ]);
+              if(oldAcc.data)await supabase.from("accounts").update({balance:Number(oldAcc.data.balance)-oldEffect}).eq("id",oldTx.account_id).eq("household_id",householdId);
+              if(newAcc.data)await supabase.from("accounts").update({balance:Number(newAcc.data.balance)+newEffect}).eq("id",newAccountId).eq("household_id",householdId);
+            }
+            result = await supabase.from("transactions").update({
+              account_id:newAccountId,amount:newAmount,type:newType,category_id:body.categoryId||null,note:String(body.note||"").slice(0,500),booked_at:body.bookedAt||undefined,
+            }).eq("id",body.id).eq("household_id",householdId).select().single();
+            if(!result.error&&Array.isArray(body.tags)){
+              await supabase.from("transaction_tags").delete().eq("transaction_id",body.id);
+              for(const rawTag of body.tags.slice(0,10)){
+                const name=String(rawTag).replace(/^#/,"").trim().toLowerCase().slice(0,40);
+                if(!name)continue;
+                const { data: tag } = await supabase.from("tags").upsert({household_id:householdId,name},{onConflict:"household_id,name"}).select("id").single();
+                if(tag)await supabase.from("transaction_tags").insert({transaction_id:body.id,tag_id:tag.id});
+              }
+            }
+            break;
+          }
     case "deleteTransaction": {
       const [fromMatch, toMatch, txRow] = await Promise.all([
         supabase.from("transfers").select("id").eq("from_transaction_id", body.id).maybeSingle(),

@@ -715,7 +715,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
     {modal === "budget" && <BudgetModal categories={categories} period={budgetPeriodType} initialDate={budgetModalDefaultDate} baseCurrency={baseCurrency} submit={addBudget} close={()=>setModal(null)}/>}
     {modal === "category" && <CategoryModal submit={addCategory} close={()=>setModal(null)}/>}
     {modal === "rule" && <RuleModal categories={categories} goals={goals} submit={addRule} close={()=>setModal(null)}/>}
-    {editingTransaction && <EditTransactionModal transaction={editingTransaction} categories={categories} close={()=>setEditingTransaction(null)} submit={updateTransaction}/>}
+    {editingTransaction && <EditTransactionModal transaction={editingTransaction} categories={categories} accounts={accounts} close={()=>setEditingTransaction(null)} submit={updateTransaction}/>}
     {modal === "invite" && <InviteModal submit={createInvite} close={()=>setModal(null)}/>}
     {modal === "rate" && <CustomRateModal submit={addCustomRate} close={()=>setModal(null)}/>}
     {toast && <div className="toast">{toast}</div>}
@@ -806,6 +806,18 @@ function Dashboard({ balance, baseCurrency, accounts, transactions, goals, authe
 
 function TransactionsView({ transactions, search, setSearch, remove, exportCsv,exportExcel,exportJson,initialAccount,onEdit }: {transactions:Transaction[];search:string;setSearch:(s:string)=>void;remove:(id:number|string)=>void;exportCsv:()=>void;exportExcel:()=>void;exportJson:()=>void;initialAccount?:string;onEdit:(t:Transaction)=>void}) {
   const [account,setAccount]=useState("");const [category,setCategory]=useState("");const [owner,setOwner]=useState("");const [tag,setTag]=useState("");const [from,setFrom]=useState("");const [to,setTo]=useState("");
+  const [openMenuId,setOpenMenuId]=useState<string|number|null>(null);
+  const [manualOrder,setManualOrder]=useState<(string|number)[]>(()=>{try{return JSON.parse(localStorage.getItem("rivna-tx-order")||"[]")}catch{return []}});
+  function reorderTx(draggedId:string|number,targetId:string|number,currentIds:(string|number)[]){
+    const base=manualOrder.length?manualOrder:currentIds;
+    const ids=[...base];
+    if(!ids.includes(draggedId))ids.unshift(draggedId);
+    const from=ids.indexOf(draggedId),to=ids.indexOf(targetId);
+    if(from<0||to<0)return;
+    ids.splice(from,1);ids.splice(to,0,draggedId);
+    setManualOrder(ids);
+    localStorage.setItem("rivna-tx-order",JSON.stringify(ids));
+  }
   const [sortField,setSortField]=useState<"date"|"amount"|null>(null);
   const [sortDir,setSortDir]=useState<"asc"|"desc">("desc");
   function toggleSort(field:"date"|"amount"){
@@ -815,11 +827,19 @@ function TransactionsView({ transactions, search, setSearch, remove, exportCsv,e
   useEffect(()=>{if(initialAccount)setAccount(initialAccount)},[initialAccount]);
     const unique=(values:(string|undefined)[])=>Array.from(new Set(values.filter(Boolean) as string[])).sort();
 const filtered=transactions.filter(t=>(!account||t.account===account)&&(!category||t.category===category)&&(!owner||t.owner===owner)&&(!tag||t.tags?.includes(tag))&&(!from||!t.bookedAt||t.bookedAt>=`${from}T00:00:00`)&&(!to||!t.bookedAt||t.bookedAt<=`${to}T23:59:59`));
-const shown=sortField?[...filtered].sort((a,b)=>{
-  const dir=sortDir==="asc"?1:-1;
-  if(sortField==="amount")return (Math.abs(a.amount)-Math.abs(b.amount))*dir;
-  return ((a.bookedAt||"").localeCompare(b.bookedAt||""))*dir;
-}):filtered;
+{shown.map(t=><div className="data-row" key={t.id} draggable={!sortField} onDragStart={e=>{e.dataTransfer.setData("text/plain",String(t.id))}} onDragOver={e=>{if(!sortField)e.preventDefault()}} onDrop={e=>{e.preventDefault();if(sortField)return;const draggedRaw=e.dataTransfer.getData("text/plain");const dragged=shown.find(x=>String(x.id)===draggedRaw)?.id;if(dragged!==undefined)reorderTx(dragged,t.id,shown.map(x=>x.id))}}>
+  <strong>{t.title}{t.impulse&&<em>Імпульсивна</em>}<small className="row-tags">{t.tags?.map(x=>`#${x}`).join(" ")}</small></strong>
+  <span>{t.category}<small>{t.account}{t.owner?` · ${t.owner}`:""}</small></span>
+  <span>{t.date}</span>
+  <b className={t.amount>0?"income-amount":""}>{t.amount>0?"+":"−"} {currencySymbol(t.currency||"UAH")} {formatMoney(t.amount)}</b>
+  <div className="row-menu-wrap">
+    <button className="icon-button" onClick={()=>setOpenMenuId(openMenuId===t.id?null:t.id)}><Settings size={14}/></button>
+    {openMenuId===t.id && <div className="row-menu" onMouseLeave={()=>setOpenMenuId(null)}>
+      {t.kind!=="transfer"&&t.kind!=="exchange"&&t.kind!=="credit_limit_change"&&<button onClick={()=>{onEdit(t);setOpenMenuId(null)}}><Settings size={14}/> Редагувати</button>}
+      <button className="danger" onClick={()=>{remove(t.id);setOpenMenuId(null)}}><Trash2 size={14}/> Видалити</button>
+    </div>}
+  </div>
+</div>)}
 const clear=()=>{setAccount("");setCategory("");setOwner("");setTag("");setFrom("");setTo("");};
   return <section className="panel full-view"><div className="view-toolbar"><label className="search-box"><Search/><input placeholder="Пошук за назвою або категорією" value={search} onChange={e=>setSearch(e.target.value)}/></label><button className="secondary" onClick={clear}><X/> Очистити</button><button className="secondary" onClick={exportCsv}><Download/> CSV</button><button className="secondary" onClick={exportExcel}><Download/> Excel</button><button className="secondary" onClick={exportJson}><Download/> JSON</button></div><div className="filter-grid"><label>Рахунок<select value={account} onChange={e=>setAccount(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.account)).map(v=><option key={v}>{v}</option>)}</select></label><label>Категорія<select value={category} onChange={e=>setCategory(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.category)).map(v=><option key={v}>{v}</option>)}</select></label><label>Тег<select value={tag} onChange={e=>setTag(e.target.value)}><option value="">Усі</option>{unique(transactions.flatMap(t=>t.tags||[])).map(v=><option key={v}>{v}</option>)}</select></label><label>Власник<select value={owner} onChange={e=>setOwner(e.target.value)}><option value="">Усі</option>{unique(transactions.map(t=>t.owner)).map(v=><option key={v}>{v}</option>)}</select></label><label>Від<input type="date" value={from} onChange={e=>setFrom(e.target.value)}/></label><label>До<input type="date" value={to} onChange={e=>setTo(e.target.value)}/></label></div><div className="data-head"><span>Операція</span><span>Категорія</span><span className="sortable" onClick={()=>toggleSort("date")}>Дата {sortField==="date"?(sortDir==="asc"?"↑":"↓"):"↕"}</span><span className="sortable" onClick={()=>toggleSort("amount")}>Сума {sortField==="amount"?(sortDir==="asc"?"↑":"↓"):"↕"}</span><span/></div>{shown.map(t=><div className="data-row" key={t.id}><strong>{t.title}{t.impulse&&<em>Імпульсивна</em>}<small className="row-tags">{t.tags?.map(x=>`#${x}`).join(" ")}</small></strong><span>{t.category}<small>{t.account}{t.owner?` · ${t.owner}`:""}</small></span><span>{t.date}</span><b className={t.amount>0?"income-amount":""}>{t.amount>0?"+":"−"} {currencySymbol(t.currency||"UAH")} {formatMoney(t.amount)}</b><div className="data-row-actions">{t.kind!=="transfer"&&t.kind!=="exchange"&&t.kind!=="credit_limit_change"&&<button className="icon-button" onClick={()=>onEdit(t)}><Settings size={14}/></button>}<button className="icon-button danger" onClick={()=>remove(t.id)}><Trash2/></button></div></div>)}{shown.length===0&&<EmptyState icon={<Search/>} text={transactions.length?"Нічого не знайдено за цим фільтром":"Тут з'являться твої операції — додай першу через кнопку «Додати витрату»"}/>}</section>;
 }
@@ -1713,16 +1733,19 @@ function SettleDebtModal({debt,accounts,submit,close}:{debt:DebtItem;accounts:Ac
     <button className="primary">Зарахувати та закрити</button>
   </form></div>;
 }
-function EditTransactionModal({transaction,categories,close,submit}:{transaction:Transaction;categories:CategoryItem[];close:()=>void;submit:(payload:Record<string,unknown>)=>void}){
+function EditTransactionModal({transaction,categories,accounts,close,submit}:{transaction:Transaction;categories:CategoryItem[];accounts:Account[];close:()=>void;submit:(payload:Record<string,unknown>)=>void}){
   const isIncome=transaction.amount>0&&transaction.kind!=="transfer"&&transaction.kind!=="exchange";
   const [type,setType]=useState<"expense"|"income">(isIncome?"income":"expense");
-  return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);submit({id:transaction.id,amount:Number(f.get("amount")),type,categoryId:f.get("category")||null,note:f.get("note"),bookedAt:f.get("date")?new Date(String(f.get("date"))).toISOString():undefined})}} onMouseDown={e=>e.stopPropagation()}>
+  const currentAccountId=accounts.find(a=>a.name===transaction.account)?.id;
+  return <div className="modal-backdrop" onMouseDown={close}><form className="expense-modal" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);submit({id:transaction.id,accountId:f.get("account"),amount:Number(f.get("amount")),type,categoryId:f.get("category")||null,note:f.get("note"),bookedAt:f.get("date")?new Date(String(f.get("date"))).toISOString():undefined,tags:String(f.get("tags")||"").split(/\s+/).filter(Boolean)})}} onMouseDown={e=>e.stopPropagation()}>
     <ModalHead label="Редагування" title="Змінити операцію" close={close}/>
     <div className="operation-type"><button type="button" className={type==="expense"?"active":""} onClick={()=>setType("expense")}><ArrowUpRight/> Витрата</button><button type="button" className={type==="income"?"active":""} onClick={()=>setType("income")}><ArrowDownLeft/> Дохід</button></div>
+    <label>Рахунок<select name="account" defaultValue={currentAccountId}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></label>
     <label>Сума<input name="amount" type="number" min=".01" step=".01" required defaultValue={Math.abs(transaction.amount)}/></label>
     <label>Категорія<select name="category" defaultValue="">{categories.filter(c=>c.kind===type).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
     <label>Дата<input name="date" type="datetime-local" defaultValue={transaction.bookedAt?new Date(transaction.bookedAt).toISOString().slice(0,16):undefined}/></label>
     <label>Нотатка<input name="note" defaultValue={transaction.title}/></label>
+    <label>Теги<input name="tags" defaultValue={transaction.tags?.map(t=>`#${t}`).join(" ")} placeholder="#відпустка #робота"/></label>
     <button className="primary">Зберегти зміни</button>
   </form></div>;
 }
