@@ -1016,7 +1016,15 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
         setNote("");
         setModal(null);
         notify(isIncome ? "Дохід збережено" : "Витрату збережено");
-        await refreshFinance();
+        const contributeGoalId = !isIncome ? String(form.get("contributeGoalId") || "") : "";
+        if (contributeGoalId) {
+          await financeAction(
+              { action: "contributeGoal", id: contributeGoalId, amount: value },
+              "Покладено в банку",
+          );
+        } else {
+          await refreshFinance();
+        }
         return;
       }
       const account =
@@ -1037,6 +1045,14 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       setNote("");
       setModal(null);
       notify(isIncome ? "Дохід додано" : "Витрату додано");
+      const contributeGoalId = !isIncome ? String(form.get("contributeGoalId") || "") : "";
+      if (contributeGoalId) {
+        setGoals((items) =>
+            items.map((item) =>
+                item.id === contributeGoalId ? { ...item, current: item.current + value } : item,
+            ),
+        );
+      }
     } finally {
       setBusy(false);
     }
@@ -2456,6 +2472,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
                 accounts={accounts}
                 categories={categories}
                 debts={debts.filter((d) => d.direction === "i_owe" && !d.isVirtual)}
+                goals={goals}
                 submit={addExpense}
                 close={() => setModal(null)}
             />
@@ -2505,6 +2522,16 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
                 action={goalAction}
                 accounts={accounts}
                 withdraw={withdrawGoal}
+                contribute={async (id, amount, accountId) => {
+                  const account = accounts.find((a) => String(a.id) === accountId);
+                  if (!account) return notify("Оберіть рахунок");
+                  const ok = await financeAction(
+                      { action: "createTransaction", accountId: account.id, categoryId: null, amount, currency: account.currency, note: `Поповнення банки: ${goals.find((g) => g.id === id)?.name || ""}`, type: "expense" },
+                      "Списано з рахунку",
+                  );
+                  if (ok) await financeAction({ action: "contributeGoal", id, amount }, "Банку поповнено");
+                  setGoalAction(null);
+                }}
                 breakGoal={breakGoal}
                 close={() => setGoalAction(null)}
             />
@@ -4250,11 +4277,11 @@ function GoalsView({
   goals: GoalItem[];
   authenticated: boolean;
   add: () => void;
-  contribute: (id: string, amount: number) => void;
+  contribute: (id: string, amount: number, accountId: string) => void;
   recurring: RecurringItem[];
   addRecurring: () => void;
   edit: (goal: GoalItem) => void;
-  openAction: (goal: GoalItem, mode: "withdraw" | "break" | "history") => void;
+  openAction: (goal: GoalItem, mode: "withdraw" | "break" | "history" | "contribute") => void;
 }) {
   const shown = goals.length
       ? goals
@@ -4341,7 +4368,7 @@ function GoalsView({
                         <div className="goal-actions-row">
                           <button
                               className="goal-action-btn"
-                              onClick={() => contribute(g.id, 1000)}
+                              onClick={() => openAction(g, "contribute")}
                               aria-label="Поповнити"
                           >
                             <Plus size={14} />
@@ -6451,6 +6478,7 @@ function ExpenseModal({
   accounts: Account[];
   categories: CategoryItem[];
   debts: DebtItem[];
+  goals: GoalItem[];
   submit: (e: React.SyntheticEvent<HTMLFormElement>) => void;
   close: () => void;
 }) {
@@ -6568,6 +6596,19 @@ function ExpenseModal({
             Теги
             <input name="tags" placeholder="#відпустка #робота" />
           </label>
+          {type === "expense" && goals.length > 0 && (
+              <label>
+                Покласти в банку (необов'язково)
+                <select name="contributeGoalId" defaultValue="">
+                  <option value="">Не класти в банку</option>
+                  {goals.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                  ))}
+                </select>
+              </label>
+          )}
           {type === "expense" && (
               <>
                 {debts.length > 0 && (
@@ -7065,9 +7106,10 @@ function GoalActionModal({
                            breakGoal,
                            close,
                          }: {
-  action: { goal: GoalItem; mode: "withdraw" | "break" | "history" };
+  action: { goal: GoalItem; mode: "withdraw" | "break" | "history" | "contribute" };
   accounts: Account[];
   withdraw: (id: string, amount: number, targetAccountId: string) => void;
+  contribute: (id: string, amount: number) => void;
   breakGoal: (id: string, targetAccountId: string) => void;
   close: () => void;
 }) {
@@ -7087,84 +7129,101 @@ function GoalActionModal({
   }, [mode, goal.id]);
   const symbol = currencySymbol(goal.currency);
   if (mode === "history")
-    return (
-        <div className="modal-backdrop" onMouseDown={close}>
-          <div className="expense-modal tall-modal" onMouseDown={(e) => e.stopPropagation()}>
-            <ModalHead label={goal.name} title="Історія операцій" close={close} />
-            {loadingHistory ? (
-                <p className="empty-inline">Завантаження…</p>
-            ) : history.length ? (
-                <div className="goal-history-list">
-                  {history.map((h) => (
-                      <div key={h.id} className="goal-history-row">
-                  <span>
-                    {h.kind === "withdrawal" ? (
-                        <ArrowUpRight size={14} />
-                    ) : h.kind === "interest" ? (
-                        <Sparkles size={14} />
-                    ) : (
-                        <ArrowDownLeft size={14} />
-                    )}
-                  </span>
-                        <div>
-                          <strong>{h.note || h.kind}</strong>
-                          <small>{new Date(h.created_at).toLocaleString("uk-UA")}</small>
-                        </div>
-                        <b className={h.amount < 0 ? "" : "income-amount"}>
-                          {h.amount < 0 ? "−" : "+"} {symbol} {formatMoney(h.amount)}
-                        </b>
+    { // @ts-ignore
+      return (
+              <div className="modal-backdrop" onMouseDown={close}>
+                <div className="expense-modal tall-modal" onMouseDown={(e) => e.stopPropagation()}>
+                  <ModalHead label={goal.name} title="Історія операцій" close={close} />
+                  {loadingHistory ? (
+                      <p className="empty-inline">Завантаження…</p>
+                  ) : history.length ? (
+                      <div className="goal-history-list">
+                        {history.map((h) => (
+                            <div key={h.id} className="goal-history-row">
+                        <span>
+                          {h.kind === "withdrawal" ? (
+                              <ArrowUpRight size={14} />
+                          ) : h.kind === "interest" ? (
+                              <Sparkles size={14} />
+                          ) : (
+                              <ArrowDownLeft size={14} />
+                          )}
+                        </span>
+                              <div>
+                                <strong>{h.note || h.kind}</strong>
+                                <small>{new Date(h.created_at).toLocaleString("uk-UA")}</small>
+                              </div>
+                              <b className={h.amount < 0 ? "" : "income-amount"}>
+                                {h.amount < 0 ? "−" : "+"} {symbol} {formatMoney(h.amount)}
+                              </b>
+                            </div>
+                        ))}
                       </div>
-                  ))}
+                  ) : (
+                      <EmptyState icon={<BarChart3 />} text="Операцій по цій цілі ще немає" />
+                  )}
                 </div>
-            ) : (
-                <EmptyState icon={<BarChart3 />} text="Операцій по цій цілі ще немає" />
-            )}
-          </div>
-        </div>
-    );
+              </div>
+          );
+    }
   if (mode === "break")
-    return (
-        <div className="modal-backdrop" onMouseDown={close}>
-          <form
-              className="expense-modal"
-              onSubmit={(e) => {
-                e.preventDefault();
-                breakGoal(goal.id, accountId);
-              }}
-              onMouseDown={(e) => e.stopPropagation()}
-          >
-            <ModalHead label={goal.name} title="Розбити банку" close={close} />
-            <p style={{ color: "var(--muted)", fontSize: 13 }}>
-              Уся сума {symbol} {formatMoney(goal.current)} перейде на обраний рахунок. Ціль буде
-              видалено назавжди.
-            </p>
-            <label>
-              Куди зарахувати
-              <select value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
-                {accounts.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.name} · {a.currency}
-                    </option>
-                ))}
-              </select>
-            </label>
-            <button className="primary" style={{ background: "#d94b4b" }}>
-              Розбити та закрити ціль
-            </button>
-          </form>
-        </div>
-    );
+    { // @ts-ignore
+      return (
+              <div className="modal-backdrop" onMouseDown={close}>
+                <form
+                    className="expense-modal"
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      breakGoal(goal.id, accountId);
+                    }}
+                    onMouseDown={(e) => e.stopPropagation()}
+                >
+                  <ModalHead label={goal.name} title="Розбити банку" close={close} />
+                  <p style={{ color: "var(--muted)", fontSize: 13 }}>
+                    Уся сума {symbol} {formatMoney(goal.current)} перейде на обраний рахунок. Ціль буде
+                    видалено назавжди.
+                  </p>
+                  <label>
+                    Куди зарахувати
+                    <select value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
+                      {accounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name} · {a.currency}
+                          </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button className="primary" style={{ background: "#d94b4b" }}>
+                    Розбити та закрити ціль
+                  </button>
+                </form>
+              </div>
+          );
+    }
   return (
       <div className="modal-backdrop" onMouseDown={close}>
         <form
             className="expense-modal"
             onSubmit={(e) => {
               e.preventDefault();
-              if (Number(amount) > 0) withdraw(goal.id, Number(amount), accountId);
-            }}
+              if (Number(amount) <= 0) return;
+              if (mode === "contribute") contribute(goal.id, Number(amount), accountId);
+              else withdraw(goal.id, Number(amount), accountId);
             onMouseDown={(e) => e.stopPropagation()}
         >
-          <ModalHead label={goal.name} title="Зняти кошти" close={close} />
+          <ModalHead label={goal.name} title={mode === "contribute" ? "Поповнити банку" : "Зняти кошти"} close={close} />
+          {mode === "contribute" && (
+              <label>
+                З рахунку
+                <select value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
+                  {accounts.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.name} · {a.currency}
+                      </option>
+                  ))}
+                </select>
+              </label>
+          )}
           <label className="amount-field">
             <span>{symbol}</span>
             <input
@@ -7176,20 +7235,24 @@ function GoalActionModal({
                 onChange={(e) => setAmount(e.target.value)}
             />
           </label>
-          <small className="field-help">
-            Доступно: {symbol} {formatMoney(goal.current)}
-          </small>
-          <label>
-            Куди зарахувати
-            <select value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
-              {accounts.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.name} · {a.currency}
-                  </option>
-              ))}
-            </select>
-          </label>
-          <button className="primary">Зняти кошти</button>
+          {mode !== "contribute" && (
+              <>
+                <small className="field-help">
+                  Доступно: {symbol} {formatMoney(goal.current)}
+                </small>
+                <label>
+                  Куди зарахувати
+                  <select value={accountId} onChange={(e) => setAccountId(e.target.value)} required>
+                    {accounts.map((a) => (
+                        <option key={a.id} value={a.id}>
+                          {a.name} · {a.currency}
+                        </option>
+                    ))}
+                  </select>
+                </label>
+              </>
+          )}
+          <button className="primary">{mode === "contribute" ? "Покласти" : "Зняти кошти"}</button>
         </form>
       </div>
   );
