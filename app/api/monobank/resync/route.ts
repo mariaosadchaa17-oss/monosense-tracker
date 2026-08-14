@@ -12,14 +12,20 @@ export async function POST() {
         .select("token")
         .eq("household_id", context.householdId)
         .maybeSingle();
-    if (!connection?.token)
-        return NextResponse.json({ error: "Monobank ще не підключено — спочатку встав токен вище" }, { status: 400 });
+    if (!connection?.token) {
+        return NextResponse.json(
+            { error: "Monobank ще не підключено — спочатку встав токен вище" },
+            { status: 400 }
+        );
+    }
 
     const { data: links } = await admin
         .from("monobank_account_links")
         .select("mono_account_id,app_account_id")
         .eq("household_id", context.householdId);
-    if (!links?.length) return NextResponse.json({ error: "Немає прив'язаних карток" }, { status: 400 });
+    if (!links?.length) {
+        return NextResponse.json({ error: "Немає прив'язаних карток" }, { status: 400 });
+    }
 
     let imported = 0;
     const debug: { monoAccountId: string; status?: number; error?: string; itemsFound?: number }[] = [];
@@ -32,6 +38,7 @@ export async function POST() {
             .select("id,currency")
             .eq("id", link.app_account_id)
             .maybeSingle();
+
         if (!account) {
             debug.push({ monoAccountId: link.mono_account_id, error: "рахунок у застосунку не знайдено" });
             continue;
@@ -47,15 +54,25 @@ export async function POST() {
             debug.push({ monoAccountId: link.mono_account_id, error: "немає з'єднання з Monobank" });
             continue;
         }
+
         if (!statementResponse.ok) {
             const text = await statementResponse.text().catch(() => "");
-            debug.push({ monoAccountId: link.mono_account_id, status: statementResponse.status, error: text.slice(0, 150) });
+            debug.push({
+                monoAccountId: link.mono_account_id,
+                status: statementResponse.status,
+                error: text.slice(0, 150),
+            });
             continue;
         }
 
         const items: { id: string; time: number; description?: string; amount: number }[] =
             await statementResponse.json();
-        debug.push({ monoAccountId: link.mono_account_id, status: statementResponse.status, itemsFound: items.length });
+
+        debug.push({
+            monoAccountId: link.mono_account_id,
+            status: statementResponse.status,
+            itemsFound: items.length,
+        });
 
         for (const item of items) {
             const { data: alreadySynced } = await admin
@@ -63,10 +80,12 @@ export async function POST() {
                 .select("statement_item_id")
                 .eq("statement_item_id", item.id)
                 .maybeSingle();
+
             if (alreadySynced) continue;
 
             const amount = item.amount / 100;
             const type = amount < 0 ? "expense" : "income";
+
             const { data: transaction } = await admin.rpc("create_finance_transaction", {
                 p_account_id: account.id,
                 p_category_id: null,
@@ -77,3 +96,15 @@ export async function POST() {
                 p_booked_at: new Date(item.time * 1000).toISOString(),
                 p_is_impulsive: false,
             });
+
+            await admin.from("monobank_synced_items").insert({
+                statement_item_id: item.id,
+                transaction_id: transaction?.id || null,
+            });
+
+            imported++;
+        }
+    }
+
+    return NextResponse.json({ imported, debug });
+}

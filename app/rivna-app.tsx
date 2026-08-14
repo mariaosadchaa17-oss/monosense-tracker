@@ -1396,7 +1396,9 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       setModal(null);
   }
   async function splitBill(participants: { person: string; amount: number }[], note: string) {
-    let failed = false;
+    setBusy(true);
+    try {
+      let failed = false;
     for (const p of participants) {
       const response = await fetch("/api/finance", {
         method: "POST",
@@ -1421,13 +1423,18 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
             ? "Частину боргів не вдалося створити, текст скопійовано"
             : "Борги створено, текст для месенджера скопійовано",
     );
-    await refreshFinance();
-    setModal(null);
+      await refreshFinance();
+      setModal(null);
+    } finally {
+      setBusy(false);
+    }
   }
   async function addDebt(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    const totalAmount = Number(f.get("amount"));
+    setBusy(true);
+    try {
+      const f = new FormData(e.currentTarget);
+      const totalAmount = Number(f.get("amount"));
     const months = Number(f.get("installmentMonths")) || 0;
     const autoDebit = f.get("autoDebit") === "on" && months > 0;
     const debtResponse = await fetch("/api/finance", {
@@ -1636,10 +1643,12 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     )
       setModal(null);
   }
-  async function createInvite(e: React.SyntheticEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    const response = await fetch("/api/household/invite", {
+    async function createInvite(e: React.SyntheticEvent<HTMLFormElement>) {
+      e.preventDefault();
+      setBusy(true);
+      try {
+        const f = new FormData(e.currentTarget);
+        const response = await fetch("/api/household/invite", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ identifier: f.get("identifier"), role: f.get("role") }),
@@ -1648,13 +1657,16 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     if (!response.ok) return notify(result.error || "Не вдалося створити запрошення");
     await navigator.clipboard.writeText(result.url);
     setModal(null);
-    notify(
-        result.emailed
-            ? "Запрошення надіслано email, посилання скопійовано"
-            : "Посилання запрошення скопійовано",
-    );
-  }
-  async function enablePush() {
+        notify(
+            result.emailed
+                ? "Запрошення надіслано email, посилання скопійовано"
+                : "Посилання запрошення скопійовано",
+        );
+      } finally {
+        setBusy(false);
+      }
+    }
+    async function enablePush() {
     if (!initialLoggedIn) return notify("Сповіщення активуються після підключення Supabase");
     if (
         !("serviceWorker" in navigator) ||
