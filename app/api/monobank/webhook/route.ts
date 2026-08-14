@@ -1,4 +1,3 @@
-
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -22,19 +21,27 @@ export async function POST(request: Request) {
   if (alreadySynced) return NextResponse.json({ ok: true });
 
   const { data: link } = await admin
-    .from("monobank_account_links")
-    .select("app_account_id")
-    .eq("mono_account_id", monoAccountId)
-    .maybeSingle();
+      .from("monobank_account_links")
+      .select("app_account_id,household_id")
+      .eq("mono_account_id", monoAccountId)
+      .maybeSingle();
   if (!link) return NextResponse.json({ ok: true });
 
   const { data: account } = await admin.from("accounts").select("id,currency").eq("id", link.app_account_id).maybeSingle();
   if (!account) return NextResponse.json({ ok: true });
 
+  const { data: connection } = await admin
+      .from("monobank_connections")
+      .select("connected_by")
+      .eq("household_id", link.household_id)
+      .maybeSingle();
+  if (!connection?.connected_by) return NextResponse.json({ ok: true });
+
   const amount = item.amount / 100;
   const type = amount < 0 ? "expense" : "income";
 
-  const { data: transaction } = await admin.rpc("create_finance_transaction", {
+  const { data: transaction } = await admin.rpc("create_finance_transaction_admin", {
+    p_user_id: connection.connected_by,
     p_account_id: account.id,
     p_category_id: null,
     p_type: type,
@@ -43,6 +50,8 @@ export async function POST(request: Request) {
     p_note: item.description || "Monobank",
     p_booked_at: new Date(item.time * 1000).toISOString(),
     p_is_impulsive: false,
+    p_split_total: null,
+    p_personal_share: null,
   });
 
   await admin.from("monobank_synced_items").insert({ statement_item_id: item.id, transaction_id: transaction?.id || null });
