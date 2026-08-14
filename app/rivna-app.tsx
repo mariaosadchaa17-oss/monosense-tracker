@@ -641,7 +641,15 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
     const response=await fetch("/api/monobank/link",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({monoAccountId,appAccountId})});
     const result=await response.json();
     if(!response.ok)return notify(result.error||"Не вдалося прив'язати");
-    notify("Картку прив'язано — операції прилітатимуть автоматично");
+    notify(result.imported?`Прив'язано і завантажено ${result.imported} операцій за 31 день`:"Картку прив'язано — операції прилітатимуть автоматично");
+    await refreshFinance();
+  }
+  async function createAndLinkMonobankAccount(ma:{id:string;type:string;currency:string;balance:number;creditLimit:number;maskedPan:string}){
+    const response=await fetch("/api/monobank/link",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({monoAccountId:ma.id,createNew:true,name:`Monobank ${ma.maskedPan||ma.type}`,currency:ma.currency,balance:ma.balance,creditLimit:ma.creditLimit})});
+    const result=await response.json();
+    if(!response.ok)return notify(result.error||"Не вдалося створити рахунок");
+    notify(result.imported?`Рахунок створено і завантажено ${result.imported} операцій за 31 день`:"Рахунок створено і прив'язано");
+    await refreshFinance();
   }
       async function scanReceipt(file:File){
         setScanning(true);
@@ -734,8 +742,8 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
           await fetch("/auth/signout", { method: "POST" });
           window.location.href = "/auth";
         } else setLoggedIn(false);
-      }} notify={notify} accounts={accounts} monoToken={monoToken} setMonoToken={setMonoToken} monoAccounts={monoAccounts} monoConnecting={monoConnecting} connectMonobank={connectMonobank} linkMonobankAccount={linkMonobankAccount}/>}
-      {page === "Налаштування" && initialLoggedIn && <section className="panel passkey-panel">
+      }} notify={notify} accounts={accounts} monoToken={monoToken} setMonoToken={setMonoToken} monoAccounts={monoAccounts} monoConnecting={monoConnecting} connectMonobank={connectMonobank} linkMonobankAccount={linkMonobankAccount} createAndLinkMonobankAccount={createAndLinkMonobankAccount}/>}
+      {page === "Налаштування" && initialLoggedIn && <section className="panel passkey-panel">аmonoConnecting:boolean;connectMonobank:()=>void;linkMonobankAccount:(monoAccountId:string,appAccountId:string)=>void;createAndLinkMonobankAccount:(ma:{id:string;type:string;currency:string;balance:number;creditLimit:number;maskedPan:string})=>void}) {
         <div><strong>Швидкий вхід на цьому пристрої</strong><small>Face ID, Touch ID, Windows Hello або PIN пристрою</small></div>
         <PasskeyButton mode="register" className="small-primary" onMessage={notify}/>
       </section>}
@@ -1391,8 +1399,9 @@ function SettingsView({dark,setDark,skin,setSkin,cardStyle,setCardStyle,logout,n
       {monoAccounts.length>0 && <div className="mono-accounts-list">{monoAccounts.map(ma=>
           <div key={ma.id} className="mono-account-row">
             <div><strong>{ma.type==="fop"?"ФОП":ma.type==="jar"?"Банка":"Картка"} {ma.maskedPan}</strong><small>{ma.currency} · {ma.balance.toFixed(0)}</small></div>
-            <select defaultValue="" onChange={e=>linkMonobankAccount(ma.id,e.target.value)}>
+            <select defaultValue="" onChange={e=>{if(e.target.value==="__new__")createAndLinkMonobankAccount(ma);else linkMonobankAccount(ma.id,e.target.value)}}>
               <option value="" disabled>Прив'язати до рахунку…</option>
+              <option value="__new__">+ Створити новий рахунок</option>
               {accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}
             </select>
           </div>
