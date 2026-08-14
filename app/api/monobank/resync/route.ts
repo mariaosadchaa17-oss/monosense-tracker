@@ -1,0 +1,56 @@
+import { NextResponse } from "next/server";
+import { getFinanceContext } from "@/lib/supabase/context";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+export async function POST() {
+    const context = await getFinanceContext();
+    if (!context) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+    const admin = createAdminClient();
+    const { data: connection } = await admin.from("monobank_connections").select("token").eq("household_id", context.householdId).maybeSingle();
+    if (!connection?.token) return NextResponse.json({ error: "Monobank не підключено" }, { status: 400 });
+
+    const { data: links } = await admin.from("monobank_account_links").select("mono_account_id,app_account_id").eq("household_id", context.householdId);
+    if (!links?.length) return NextResponse.json({ error: "Немає прив'язаних карток" }, { status: 400 });
+
+    let imported = 0;
+    const to = Math.floor(Date.now() / 1000);
+    const from = to - 31 * 24 * 60 * 60;
+
+    for (const link of links) {
+        const { data: account } = await admin.from("accounts").select("id,currency").eq("id", link.app_account_id).maybeSingle();
+        if (!account) continue;
+
+        let statementResponse: Response;
+        try {
+            statementResponse = await fetch(`https://api.monobank.ua/personal/statement/${link.mono_account_id}/${from}/${to}`, {
+                headers: { "X-Token": connection.token },
+            });
+        } catch {
+            continue;
+        }
+        if (!statementResponse.ok) continue;
+
+        const items: { id: string; time: number; description?: string; amount: number }[] = await statementResponse.json();
+        for (const item of items) {
+            const { data: alreadySynced } = await admin.from("monobank_synced_items").select("statement_item_id").eq("statement_item_id", item.id).maybeSingle();
+            if (alreadySynced) continue;
+            const amount = item.amount / 100;
+            const type = amount < 0 ? "expense" : "income";
+            const { data: transaction } = await admin.rpc("create_finance_transaction", {
+                p_account_id: account.id,
+                p_category_id: null,
+                p_type: type,
+                p_amount: Math.abs(amount),
+                p_currency: account.currency,
+                p_note: item.description || "Monobank",
+                p_booked_at: new Date(item.time * 1000).toISOString(),
+                p_is_impulsive: false,
+            });
+            await admin.from("monobank_synced_items").insert({ statement_item_id: item.id, transaction_id: transaction?.id || null });
+            imported++;
+        }
+    }
+
+    return NextResponse.json({ imported });
+}
