@@ -24,19 +24,6 @@ export async function POST(request: Request) {
   }
   const info = await infoResponse.json();
 
-  const admin = createAdminClient();
-  await admin.from("monobank_connections").upsert(
-    { household_id: context.householdId, token, connected_by: context.user.id },
-    { onConflict: "household_id" }
-  );
-
-  const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
-  await fetch("https://api.monobank.ua/personal/webhook", {
-    method: "POST",
-    headers: { "X-Token": token, "Content-Type": "application/json" },
-    body: JSON.stringify({ webHookUrl: `${origin}/api/monobank/webhook` }),
-  }).catch(() => {});
-
   const accounts = (info.accounts || []).map((account: { id: string; type: string; currencyCode: number; balance: number; creditLimit: number; maskedPan?: string[] }) => ({
     id: account.id,
     type: account.type,
@@ -45,6 +32,19 @@ export async function POST(request: Request) {
     creditLimit: account.creditLimit / 100,
     maskedPan: account.maskedPan?.[0] || "",
   }));
+
+  const admin = createAdminClient();
+  await admin.from("monobank_connections").upsert(
+      { household_id: context.householdId, token, connected_by: context.user.id, accounts_json: accounts },
+      { onConflict: "household_id" }
+  );
+
+  const origin = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
+  await fetch("https://api.monobank.ua/personal/webhook", {
+    method: "POST",
+    headers: { "X-Token": token, "Content-Type": "application/json" },
+    body: JSON.stringify({ webHookUrl: `${origin}/api/monobank/webhook` }),
+  }).catch(() => {});
 
   return NextResponse.json({ accounts });
 }
