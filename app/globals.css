@@ -1885,6 +1885,9 @@ header h1 {
 .mono-account-row small{color:var(--muted);font-size:10px;display:block;margin-top:2px}
 .mono-account-row select{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:9px;padding:8px;font-size:11px;min-width:160px}
 .mono-linked-badge{color:var(--green);font-size:11px;font-weight:700}
+.busy-overlay{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:80;background:var(--ink);color:#fff;border-radius:999px;padding:10px 18px;display:flex;align-items:center;gap:10px;font-size:12px;font-weight:700;box-shadow:var(--shadow)}
+.busy-spinner{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;animation:busy-spin .7s linear infinite}
+@keyframes busy-spin{to{transform:rotate(360deg)}}
 .scan-review-head{display:grid;grid-template-columns:110px 1fr 1.2fr 90px;gap:10px;padding:0 4px 6px;color:var(--muted);font-size:9px;text-transform:uppercase;font-weight:650}
 .scan-review-line{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;display:grid;grid-template-columns:110px 1fr 1.2fr 90px;gap:10px;align-items:center}
 .scan-review-line input,.scan-review-line select{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:9px;padding:8px;font-size:11px;min-width:0}

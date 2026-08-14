@@ -8,7 +8,7 @@ export async function POST() {
 
     const admin = createAdminClient();
     const { data: connection } = await admin.from("monobank_connections").select("token").eq("household_id", context.householdId).maybeSingle();
-    if (!connection?.token) return NextResponse.json({ error: "Monobank не підключено" }, { status: 400 });
+    if (!connection?.token) return NextResponse.json({ error: "Monobank ще не підключено — спочатку встав токен вище" }, { status: 400 });
 
     const { data: links } = await admin.from("monobank_account_links").select("mono_account_id,app_account_id").eq("household_id", context.householdId);
     if (!links?.length) return NextResponse.json({ error: "Немає прив'язаних карток" }, { status: 400 });

@@ -134,6 +134,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [note, setNote] = useState("");
   const [search, setSearch] = useState("");
   const [toast, setToast] = useState("");
+  const [busy, setBusy] = useState(false);
   const [rates, setRates] = useState<{currency:string;rate:number;date:string}[]>([]);
   const [customRates,setCustomRates]=useState<{currency:string;rate:number;date:string}[]>([]);
   const [syncing, setSyncing] = useState(initialLoggedIn);
@@ -355,7 +356,9 @@ useEffect(() => {
   },[accounts,debts]);
 
   async function addExpense(e: React.SyntheticEvent<HTMLFormElement>) {
-      e.preventDefault();
+    e.preventDefault();
+    setBusy(true);
+    try{
       const form=new FormData(e.currentTarget);
       const evaluated=evaluateExpression(amount);
       const value = evaluated!==null?evaluated:Number(amount.replace(",", "."));
@@ -386,11 +389,14 @@ useEffect(() => {
             }
     const account=accounts.find(item=>String(item.id)===String(form.get("account")))||accounts[0];
     setTransactions([{id:Date.now(),title:note||(isIncome?"Новий дохід":"Нова витрата"),category:categories.find(c=>c.id===form.get("category"))?.name||"Інше",date:"Щойно",amount:isIncome?value:-value,currency:account?.currency||"UAH",impulse:!isIncome&&form.get("impulse")==="on"},...transactions]);
-    setAmount(""); setNote(""); setModal(null); notify(isIncome?"Дохід додано":"Витрату додано");
+      setAmount(""); setNote(""); setModal(null); notify(isIncome?"Дохід додано":"Витрату додано");
+    }finally{setBusy(false)}
   }
   async function addAccount(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
-    const form = new FormData(e.currentTarget);
+    setBusy(true);
+    try{
+      const form = new FormData(e.currentTarget);
     if (initialLoggedIn) {
       const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({
         action:editingAccount?"updateAccount":"createAccount",id:editingAccount?.id, name:form.get("name"), bank:form.get("bank"), owner:form.get("owner"),cardImageUrl:form.get("cardImageUrl"),
@@ -406,24 +412,31 @@ useEffect(() => {
       owner: String(form.get("owner") || "Мій"), currency: String(form.get("currency") || "UAH"),
       balance: Number(form.get("balance")) || 0, style: "stash",color:String(form.get("cardColor")||"#6558e8"),
     }]);
-    setModal(null);setEditingAccount(null); notify("Рахунок створено");
+      setModal(null);setEditingAccount(null); notify("Рахунок створено");
+    }finally{setBusy(false)}
   }
   async function removeAccount(id: number|string) {
     if (initialLoggedIn) {
       if(!window.confirm("Ви впевнені, що хочете видалити рахунок?"))return;
-      const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"deleteAccount",id})});
-      const result = await response.json(); if(!response.ok)return notify(result.error||"Помилка видалення");
-      await refreshFinance();
+      setBusy(true);
+      try{
+        const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"deleteAccount",id})});
+        const result = await response.json(); if(!response.ok)return notify(result.error||"Помилка видалення");
+        await refreshFinance();
+      }finally{setBusy(false)}
     } else setAccounts(accounts.filter(a => a.id !== id));
     notify("Рахунок видалено");
   }
   async function removeTransaction(id: number|string) {
     if (initialLoggedIn) {
-      const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"deleteTransaction",id})});
-      const result = await response.json(); if(!response.ok)return notify(result.error||"Помилка видалення");
-      await refreshFinance();
-      notify("Операцію видалено");
-      return;
+      setBusy(true);
+      try{
+        const response = await fetch("/api/finance", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action:"deleteTransaction",id})});
+        const result = await response.json(); if(!response.ok)return notify(result.error||"Помилка видалення");
+        await refreshFinance();
+        notify("Операцію видалено");
+        return;
+      }finally{setBusy(false)}
     }
 async function updateTransaction(payload:Record<string,unknown>){
   if(await financeAction({action:"updateTransaction",...payload},"Операцію оновлено"))setEditingTransaction(null);
@@ -435,7 +448,9 @@ async function updateTransaction(payload:Record<string,unknown>){
   if(await financeAction({action:"updateTransaction",...payload},"Операцію оновлено"))setEditingTransaction(null);
 }
   async function financeAction(payload:Record<string,unknown>, success:string) {
-    if(!initialLoggedIn){
+    setBusy(true);
+    try{
+      if(!initialLoggedIn){
       const action=String(payload.action||""),id=String(payload.id||"");
       if(action==="createGoal")setGoals(items=>[...items,{id:`goal-${Date.now()}`,name:String(payload.name||"Нова ціль"),target:Number(payload.targetAmount),current:Number(payload.currentAmount)||0,currency:String(payload.currency||"UAH"),date:payload.targetDate?String(payload.targetDate):undefined,color:"#6558E8"}]);
       else if(action==="updateGoal")setGoals(items=>items.map(item=>item.id===id?{...item,name:String(payload.name||item.name),target:Number(payload.targetAmount)||item.target,date:payload.targetDate?String(payload.targetDate):item.date}:item));
@@ -461,11 +476,12 @@ async function updateTransaction(payload:Record<string,unknown>){
       else return false;
       notify(success);return true;
     }
-    const response=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-    const result=await response.json(); if(!response.ok){notify(result.error||"Помилка збереження");return false;}
-    notify(success);await refreshFinance();return true;
+      const response=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      const result=await response.json(); if(!response.ok){notify(result.error||"Помилка збереження");return false;}
+      notify(success);await refreshFinance();return true;
+    }finally{setBusy(false)}
   }
-async function addGoal(e:React.SyntheticEvent<HTMLFormElement>){
+  async function addGoal(e:React.SyntheticEvent<HTMLFormElement>){
     e.preventDefault();
     const f=new FormData(e.currentTarget);
     const payload={
@@ -660,12 +676,21 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
     notify(result.imported?`Рахунок створено і завантажено ${result.imported} операцій за 31 день`:"Рахунок створено і прив'язано");
     await refreshFinance();
   }
+  const [monoResyncing,setMonoResyncing]=useState(false);
   async function resyncMonobank(){
-    const response=await fetch("/api/monobank/resync",{method:"POST"});
-    const result=await response.json();
-    if(!response.ok)return notify(result.error||"Не вдалося оновити");
-    notify(`Завантажено операцій: ${result.imported}`);
-    await refreshFinance();
+    setMonoResyncing(true);
+    try{
+      const response=await fetch("/api/monobank/resync",{method:"POST"});
+      let result:{error?:string;imported?:number}={};
+      try{result=await response.json()}catch{}
+      if(!response.ok)return notify(result.error||`Не вдалося оновити (код ${response.status})`);
+      notify(`Завантажено операцій: ${result.imported ?? 0}`);
+      await refreshFinance();
+    }catch{
+      notify("Немає з'єднання з сервером");
+    }finally{
+      setMonoResyncing(false);
+    }
   }
       async function scanReceipt(file:File){
         setScanning(true);
@@ -743,7 +768,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
       </header>
 
       {page === "Головна" && <Dashboard balance={balance} baseCurrency={baseCurrency} accounts={orderedAccounts} transactions={normalizedTransactions} goals={goals} authenticated={initialLoggedIn} openPage={setPage} addAccount={() => setModal("account")} changeCurrency={setBaseCurrency} monthlyFees={monthlyFees} plannedIncome={plannedMonthlyIncome} recurring={recurring} addRecurring={()=>setModal("recurring")} reorderAccounts={reorderAccounts}/>}{page === "Операції" && <TransactionsView transactions={filteredTransactions} search={search} setSearch={setSearch} remove={removeTransaction} exportCsv={() => exportCsv(transactions, notify)} exportExcel={()=>exportExcel(transactions,notify)} exportJson={()=>exportJson(transactions,notify)} initialAccount={accountFilter} onEdit={setEditingTransaction} scanReceipt={scanReceipt} scanning={scanning}/>}      {page === "Бюджет" && (initialLoggedIn?<LiveBudgetView budgets={savedBudgets} transactions={normalizedTransactions} periodType={budgetPeriodType} setPeriodType={setBudgetPeriodType} anchor={budgetAnchor} setAnchor={setBudgetAnchor} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={(id: string|number)=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>:<BudgetView budgets={savedBudgets} transactions={normalizedTransactions} baseCurrency={baseCurrency} add={()=>setModal("budget")} remove={(id: string|number)=>financeAction({action:"deleteBudget",id},"Ліміт видалено")}/>)}
-      {page === "Рахунки" && <AccountsView accounts={orderedAccounts} rates={rates} customRates={customRates} add={() => {setEditingAccount(null);setModal("account")}} edit={account=>{setEditingAccount(account);setModal("account")}} addRate={()=>setModal("rate")} transfer={()=>{setTransferPresetTo(undefined);setModal("transfer")}} remove={removeAccount} reorderAccounts={reorderAccounts} monoToken={monoToken} setMonoToken={setMonoToken} monoAccounts={monoAccounts} monoConnecting={monoConnecting} connectMonobank={connectMonobank} linkMonobankAccount={linkMonobankAccount} createAndLinkMonobankAccount={createAndLinkMonobankAccount} resyncMonobank={resyncMonobank} monoLinks={monoLinks}/>}
+      {page === "Рахунки" && <AccountsView accounts={orderedAccounts} rates={rates} customRates={customRates} add={() => {setEditingAccount(null);setModal("account")}} edit={account=>{setEditingAccount(account);setModal("account")}} addRate={()=>setModal("rate")} transfer={()=>{setTransferPresetTo(undefined);setModal("transfer")}} remove={removeAccount} reorderAccounts={reorderAccounts} monoToken={monoToken} setMonoToken={setMonoToken} monoAccounts={monoAccounts} monoConnecting={monoConnecting} connectMonobank={connectMonobank} linkMonobankAccount={linkMonobankAccount} createAndLinkMonobankAccount={createAndLinkMonobankAccount} resyncMonobank={resyncMonobank} monoLinks={monoLinks} monoResyncing={monoResyncing}/>}
       {page === "Накопичення" && <>
         <GoalsView goals={goals} authenticated={initialLoggedIn} add={()=>{setEditingGoal(null);setModal("goal")}} contribute={(id,amount)=>financeAction({action:"contributeGoal",id,amount},"Ціль поповнено")} recurring={recurring} addRecurring={()=>setModal("recurring")} edit={goal=>{setEditingGoal(goal);setModal("goal")}} openAction={(goal,mode)=>setGoalAction({goal,mode})}/>
         <InvestmentSimulator goals={goals} baseCurrency={baseCurrency}/>
@@ -806,6 +831,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
     {modal === "invite" && <InviteModal submit={createInvite} close={()=>setModal(null)}/>}
     {modal === "rate" && <CustomRateModal submit={addCustomRate} close={()=>setModal(null)}/>}
     {toast && <div className="toast">{toast}</div>}
+    {busy && <div className="busy-overlay"><div className="busy-spinner"/><span>Обробляємо…</span></div>}
     {syncing && hasLoadedOnce && <div className="sync-bar"/>}
     <div style={{position:"fixed",bottom:"6px",right:"8px",fontSize:"10px",opacity:0.35,pointerEvents:"none",zIndex:9999,fontFamily:"monospace"}}>v{APP_VERSION}</div>
   </main>;
@@ -1237,8 +1263,8 @@ function LiveBudgetView({
             </>
           );
         }
-function AccountsView({accounts,rates,customRates,add,edit,addRate,transfer,remove,reorderAccounts,monoToken,setMonoToken,monoAccounts,monoConnecting,connectMonobank,linkMonobankAccount,createAndLinkMonobankAccount,resyncMonobank,monoLinks}:{accounts:Account[];rates:{currency:string;rate:number;date:string}[];customRates:{currency:string;rate:number;date:string}[];add:()=>void;edit:(account:Account)=>void;addRate:()=>void;transfer:()=>void;remove:(id:number|string)=>void;reorderAccounts:(draggedId:string,targetId:string)=>void;monoToken:string;setMonoToken:(v:string)=>void;monoAccounts:{id:string;type:string;currency:string;balance:number;creditLimit:number;maskedPan:string}[];monoConnecting:boolean;connectMonobank:()=>void;linkMonobankAccount:(monoAccountId:string,appAccountId:string)=>void;createAndLinkMonobankAccount:(ma:{id:string;type:string;currency:string;balance:number;creditLimit:number;maskedPan:string})=>void;resyncMonobank:()=>void;monoLinks:Record<string,string>}) { const visible=rates.filter(r=>["USD","EUR"].includes(r.currency)); const [monoOpen,setMonoOpen]=useState(monoAccounts.length>0);return <section className="panel full-view"><div className="section-title"><div><h2>Усі рахунки</h2><p>UAH, USD та інші валюти</p></div><div className="title-actions"><button className="secondary" onClick={transfer}><ArrowRight/> Переказ / обмін</button><button className="small-primary" onClick={add}><Plus/> Новий рахунок</button></div></div>{!accounts.length&&<button className="new-account" style={{width:"100%",minHeight:"140px",marginBottom:"20px"}} onClick={add}><span className="new-account-icon"><Plus/></span><span>Додай свій перший рахунок, щоб почати</span></button>}<div className="accounts-grid">{accounts.map(a=><div className="account-wrap" key={a.id} draggable onDragStart={e=>e.dataTransfer.setData("text/plain",String(a.id))} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();reorderAccounts(e.dataTransfer.getData("text/plain"),String(a.id))}}><div onClick={()=>edit(a)}><AccountCard account={a}/></div><div className="account-actions"><button className="remove-account" onClick={()=>remove(a.id)}><Trash2/> Видалити</button></div></div>)}</div><div className="rate-card"><Landmark/><div><strong>Офіційний курс НБУ</strong><p>{visible.length ? visible.map(r=>`${r.currency} ${r.rate.toFixed(4)}`).join(" · ") : "Оновлення курсів…"}{customRates.length?` · Власний: ${customRates.slice(0,3).map(r=>`${r.currency} ${r.rate}`).join(", ")}`:""}</p></div><button className="secondary" onClick={addRate}>Власний курс</button></div>
-  <section className="panel mono-panel"><div className="section-title"><div><h2>Monobank</h2><p>Автоматичне вивантаження виписки в реальному часі</p></div><div className="title-actions"><button className="secondary" onClick={resyncMonobank}>Оновити за 31 день</button><button onClick={()=>setMonoOpen(v=>!v)}>{monoOpen?"Згорнути":"Підключити"}</button></div></div>
+function AccountsView({accounts,rates,customRates,add,edit,addRate,transfer,remove,reorderAccounts,monoToken,setMonoToken,monoAccounts,monoConnecting,connectMonobank,linkMonobankAccount,createAndLinkMonobankAccount,resyncMonobank,monoLinks}:{accounts:Account[];rates:{currency:string;rate:number;date:string}[];customRates:{currency:string;rate:number;date:string}[];add:()=>void;edit:(account:Account)=>void;addRate:()=>void;transfer:()=>void;remove:(id:number|string)=>void;reorderAccounts:(draggedId:string,targetId:string)=>void;monoToken:string;setMonoToken:(v:string)=>void;monoAccounts:{id:string;type:string;currency:string;balance:number;creditLimit:number;maskedPan:string}[];monoConnecting:boolean;connectMonobank:()=>void;linkMonobankAccount:(monoAccountId:string,appAccountId:string)=>void;createAndLinkMonobankAccount:(ma:{id:string;type:string;currency:string;balance:number;creditLimit:number;maskedPan:string})=>void;resyncMonobank:()=>void;monoLinks:Record<string,string>;monoResyncing:boolean}) { const visible=rates.filter(r=>["USD","EUR"].includes(r.currency)); const [monoOpen,setMonoOpen]=useState(monoAccounts.length>0);return <section className="panel full-view"><div className="section-title"><div><h2>Усі рахунки</h2><p>UAH, USD та інші валюти</p></div><div className="title-actions"><button className="secondary" onClick={transfer}><ArrowRight/> Переказ / обмін</button><button className="small-primary" onClick={add}><Plus/> Новий рахунок</button></div></div>{!accounts.length&&<button className="new-account" style={{width:"100%",minHeight:"140px",marginBottom:"20px"}} onClick={add}><span className="new-account-icon"><Plus/></span><span>Додай свій перший рахунок, щоб почати</span></button>}<div className="accounts-grid">{accounts.map(a=><div className="account-wrap" key={a.id} draggable onDragStart={e=>e.dataTransfer.setData("text/plain",String(a.id))} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();reorderAccounts(e.dataTransfer.getData("text/plain"),String(a.id))}}><div onClick={()=>edit(a)}><AccountCard account={a}/></div><div className="account-actions"><button className="remove-account" onClick={()=>remove(a.id)}><Trash2/> Видалити</button></div></div>)}</div><div className="rate-card"><Landmark/><div><strong>Офіційний курс НБУ</strong><p>{visible.length ? visible.map(r=>`${r.currency} ${r.rate.toFixed(4)}`).join(" · ") : "Оновлення курсів…"}{customRates.length?` · Власний: ${customRates.slice(0,3).map(r=>`${r.currency} ${r.rate}`).join(", ")}`:""}</p></div><button className="secondary" onClick={addRate}>Власний курс</button></div>
+  <section className="panel mono-panel"><div className="section-title"><div><h2>Monobank</h2><p>Автоматичне вивантаження виписки в реальному часі</p></div><div className="title-actions">{monoAccounts.length>0 && <button className="secondary" onClick={resyncMonobank} disabled={monoResyncing}>{monoResyncing?"Оновлюю…":"Оновити за 31 день"}</button>}<button onClick={()=>setMonoOpen(v=>!v)}>{monoOpen?"Згорнути":"Підключити"}</button></div></div>{monoAccounts.length===0&&<p className="mono-note" style={{padding:"0 0 12px"}}>Спочатку підключи токен нижче — після цього зʼявиться кнопка оновлення виписки.</p>}
     {monoOpen && <>
       {monoAccounts.length===0 && <>
         <ol className="mono-instructions">
