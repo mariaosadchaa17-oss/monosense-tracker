@@ -7,10 +7,18 @@ export async function POST() {
     if (!context) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
     const admin = createAdminClient();
-    const { data: connection } = await admin.from("monobank_connections").select("token").eq("household_id", context.householdId).maybeSingle();
-    if (!connection?.token) return NextResponse.json({ error: "Monobank ще не підключено — спочатку встав токен вище" }, { status: 400 });
+    const { data: connection } = await admin
+        .from("monobank_connections")
+        .select("token")
+        .eq("household_id", context.householdId)
+        .maybeSingle();
+    if (!connection?.token)
+        return NextResponse.json({ error: "Monobank ще не підключено — спочатку встав токен вище" }, { status: 400 });
 
-    const { data: links } = await admin.from("monobank_account_links").select("mono_account_id,app_account_id").eq("household_id", context.householdId);
+    const { data: links } = await admin
+        .from("monobank_account_links")
+        .select("mono_account_id,app_account_id")
+        .eq("household_id", context.householdId);
     if (!links?.length) return NextResponse.json({ error: "Немає прив'язаних карток" }, { status: 400 });
 
     let imported = 0;
@@ -19,14 +27,22 @@ export async function POST() {
     const from = to - 31 * 24 * 60 * 60;
 
     for (const link of links) {
-        const { data: account } = await admin.from("accounts").select("id,currency").eq("id", link.app_account_id).maybeSingle();
-        if (!account) { debug.push({ monoAccountId: link.mono_account_id, error: "рахунок у застосунку не знайдено" }); continue; }
+        const { data: account } = await admin
+            .from("accounts")
+            .select("id,currency")
+            .eq("id", link.app_account_id)
+            .maybeSingle();
+        if (!account) {
+            debug.push({ monoAccountId: link.mono_account_id, error: "рахунок у застосунку не знайдено" });
+            continue;
+        }
 
         let statementResponse: Response;
         try {
-            statementResponse = await fetch(`https://api.monobank.ua/personal/statement/${link.mono_account_id}/${from}/${to}`, {
-                headers: { "X-Token": connection.token },
-            });
+            statementResponse = await fetch(
+                `https://api.monobank.ua/personal/statement/${link.mono_account_id}/${from}/${to}`,
+                { headers: { "X-Token": connection.token } }
+            );
         } catch {
             debug.push({ monoAccountId: link.mono_account_id, error: "немає з'єднання з Monobank" });
             continue;
@@ -37,11 +53,18 @@ export async function POST() {
             continue;
         }
 
-        const items: { id: string; time: number; description?: string; amount: number }[] = await statementResponse.json();
+        const items: { id: string; time: number; description?: string; amount: number }[] =
+            await statementResponse.json();
         debug.push({ monoAccountId: link.mono_account_id, status: statementResponse.status, itemsFound: items.length });
+
         for (const item of items) {
-            const { data: alreadySynced } = await admin.from("monobank_synced_items").select("statement_item_id").eq("statement_item_id", item.id).maybeSingle();
+            const { data: alreadySynced } = await admin
+                .from("monobank_synced_items")
+                .select("statement_item_id")
+                .eq("statement_item_id", item.id)
+                .maybeSingle();
             if (alreadySynced) continue;
+
             const amount = item.amount / 100;
             const type = amount < 0 ? "expense" : "income";
             const { data: transaction } = await admin.rpc("create_finance_transaction", {
@@ -54,10 +77,3 @@ export async function POST() {
                 p_booked_at: new Date(item.time * 1000).toISOString(),
                 p_is_impulsive: false,
             });
-            await admin.from("monobank_synced_items").insert({ statement_item_id: item.id, transaction_id: transaction?.id || null });
-            imported++;
-        }
-    }
-
-    return NextResponse.json({ imported, debug });
-}
