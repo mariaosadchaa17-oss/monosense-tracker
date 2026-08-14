@@ -1874,6 +1874,11 @@ header h1 {
 }
 
 .row-menu-wrap{position:relative}
+.mono-panel{margin-top:18px}
+.mono-panel .section-title button{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:8px 14px;font-size:11px;font-weight:700;color:var(--text)}
+.mono-instructions{margin:14px 0;padding-left:18px;display:flex;flex-direction:column;gap:6px;font-size:12px;color:var(--text)}
+.mono-instructions a{color:var(--purple);font-weight:700}
+.mono-note{color:var(--muted);font-size:10px;margin-top:8px}
 .mono-accounts-list{margin-top:14px;display:flex;flex-direction:column;gap:10px}
 .mono-account-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:12px;padding:12px}
 .mono-account-row strong{font-size:12px}
