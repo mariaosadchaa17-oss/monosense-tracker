@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getFinanceContext } from "@/lib/supabase/context";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { categorizeMonobankItems } from "@/lib/monobank/categorize";
 
 export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}));
@@ -28,6 +29,11 @@ export async function POST(request: Request) {
     if (!links?.length) {
         return NextResponse.json({ error: "Немає прив'язаних карток" }, { status: 400 });
     }
+
+    const { data: categories } = await admin
+        .from("categories")
+        .select("id,name,kind")
+        .eq("household_id", context.householdId);
 
     let imported = 0;
     const debug: { monoAccountId: string; status?: number; error?: string; itemsFound?: number }[] = [];
@@ -76,6 +82,15 @@ export async function POST(request: Request) {
             itemsFound: items.length,
         });
 
+        const categoryNameByItemId = await categorizeMonobankItems(
+            items.map((item) => ({
+                id: item.id,
+                description: item.description || "",
+                type: item.amount < 0 ? "expense" : "income",
+            })),
+            categories || []
+        );
+
         for (const item of items) {
             const { data: alreadySynced } = await admin
                 .from("monobank_synced_items")
@@ -87,11 +102,15 @@ export async function POST(request: Request) {
 
             const amount = item.amount / 100;
             const type = amount < 0 ? "expense" : "income";
+            const categoryName = categoryNameByItemId[item.id];
+            const category = (categories || []).find(
+                (c) => c.kind === type && c.name.toLowerCase() === (categoryName || "").toLowerCase()
+            );
 
             const { data: transaction, error: txError } = await admin.rpc("create_finance_transaction_admin", {
                 p_user_id: connection.connected_by,
                 p_account_id: account.id,
-                p_category_id: null,
+                p_category_id: category?.id || null,
                 p_type: type,
                 p_amount: Math.abs(amount),
                 p_currency: account.currency,

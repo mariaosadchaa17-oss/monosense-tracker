@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { categorizeMonobankItems } from "@/lib/monobank/categorize";
 
 export async function POST(request: Request) {
   let payload: { type?: string; data?: { account?: string; statementItem?: { id: string; time: number; description?: string; amount: number } } };
@@ -37,13 +38,27 @@ export async function POST(request: Request) {
       .maybeSingle();
   if (!connection?.connected_by) return NextResponse.json({ ok: true });
 
+  const { data: categories } = await admin
+      .from("categories")
+      .select("id,name,kind")
+      .eq("household_id", link.household_id);
+
   const amount = item.amount / 100;
   const type = amount < 0 ? "expense" : "income";
+
+  const categoryNameByItemId = await categorizeMonobankItems(
+      [{ id: item.id, description: item.description || "", type }],
+      categories || []
+  );
+  const categoryName = categoryNameByItemId[item.id];
+  const category = (categories || []).find(
+      (c) => c.kind === type && c.name.toLowerCase() === (categoryName || "").toLowerCase()
+  );
 
   const { data: transaction } = await admin.rpc("create_finance_transaction_admin", {
     p_user_id: connection.connected_by,
     p_account_id: account.id,
-    p_category_id: null,
+    p_category_id: category?.id || null,
     p_type: type,
     p_amount: Math.abs(amount),
     p_currency: account.currency,
