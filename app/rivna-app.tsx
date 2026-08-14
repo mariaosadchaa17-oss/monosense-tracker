@@ -1910,7 +1910,13 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
               ? `Завантажено: ${result.imported ?? 0}. Проблема: ${failed.error} (${failed.status || "немає з'єднання"})`
               : `Завантажено операцій: ${result.imported ?? 0}`,
       );
-      console.log("Monobank resync debug", result.debug);
+      if (result.debug?.length) {
+        window.alert(
+            result.debug
+                .map((d) => `${d.monoAccountId}: ${d.error ? `ПОМИЛКА — ${d.error} (${d.status ?? "—"})` : `OK, знайдено ${d.itemsFound ?? 0}`}`)
+                .join("\n"),
+        );
+      }
       await refreshFinance();
     } finally {
       setMonoResyncing(false);
