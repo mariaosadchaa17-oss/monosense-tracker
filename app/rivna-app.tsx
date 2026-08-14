@@ -620,7 +620,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
         notify(`Імпортовано операцій: ${imported.length}`);
       }
       const [scanning,setScanning]=useState(false);
-      const [scanItems,setScanItems]=useState<{amount:number;title:string;date:string|null;category:string|null}[]>([]);
+  const [scanItems,setScanItems]=useState<{id:string;amount:number;title:string;date:string|null;category:string|null;type:"income"|"expense"}[]>([]);
       async function scanReceipt(file:File){
         setScanning(true);
         try{
@@ -629,23 +629,35 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
           const result=await response.json();
           if(!response.ok)return notify(result.error||"Не вдалося розпізнати фото");
           if(!result.transactions?.length)return notify("Нічого не розпізнано на фото");
-          setScanItems(result.transactions);setModal("scan-review");
+          setScanItems(result.transactions.map((t:{amount:number;title:string;date:string|null;category:string|null;type?:string},i:number)=>({...t,id:`scan-${Date.now()}-${i}`,type:t.type==="income"?"income":"expense"})));
+          setModal("scan-review");
         }catch{notify("Помилка мережі під час розпізнавання")}
         finally{setScanning(false)}
       }
-      async function saveScannedTransaction(item:{amount:number;title:string;date:string|null;category:string|null},accountId:string,categoryId:string){
-        const account=accounts.find(a=>String(a.id)===accountId)||accounts[0];
-        if(!account)return notify("Спочатку створіть рахунок"),false;
-        if(initialLoggedIn){
-          const payload={action:"createTransaction",accountId:account.id,categoryId:categoryId||null,amount:item.amount,currency:account.currency,note:item.title,type:"expense",bookedAt:item.date?new Date(item.date).toISOString():undefined};
-          const response=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-          const result=await response.json();
-          if(!response.ok){notify(result.error||"Не вдалося зберегти");return false}
-          await refreshFinance();notify("Операцію додано");return true;
-        }
-        setTransactions([{id:Date.now(),title:item.title,category:categories.find(c=>c.id===categoryId)?.name||"Інше",date:"Щойно",amount:-item.amount,currency:account.currency},...transactions]);
-        notify("Операцію додано");return true;
-      }
+  async function saveScannedTransaction(item:{amount:number;title:string;date:string|null;category:string|null},accountId:string,categoryId:string,type:"income"|"expense",transferToAccountId:string){
+    const account=accounts.find(a=>String(a.id)===accountId)||accounts[0];
+    if(!account)return notify("Спочатку створіть рахунок"),false;
+    if(categoryId==="__transfer__"&&transferToAccountId){
+      const toAccount=accounts.find(a=>String(a.id)===transferToAccountId);
+      if(!toAccount)return notify("Рахунок отримувача не знайдено"),false;
+      if(!initialLoggedIn)return notify("Перекази доступні лише після входу в акаунт"),false;
+      const payload={action:"createTransfer",fromAccountId:account.id,toAccountId:toAccount.id,sentAmount:item.amount,receivedAmount:item.amount,exchangeRate:1,feeAmount:0,feeCurrency:account.currency,note:item.title,bookedAt:item.date?new Date(item.date).toISOString():undefined};
+      const response=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      const result=await response.json();
+      if(!response.ok){notify(result.error||"Не вдалося зберегти переказ");return false}
+      await refreshFinance();notify("Переказ додано");return true;
+    }
+    const realCategoryId=categoryId==="__transfer__"?"":categoryId;
+    if(initialLoggedIn){
+      const payload={action:"createTransaction",accountId:account.id,categoryId:realCategoryId||null,amount:item.amount,currency:account.currency,note:item.title,type,bookedAt:item.date?new Date(item.date).toISOString():undefined};
+      const response=await fetch("/api/finance",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
+      const result=await response.json();
+      if(!response.ok){notify(result.error||"Не вдалося зберегти");return false}
+      await refreshFinance();notify("Операцію додано");return true;
+    }
+    setTransactions([{id:Date.now(),title:item.title,category:categories.find(c=>c.id===realCategoryId)?.name||"Інше",date:"Щойно",amount:type==="income"?item.amount:-item.amount,currency:account.currency},...transactions]);
+    notify("Операцію додано");return true;
+  }
 
       if (!loggedIn) return <Login dark={dark} setDark={setDark} showPassword={showPassword} setShowPassword={setShowPassword} login={() => setLoggedIn(true)}/>;
  if (!hasLoadedOnce) return <div className="app-loader"><span className="app-loader-logo"/><div className="app-loader-dots"><span/><span/><span/></div></div>;
@@ -727,7 +739,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
     </section>
 
     {modal === "expense" && <ExpenseModal amount={amount} setAmount={setAmount} note={note} setNote={setNote} accounts={accounts} categories={categories} debts={debts.filter(d=>d.direction==="i_owe"&&!d.isVirtual)} submit={addExpense} close={() => setModal(null)}/>}
-        {modal === "scan-review" && <ScanReceiptModal items={scanItems} accounts={accounts} categories={categories} save={saveScannedTransaction} removeItem={index=>setScanItems(items=>items.filter((_,i)=>i!==index))} close={()=>{setModal(null);setScanItems([])}}/>}
+    {modal === "scan-review" && <ScanReceiptModal items={scanItems} accounts={accounts} categories={categories} save={saveScannedTransaction} removeItem={id=>setScanItems(items=>items.filter(i=>i.id!==id))} close={()=>{setModal(null);setScanItems([])}}/>}
     {modal === "account" && <AccountModal account={editingAccount} submit={addAccount} close={() => {setEditingAccount(null);setModal(null)}} openTransactions={name=>{setAccountFilter(name);setModal(null);setEditingAccount(null);setPage("Операції")}}/>}
     {modal === "goal" && <GoalModal goal={editingGoal} accounts={accounts} submit={addGoal} close={()=>{setModal(null);setEditingGoal(null)}}/>}
     {goalAction && <GoalActionModal action={goalAction} accounts={accounts} withdraw={withdrawGoal} breakGoal={breakGoal} close={()=>setGoalAction(null)}/>}
@@ -1930,33 +1942,48 @@ function ModalHead({label,title,close}:{label:string;title:string;close:()=>void
 function exportCsv(items:Transaction[],notify:(s:string)=>void) { const csv=["Назва,Категорія,Дата,Сума,Валюта",...items.map(t=>`"${t.title}","${t.category}","${t.bookedAt||t.date}",${t.amount},${t.currency||"UAH"}`)].join("\n"); const blob=new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}); const url=URL.createObjectURL(blob); const a=document.createElement("a"); a.href=url;a.download="rivna-transactions.csv";a.click();URL.revokeObjectURL(url);notify("CSV-файл завантажено"); }
 function exportJson(items:Transaction[],notify:(s:string)=>void){const json=JSON.stringify(items.map(t=>({title:t.title,category:t.category,date:t.bookedAt||t.date,amount:t.amount,currency:t.currency||"UAH",account:t.account,tags:t.tags})),null,2);const blob=new Blob([json],{type:"application/json"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="rivna-transactions.json";a.click();URL.revokeObjectURL(url);notify("JSON-файл завантажено");}
 async function exportExcel(items:Transaction[],notify:(s:string)=>void){const XLSX=await import("xlsx");const rows=items.map(t=>({Назва:t.title,Категорія:t.category,Дата:t.bookedAt||t.date,Сума:t.amount,Валюта:t.currency||"UAH",Рахунок:t.account||"",Власник:t.owner||"",Теги:(t.tags||[]).map(tag=>`#${tag}`).join(" "),Імпульсивна:t.impulse?"Так":"Ні"}));const sheet=XLSX.utils.json_to_sheet(rows),book=XLSX.utils.book_new();XLSX.utils.book_append_sheet(book,sheet,"Операції");XLSX.writeFile(book,"rivna-transactions.xlsx");notify("Excel-файл завантажено")}
-function ScanReceiptModal({items,accounts,categories,save,removeItem,close}:{items:{amount:number;title:string;date:string|null;category:string|null}[];accounts:Account[];categories:CategoryItem[];save:(item:{amount:number;title:string;date:string|null;category:string|null},accountId:string,categoryId:string)=>Promise<boolean>;removeItem:(index:number)=>void;close:()=>void}){
-  const [savedIndexes,setSavedIndexes]=useState<number[]>([]);
-  const guessCategoryId=(name:string|null)=>{
-      if(!name)return "";
-      const found=categories.find(c=>c.kind==="expense"&&c.name.toLowerCase()===name.toLowerCase());
-      return found?.id||"";
-    };
+function ScanReceiptModal({items,accounts,categories,save,removeItem,close}:{items:{id:string;amount:number;title:string;date:string|null;category:string|null;type:"income"|"expense"}[];accounts:Account[];categories:CategoryItem[];save:(item:{amount:number;title:string;date:string|null;category:string|null},accountId:string,categoryId:string,type:"income"|"expense",transferToAccountId:string)=>Promise<boolean>;removeItem:(id:string)=>void;close:()=>void}){
+  const [doneIds,setDoneIds]=useState<string[]>([]);
+  const visible=items.filter(item=>!doneIds.includes(item.id));
+  const guessCategoryId=(name:string|null,kind:"expense"|"income")=>{
+    if(!name)return "";
+    const found=categories.find(c=>c.kind===kind&&c.name.toLowerCase()===name.toLowerCase());
+    return found?.id||"";
+  };
   return <div className="modal-backdrop" onMouseDown={close}><div className="expense-modal tall-modal" onMouseDown={e=>e.stopPropagation()}>
     <ModalHead label="Розпізнано з фото" title="Перевір і збережи операції" close={close}/>
-    {items.map((item,index)=>{
-      if(savedIndexes.includes(index))return null;
-      return <ScanReviewRow key={index} item={item} accounts={accounts} categories={categories} guessCategoryId={guessCategoryId(item.category)} onSave={async(accountId,categoryId,editedTitle,editedAmount)=>{const ok=await save({...item,title:editedTitle,amount:editedAmount},accountId,categoryId);if(ok)setSavedIndexes(v=>[...v,index])}} onSkip={()=>removeItem(index)}/>
-    })}
-    {items.length>0&&items.every((_,index)=>savedIndexes.includes(index)) && <p className="empty-inline">Усі операції оброблено</p>}
+    {visible.length>0 && <div className="scan-review-head"><span>Дата</span><span>Категорія</span><span>Назва</span><span>Сума</span></div>}
+    {visible.map(item=>
+        <ScanReviewRow key={item.id} item={item} accounts={accounts} categories={categories} guessCategoryId={guessCategoryId} onSave={async(accountId,categoryId,type,transferToAccountId,editedTitle,editedAmount,editedDate)=>{const ok=await save({...item,title:editedTitle,amount:editedAmount,date:editedDate},accountId,categoryId,type,transferToAccountId);if(ok)setDoneIds(v=>[...v,item.id])}} onSkip={()=>{removeItem(item.id);setDoneIds(v=>[...v,item.id])}}/>
+    )}
+    {!visible.length && <p className="empty-inline">Усі операції оброблено</p>}
     <button type="button" className="secondary" onClick={close}>Готово</button>
   </div></div>;
 }
-function ScanReviewRow({item,accounts,categories,guessCategoryId,onSave,onSkip}:{item:{amount:number;title:string;date:string|null;category:string|null};accounts:Account[];categories:CategoryItem[];guessCategoryId:string;onSave:(accountId:string,categoryId:string,title:string,amount:number)=>void;onSkip:()=>void}){
+function ScanReviewRow({item,accounts,categories,guessCategoryId,onSave,onSkip}:{item:{amount:number;title:string;date:string|null;category:string|null;type:"income"|"expense"};accounts:Account[];categories:CategoryItem[];guessCategoryId:(name:string|null,kind:"expense"|"income")=>string;onSave:(accountId:string,categoryId:string,type:"income"|"expense",transferToAccountId:string,title:string,amount:number,date:string|null)=>void;onSkip:()=>void}){
+  const [type,setType]=useState<"income"|"expense">(item.type);
   const [title,setTitle]=useState(item.title);
   const [amount,setAmount]=useState(String(item.amount));
+  const [date,setDate]=useState(item.date||"");
   const [accountId,setAccountId]=useState(String(accounts[0]?.id||""));
-  const [categoryId,setCategoryId]=useState(guessCategoryId);
-  return <div className="scan-review-row">
-    <div className="form-two"><label>Назва<input value={title} onChange={e=>setTitle(e.target.value)}/></label><label>Сума<input type="number" min="0" step=".01" value={amount} onChange={e=>setAmount(e.target.value)}/></label></div>
-    <div className="form-two"><label>Рахунок<select value={accountId} onChange={e=>setAccountId(e.target.value)}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select></label><label>Категорія<select value={categoryId} onChange={e=>setCategoryId(e.target.value)}><option value="">Без категорії</option>{categories.filter(c=>c.kind==="expense").map(c=><option key={c.id} value={c.id}>{c.name}</option>)}</select></label></div>
-    {item.date && <small className="field-help">Дата на чеку: {item.date}</small>}
-    <div className="form-two"><button type="button" className="primary" onClick={()=>onSave(accountId,categoryId,title,Number(amount))}>Зберегти</button><button type="button" className="secondary" onClick={onSkip}>Пропустити</button></div>
+  const [categoryId,setCategoryId]=useState(guessCategoryId(item.category,item.type));
+  const [transferToAccountId,setTransferToAccountId]=useState("");
+  const isTransfer=categoryId==="__transfer__";
+  return <div className="scan-review-line">
+    <input className="scan-review-date" type="date" value={date} onChange={e=>setDate(e.target.value)}/>
+    <select className="scan-review-category" value={categoryId} onChange={e=>{setCategoryId(e.target.value);if(e.target.value!=="__transfer__")setTransferToAccountId("")}}>
+      <option value="">Без категорії</option>
+      <option value="__transfer__">Переказ на картку</option>
+      {categories.filter(c=>c.kind===type).map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+    </select>
+    <input className="scan-review-title" value={title} onChange={e=>setTitle(e.target.value)} placeholder="Назва"/>
+    <input className="scan-review-amount" type="number" min="0" step=".01" value={amount} onChange={e=>setAmount(e.target.value)}/>
+    <div className="scan-review-meta">
+      <div className="scan-review-type"><button type="button" className={type==="expense"?"selected":""} onClick={()=>{setType("expense");setCategoryId("")}}>Витрата</button><button type="button" className={type==="income"?"selected":""} onClick={()=>{setType("income");setCategoryId("")}}>Дохід</button></div>
+      <select className="scan-review-account" value={accountId} onChange={e=>setAccountId(e.target.value)}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}</select>
+      {isTransfer && <select className="scan-review-transfer-to" value={transferToAccountId} onChange={e=>setTransferToAccountId(e.target.value)}><option value="">Стороннє (не вибирати)</option>{accounts.filter(a=>String(a.id)!==accountId).map(a=><option key={a.id} value={a.id}>На: {a.name}</option>)}</select>}
+    </div>
+    <div className="scan-review-actions"><button type="button" className="primary" onClick={()=>onSave(accountId,categoryId,type,transferToAccountId,title,Number(amount),date||null)}>Зберегти</button><button type="button" className="secondary" onClick={onSkip}>Пропустити</button></div>
   </div>;
 }
 function translateEntity(value:string){return ({transactions:"Операція",accounts:"Рахунок",transfers:"Переказ",budgets:"Бюджет"} as Record<string,string>)[value]||value}

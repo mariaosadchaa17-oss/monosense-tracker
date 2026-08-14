@@ -9,6 +9,7 @@ type ScannedTransaction = {
   title: string;
   date: string | null;
   category: string | null;
+  type: "income" | "expense";
 };
 
 export async function POST(request: NextRequest) {
@@ -36,11 +37,11 @@ export async function POST(request: NextRequest) {
   const categoryHint = knownCategories.length
       ? `Обери category СУВОРО з цього списку (пиши точно як у списку) або постав null, якщо жодна не підходить: ${knownCategories.join(", ")}.`
       : `Постав category null, якщо не впевнений.`;
-    const prompt = `Ти розпізнаєш фото чека або банківської виписки. Поверни ЛИШЕ валідний JSON без пояснень і без markdown-огорожі, у форматі:
-  {"transactions":[{"amount":число (додатнє, загальна сума операції),"title":"назва магазину, закладу або опис товару/послуги — НІКОЛИ не дата і не час","date":"YYYY-MM-DD або null (рік має бути реальним, від 2015 до 2030)","category":"назва категорії або null"}]}
-  ВАЖЛИВО: поле title — це те, ЩО купили або ДЕ (назва магазину/закладу), а не коли. Якщо на фото є і назва, і дата/час — дату клади лише в date, а не в title.
-  ${categoryHint}
-  Якщо на фото один чек — поверни один об'єкт у масиві. Якщо це виписка з кількома операціями — поверни кожну окремим об'єктом. Якщо нічого розпізнати не вдалось — поверни {"transactions":[]}.`;
+  const prompt = `Ти розпізнаєш фото чека або банківської виписки. Поверни ЛИШЕ валідний JSON без пояснень і без markdown-огорожі, у форматі:
+{"transactions":[{"amount":число (додатнє, загальна сума операції),"title":"назва магазину, закладу або опис товару/послуги — НІКОЛИ не дата і не час","date":"YYYY-MM-DD або null (рік має бути реальним, від 2015 до 2030)","category":"назва категорії або null","type":"expense або income — expense якщо це витрата/оплата/покупка, income якщо це надходження/зарплата/поповнення/переказ на карту КОРИСТУВАЧА"}]}
+ВАЖЛИВО: поле title — це те, ЩО купили або ДЕ (назва магазину/закладу), а не коли. Якщо на фото є і назва, і дата/час — дату клади лише в date, а не в title.
+${categoryHint}
+Якщо на фото один чек — поверни один об'єкт у масиві. Якщо це виписка з кількома операціями — поверни кожну окремим об'єктом. Якщо нічого розпізнати не вдалось — поверни {"transactions":[]}.`;
 
   let geminiResponse: Response;
   try {
@@ -94,7 +95,8 @@ export async function POST(request: NextRequest) {
         const title = rawTitle && !looksLikeDateTime(rawTitle) ? rawTitle : "Операція (перевір назву)";
         const validDate = t.date && /^\d{4}-\d{2}-\d{2}$/.test(t.date) && isSaneYear(t.date) ? t.date : null;
         const category = t.category && knownCategories.includes(String(t.category)) ? String(t.category) : null;
-        return { amount: Number(t.amount), title, date: validDate, category };
+        const type: "income" | "expense" = t.type === "income" ? "income" : "expense";
+        return { amount: Number(t.amount), title, date: validDate, category, type };
       });
 
   return NextResponse.json({ transactions });

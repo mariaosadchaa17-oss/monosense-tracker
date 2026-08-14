@@ -1873,8 +1873,18 @@ header h1 {
     color: var(--muted)
 }
 
-.row-menu-wrap{position:relative}.scan-review-row{border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;display:flex;flex-direction:column;gap:10px}
-
+.row-menu-wrap{position:relative}
+.scan-review-head{display:grid;grid-template-columns:110px 1fr 1.2fr 90px;gap:10px;padding:0 4px 6px;color:var(--muted);font-size:9px;text-transform:uppercase;font-weight:650}
+.scan-review-line{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;display:grid;grid-template-columns:110px 1fr 1.2fr 90px;gap:10px;align-items:center}
+.scan-review-line input,.scan-review-line select{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:9px;padding:8px;font-size:11px;min-width:0}
+.scan-review-meta{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.scan-review-type{display:flex;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.scan-review-type button{border:0;background:var(--panel);color:var(--muted);padding:7px 12px;font-size:10px;font-weight:700;cursor:pointer}
+.scan-review-type button.selected{background:var(--ink);color:#fff}
+.scan-review-account,.scan-review-transfer-to{flex:1;min-width:140px}
+.scan-review-actions{grid-column:1/-1;display:flex;gap:8px}
+.scan-review-actions button{flex:1}
+@media(max-width:720px){.scan-review-head{display:none}.scan-review-line{grid-template-columns:1fr 1fr}.scan-review-line .scan-review-title{grid-column:1/-1}}
 .row-menu {
     position: absolute;
     right: 0;

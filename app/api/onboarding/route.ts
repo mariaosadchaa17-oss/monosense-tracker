@@ -9,6 +9,12 @@ const allowedCategories=[
   "Зв’язок та інтернет","Освіта","Подорожі","Спорт","Кишенькові витрати",
   "Домашні улюбленці","Техніка","Інше",
 ];
+const defaultIncomeCategories=[
+  {name:"Зарплата",icon:"WalletCards",color:"#159b70"},
+  {name:"Фріланс",icon:"Laptop",color:"#6558e8"},
+  {name:"Подарунки",icon:"Gift",color:"#e0527d"},
+  {name:"Інший дохід",icon:"CircleDollarSign",color:"#f4b740"},
+];
 type CategoryChoice={name:string;color?:string;week_limit?:number;month_limit?:number};
 const categoryIcons:Record<string,string>={
   "Продукти":"ShoppingCart","Кафе та ресторани":"Coffee","Комуналка":"House","Транспорт":"Bus","Авто":"Car",
@@ -41,6 +47,8 @@ export async function POST(request:Request){
   const chosen:CategoryChoice[]=Array.isArray(body.categories)?body.categories.filter((item:CategoryChoice)=>allowedCategories.includes(String(item.name))).slice(0,20):[];
   const categoryRows=chosen.map(item=>({household_id:context.householdId,name:item.name,icon:categoryIcons[item.name]||"CircleDollarSign",color:item.color||"#6558e8",kind:"expense",created_by:context.user.id}));
   if(categoryRows.length)await admin.from("categories").upsert(categoryRows,{onConflict:"household_id,name,kind"});
+  const incomeCategoryRows=defaultIncomeCategories.map(item=>({household_id:context.householdId,name:item.name,icon:item.icon,color:item.color,kind:"income",created_by:context.user.id}));
+  await admin.from("categories").upsert(incomeCategoryRows,{onConflict:"household_id,name,kind"});
   const {data:categories}=await admin.from("categories").select("id,name").eq("household_id",context.householdId).eq("kind","expense");
   const now=new Date(),weekStart=new Date(now);weekStart.setDate(weekStart.getDate()-((weekStart.getDay()+6)%7));
   const monthStart=now.toISOString().slice(0,7)+"-01";
