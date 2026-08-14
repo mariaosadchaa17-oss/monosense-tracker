@@ -1153,8 +1153,17 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     notify("Операцію видалено");
   }
   async function updateTransaction(payload: Record<string, unknown>) {
-    if (await financeAction({ action: "updateTransaction", ...payload }, "Операцію оновлено"))
+    const contributeGoalId = payload.contributeGoalId as string | null;
+    const goalAmount = Number(payload.amount) || 0;
+    const cleanPayload = { ...payload };
+    delete cleanPayload.contributeGoalId;
+    const ok = await financeAction({ action: "updateTransaction", ...cleanPayload }, "Операцію оновлено");
+    if (ok) {
       setEditingTransaction(null);
+      if (contributeGoalId && goalAmount > 0) {
+        await financeAction({ action: "contributeGoal", id: contributeGoalId, amount: goalAmount }, "Банку поповнено");
+      }
+    }
   }
   async function financeAction(payload: Record<string, unknown>, success: string) {
     setBusy(true);
@@ -2661,6 +2670,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
                 transaction={editingTransaction}
                 categories={categories}
                 accounts={accounts}
+                goals={goals}
                 close={() => setEditingTransaction(null)}
                 submit={updateTransaction}
             />
@@ -7547,12 +7557,14 @@ function EditTransactionModal({
                                 transaction,
                                 categories,
                                 accounts,
+                                goals,
                                 close,
                                 submit,
                               }: {
   transaction: Transaction;
   categories: CategoryItem[];
   accounts: Account[];
+  goals: GoalItem[];
   close: () => void;
   submit: (payload: Record<string, unknown>) => void;
 }) {
@@ -7578,6 +7590,7 @@ function EditTransactionModal({
                 tags: String(f.get("tags") || "")
                     .split(/\s+/)
                     .filter(Boolean),
+                contributeGoalId: type === "expense" ? f.get("contributeGoalId") || null : null,
               });
             }}
             onMouseDown={(e) => e.stopPropagation()}
@@ -7632,6 +7645,19 @@ function EditTransactionModal({
                   ))}
             </select>
           </label>
+          {type === "expense" && goals.length > 0 && (
+              <label>
+                Покласти в банку (необов'язково)
+                <select name="contributeGoalId" defaultValue="">
+                  <option value="">Не класти в банку</option>
+                  {goals.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                  ))}
+                </select>
+              </label>
+          )}
           <label>
             Дата
             <input
