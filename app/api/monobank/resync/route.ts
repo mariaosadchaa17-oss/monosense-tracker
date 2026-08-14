@@ -88,7 +88,7 @@ export async function POST(request: Request) {
             const amount = item.amount / 100;
             const type = amount < 0 ? "expense" : "income";
 
-            const { data: transaction } = await admin.rpc("create_finance_transaction", {
+            const { data: transaction, error: txError } = await admin.rpc("create_finance_transaction", {
                 p_account_id: account.id,
                 p_category_id: null,
                 p_type: type,
@@ -98,6 +98,11 @@ export async function POST(request: Request) {
                 p_booked_at: new Date(item.time * 1000).toISOString(),
                 p_is_impulsive: false,
             });
+
+            if (txError) {
+                debug.push({ monoAccountId: link.mono_account_id, error: `RPC: ${txError.message}` });
+                continue;
+            }
 
             await admin.from("monobank_synced_items").insert({
                 statement_item_id: item.id,
