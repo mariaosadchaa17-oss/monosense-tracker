@@ -2324,65 +2324,7 @@ header h1 {
     box-shadow: var(--shadow)
 }
 
-.recurring-panel {
-    margin-top: 18px
-}
-
-.recurring-list {
-    margin-top: 20px
-}
-
-.recurring-list>div {
-    display: grid;
-    grid-template-columns: 42px 1fr 1.2fr auto auto;
-    align-items: center;
-    gap: 12px;
-    padding: 13px 0;
-    border-top: 1px solid var(--line)
-}
-
-.recurring-list>div:first-child {
-    border-top: 0
-}
-
-.recurring-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 12px;
-    background: #e9e7ff;
-    color: var(--purple);
-    display: grid;
-    place-items: center
-}
-
-.recurring-icon svg {
-    width: 18px
-}
-
-.recurring-list strong,
-.recurring-list b {
-    font-size: 12px
-}
-
-.recurring-list small {
-    color: var(--muted);
-    font-size: 10px
-}
-
-.recurring-list em {
-    font-style: normal;
-    font-size: 9px;
-    background: var(--bg);
-    padding: 6px 8px;
-    border-radius: 8px;
-    color: var(--muted)
-}
-
-.empty-inline {
-    color: var(--muted);
-    font-size: 12px;
-    padding: 18px 0
-}
+.recurring-panel{margin-top:18px}.recurring-list{margin-top:20px}.recurring-list>div{display:grid;grid-template-columns:42px minmax(0,1fr) minmax(0,1.2fr) auto auto;align-items:center;gap:12px;padding:13px 0;border-top:1px solid var(--line)}.recurring-list>div:first-child{border-top:0}.recurring-icon{width:40px;height:40px;border-radius:12px;background:#e9e7ff;color:var(--purple);display:grid;place-items:center}.recurring-icon svg{width:18px}.recurring-list strong,.recurring-list b{font-size:12px}.recurring-list strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.recurring-list b{white-space:nowrap;justify-self:end;padding-left:6px}.recurring-list small{color:var(--muted);font-size:10px}.recurring-list em{font-style:normal;font-size:9px;background:var(--bg);padding:6px 8px;border-radius:8px;color:var(--muted);white-space:nowrap;justify-self:end}.empty-inline{color:var(--muted);font-size:12px;padding:18px 0}
 
 .analytics-grid {
     display: grid;
