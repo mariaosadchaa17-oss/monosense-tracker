@@ -5123,6 +5123,19 @@ function SettingsView({
             <div className="section-title">
               <div>
                 <h2>Категорії</h2>
+                <button
+                    type="button"
+                    className="secondary"
+                    onClick={async () => {
+                      const response = await fetch("/api/settings/seed-income-categories", { method: "POST" });
+                      const result = await response.json();
+                      if (!response.ok) return notify(result.error || "Не вдалося додати категорії");
+                      notify(`Додано категорій доходу: ${result.created}`);
+                      window.location.reload();
+                    }}
+                >
+                  Додати категорії доходу
+                </button>
                 <p>Власні назви, кольори та Lucide-іконки</p>
               </div>
               <button className="small-primary" onClick={addCategory}>
@@ -7209,6 +7222,7 @@ function GoalActionModal({
               if (Number(amount) <= 0) return;
               if (mode === "contribute") contribute(goal.id, Number(amount), accountId);
               else withdraw(goal.id, Number(amount), accountId);
+            }}
             onMouseDown={(e) => e.stopPropagation()}
         >
           <ModalHead label={goal.name} title={mode === "contribute" ? "Поповнити банку" : "Зняти кошти"} close={close} />
