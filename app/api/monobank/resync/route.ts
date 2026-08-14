@@ -38,6 +38,13 @@ export async function POST(request: Request) {
         .select("id,name,kind")
         .eq("household_id", context.householdId);
 
+    const { data: installmentRules } = await admin
+        .from("recurring_rules")
+        .select("id,account_id,amount,debt_id,active")
+        .eq("household_id", context.householdId)
+        .not("debt_id", "is", null)
+        .eq("active", true);
+
     const { data: accountRows } = await admin
         .from("accounts")
         .select("id,currency")
@@ -197,6 +204,51 @@ export async function POST(request: Request) {
         for (const f of items) {
             const amount = f.item.amount / 100;
             const type = amount < 0 ? "expense" : "income";
+
+            const matchingInstallment = (installmentRules || []).find(
+                (rule) =>
+                    rule.account_id === appAccountId &&
+                    type === "expense" &&
+                    Math.abs(Number(rule.amount) - Math.abs(amount)) < 1
+            );
+
+            if (matchingInstallment) {
+                const { data: transaction, error: txError } = await admin.rpc("create_finance_transaction_admin", {
+                    p_user_id: connection.connected_by,
+                    p_account_id: account.id,
+                    p_category_id: null,
+                    p_type: "expense",
+                    p_amount: Math.abs(amount),
+                    p_currency: account.currency,
+                    p_note: "Погашення розстрочки (автовизначено)",
+                    p_booked_at: new Date(f.item.time * 1000).toISOString(),
+                    p_is_impulsive: false,
+                    p_split_total: null,
+                    p_personal_share: null,
+                });
+
+                if (!txError) {
+                    const { data: debtRow } = await admin
+                        .from("debts")
+                        .select("amount")
+                        .eq("id", matchingInstallment.debt_id)
+                        .maybeSingle();
+                    if (debtRow) {
+                        const newAmount = Math.max(0, Number(debtRow.amount) - Math.abs(amount));
+                        await admin
+                            .from("debts")
+                            .update({ amount: newAmount, settled: newAmount <= 0 })
+                            .eq("id", matchingInstallment.debt_id);
+                    }
+                    await admin.from("monobank_synced_items").insert({
+                        statement_item_id: f.item.id,
+                        transaction_id: transaction?.id || null,
+                    });
+                    imported++;
+                    continue;
+                }
+            }
+
             const categoryName = categoryNameByItemId[f.item.id];
             const category = (categories || []).find(
                 (c) => c.kind === type && c.name.toLowerCase() === (categoryName || "").toLowerCase()
