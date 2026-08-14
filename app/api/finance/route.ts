@@ -261,12 +261,20 @@ export async function POST(request: Request) {
         kind:body.kind==="income"?"income":"expense",debt_id:body.debtId||null,created_by:user.id,
       }).select().single();
       break;
-    case "createCategory":
-      result = await supabase.from("categories").insert({
-        household_id:householdId,name:String(body.name).slice(0,60),icon:String(body.icon||"CircleDollarSign").slice(0,60),
-        color:String(body.color||"#6558E8").slice(0,20),kind:body.kind==="income"?"income":"expense",created_by:user.id,
-      }).select().single();
-      break;
+      case "createCategory":
+          result = await supabase.from("categories").insert({
+              household_id:householdId,name:String(body.name).slice(0,60),icon:String(body.icon||"CircleDollarSign").slice(0,60),
+              color:String(body.color||"#6558E8").slice(0,20),kind:body.kind==="income"?"income":"expense",created_by:user.id,
+              budget_group:["needs","wants","savings"].includes(String(body.budgetGroup))?body.budgetGroup:null,
+          }).select().single();
+          break;
+      case "updateCategory":
+          result = await supabase.from("categories").update({
+              name:String(body.name).slice(0,60),icon:String(body.icon||"CircleDollarSign").slice(0,60),
+              color:String(body.color||"#6558E8").slice(0,20),
+              budget_group:["needs","wants","savings"].includes(String(body.budgetGroup))?body.budgetGroup:null,
+          }).eq("id",body.id).eq("household_id",householdId).select().single();
+          break;
     case "createCustomRate":
       result=await supabase.from("exchange_rates").upsert({
         household_id:householdId,rate_date:body.date||new Date().toISOString().slice(0,10),base_currency:String(body.baseCurrency||"UAH").toUpperCase().slice(0,3),

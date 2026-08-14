@@ -203,6 +203,7 @@ type CategoryItem = {
   color: string;
   icon: string;
   isDefault?: boolean;
+  budgetGroup?: "needs" | "wants" | "savings" | null;
 };
 type BudgetItem = {
   id: string;
@@ -444,6 +445,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   const [installPrompt, setInstallPrompt] = useState<Event | null>(null);
   const [pushEnabled, setPushEnabled] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [editingCategory, setEditingCategory] = useState<CategoryItem | null>(null);
   const [editingGoal, setEditingGoal] = useState<GoalItem | null>(null);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [payTarget, setPayTarget] = useState<DebtItem | null>(null);
@@ -704,14 +706,15 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       if (data.categories)
         setCategories(
             (data.categories || []).map((item: Record<string, unknown>) => ({
-            id: String(item.id),
-            name: String(item.name),
-            kind: String(item.kind),
-            color: String(item.color || "#6558E8"),
-            icon: String(item.icon || "CircleDollarSign"),
-            isDefault: Boolean(item.is_default),
-          })),
-      );
+              id: String(item.id),
+              name: String(item.name),
+              kind: String(item.kind),
+              color: String(item.color || "#6558E8"),
+              icon: String(item.icon || "CircleDollarSign"),
+              isDefault: Boolean(item.is_default),
+              budgetGroup: (item.budget_group as "needs" | "wants" | "savings" | null) || null,
+            })),
+        );
       setSavedBudgets(
           (data.budgets || []).map((item: Record<string, unknown>) => ({
             id: String(item.id),
@@ -1281,8 +1284,23 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
               kind: String(payload.kind || "expense"),
               color: String(payload.color || "#6558E8"),
               icon: String(payload.icon || "CircleDollarSign"),
+              budgetGroup: (payload.budgetGroup as "needs" | "wants" | "savings") || null,
             },
           ]);
+        else if (action === "updateCategory")
+          setCategories((items) =>
+              items.map((item) =>
+                  item.id === id
+                      ? {
+                        ...item,
+                        name: String(payload.name || item.name),
+                        color: String(payload.color || item.color),
+                        icon: String(payload.icon || item.icon),
+                        budgetGroup: (payload.budgetGroup as "needs" | "wants" | "savings") || null,
+                      }
+                      : item,
+              ),
+          );
         else if (action === "deleteCategory")
           setCategories((items) => items.filter((item) => item.id !== id));
         else if (action === "deleteBudget")
@@ -1626,19 +1644,24 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   async function addCategory(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
+    const id = f.get("id");
     if (
         await financeAction(
             {
-              action: "createCategory",
+              action: id ? "updateCategory" : "createCategory",
+              id: id || undefined,
               name: f.get("name"),
               kind: String(f.get("kind")),
               icon: String(f.get("icon")),
               color: String(f.get("color")),
+              budgetGroup: f.get("budgetGroup") || null,
             },
-            "Категорію створено",
+            id ? "Категорію оновлено" : "Категорію створено",
         )
-    )
+    ) {
       setModal(null);
+      setEditingCategory(null);
+    }
   }
   async function addRule(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -2320,6 +2343,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
                   balance={balance}
                   rates={rates}
                   customRates={customRates}
+                  categories={categories}
               />
           )}
           {page === "Борги" && (
@@ -2379,6 +2403,10 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
                   openAddRule={() => setModal("rule")}
                   removeRule={(id) => financeAction({ action: "deleteRule", id }, "Правило видалено")}
                   addCategory={() => setModal("category")}
+                  editCategory={(category) => {
+                    setEditingCategory(category);
+                    setModal("category");
+                  }}
                   deleteCategory={(id) =>
                       financeAction({ action: "deleteCategory", id }, "Категорію видалено")
                   }
@@ -2656,7 +2684,16 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
                 close={() => setModal(null)}
             />
         )}
-        {modal === "category" && <CategoryModal submit={addCategory} close={() => setModal(null)} />}
+        {modal === "category" && (
+            <CategoryModal
+                category={editingCategory}
+                submit={addCategory}
+                close={() => {
+                  setModal(null);
+                  setEditingCategory(null);
+                }}
+            />
+        )}
         {modal === "rule" && (
             <RuleModal
                 categories={categories}
@@ -4431,6 +4468,7 @@ function AnalyticsView({
                          balance,
                          rates,
                          customRates,
+                         categories,
                        }: {
   transactions: Transaction[];
   baseCurrency: string;
@@ -4438,6 +4476,7 @@ function AnalyticsView({
   balance: number;
   rates: { currency: string; rate: number }[];
   customRates: { currency: string; rate: number }[];
+  categories: CategoryItem[];
 }) {
   const plannedIncomeItems = recurring.filter((r) => r.kind === "income");
   const [period, setPeriod] = useState<"month" | "week">("month"),
@@ -4504,13 +4543,6 @@ function AnalyticsView({
               transaction.kind !== "exchange",
       );
   const total = expenses.reduce(
-          (sum, transaction) => sum + Math.abs(transaction.baseAmount ?? transaction.amount),
-          0,
-      ),
-      income = currentTransactions
-          .filter(
-              (transaction) =>
-                  transaction.amount > 0 &&
                   transaction.kind !== "transfer" &&
                   transaction.kind !== "exchange",
           )
@@ -4680,6 +4712,49 @@ function AnalyticsView({
             customRates={customRates}
             baseCurrency={baseCurrency}
         />
+        <section className="panel">
+          <div className="section-title">
+            <div>
+              <h2>Правило 50/30/20</h2>
+              <p>Порівняння твоїх витрат з класичним фінансовим правилом</p>
+            </div>
+          </div>
+          <div className="budget-rule-grid">
+            {[
+              { key: "needs" as const, label: "Базові потреби", target: 50, color: "#159b70" },
+              { key: "wants" as const, label: "Бажання / Розваги", target: 30, color: "#f4b740" },
+              { key: "savings" as const, label: "Заощадження / Борги", target: 20, color: "#6558e8" },
+            ].map((row) => {
+              const value = groupTotals[row.key];
+              const actualPercent = total ? Math.round((value / total) * 100) : 0;
+              const diff = actualPercent - row.target;
+              return (
+                  <div key={row.key} className="budget-rule-row">
+                    <div className="budget-rule-head">
+                      <strong>{row.label}</strong>
+                      <span>
+                    {actualPercent}% <small>(ціль: {row.target}%)</small>
+                  </span>
+                    </div>
+                    <div className="budget-rule-bar">
+                      <i style={{ width: `${Math.min(100, actualPercent)}%`, background: row.color }} />
+                      <b style={{ left: `${row.target}%` }} />
+                    </div>
+                    <small className={diff > 0 ? "negative" : "positive"}>
+                      {symbol} {formatMoney(value)}
+                      {diff !== 0 && ` · ${diff > 0 ? "+" : ""}${diff}% від цілі`}
+                    </small>
+                  </div>
+              );
+            })}
+          </div>
+          {groupTotals.unassigned > 0 && (
+              <p className="empty-inline">
+                {symbol} {formatMoney(groupTotals.unassigned)} витрат без групи — признач групу категоріям у
+                Налаштуваннях, щоб врахувати їх тут.
+              </p>
+          )}
+        </section>
         <AnomalyAlerts transactions={transactions} baseCurrency={baseCurrency} />
       </>
   );
@@ -5025,6 +5100,7 @@ function SettingsView({
                         categories,
                         audit,
                         addCategory,
+                        editCategory,
                         deleteCategory,
                         pushEnabled,
                         enablePush,
@@ -5049,6 +5125,7 @@ function SettingsView({
   categories: CategoryItem[];
   audit: AuditItem[];
   addCategory: () => void;
+  editCategory: (category: CategoryItem) => void;
   deleteCategory: (id: string) => void;
   pushEnabled: boolean;
   enablePush: () => void;
@@ -5151,7 +5228,7 @@ function SettingsView({
                 </button>
                 <p>Власні назви, кольори та Lucide-іконки</p>
               </div>
-              <button className="small-primary" onClick={addCategory}>
+              <button className="small-primary" onClick={() => { setEditingCategory(null); addCategory(); }}>
                 <Plus /> Категорія
               </button>
             </div>
@@ -5160,7 +5237,15 @@ function SettingsView({
                   <div key={category.id}>
                     <span style={{ background: category.color }} />
                     <strong>{category.name}</strong>
-                    <small>{category.kind === "income" ? "Дохід" : "Витрата"}</small>
+                    <small>
+                      {category.kind === "income" ? "Дохід" : "Витрата"}
+                      {category.budgetGroup === "needs" && " · Потреби"}
+                      {category.budgetGroup === "wants" && " · Бажання"}
+                      {category.budgetGroup === "savings" && " · Заощадження"}
+                    </small>
+                    <button onClick={() => editCategory(category)}>
+                      <Settings size={14} />
+                    </button>
                     <button onClick={() => deleteCategory(category.id)}>
                       <Trash2 />
                     </button>
@@ -8171,32 +8256,7 @@ function BudgetModal({
       </div>
   );
 }
-function CategoryModal({
-                         submit,
-                         close,
-                       }: {
-  submit: (e: React.SyntheticEvent<HTMLFormElement>) => void;
-  close: () => void;
-}) {
-  const [icon, setIcon] = useState(BUDGET_ICON_NAMES[0]);
-  const [color, setColor] = useState(BUDGET_COLORS[0]);
-  return (
-      <div className="modal-backdrop" onMouseDown={close}>
-        <form className="expense-modal" onSubmit={submit} onMouseDown={(e) => e.stopPropagation()}>
-          <ModalHead label="Персоналізація" title="Нова категорія" close={close} />
-          <label>
-            Назва
-            <input name="name" required placeholder="Домашні улюбленці" />
-          </label>
-          <label>
-            Тип
-            <select name="kind">
-              <option value="expense">Витрата</option>
-              <option value="income">Дохід</option>
-            </select>
-          </label>
-          <input type="hidden" name="icon" value={icon} />
-          <input type="hidden" name="color" value={color} />
+CategoryModal
           <label>Іконка</label>
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
             {BUDGET_ICON_NAMES.map((name) => (
@@ -8245,10 +8305,10 @@ function CategoryModal({
                 </button>
             ))}
           </div>
-          <button className="primary">Створити категорію</button>
-        </form>
-      </div>
-  );
+<button className="primary">{category ? "Зберегти зміни" : "Створити категорію"}</button>
+</form>
+</div>
+);
 }
 function RuleModal({
                      categories,
