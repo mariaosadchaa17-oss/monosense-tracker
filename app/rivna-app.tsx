@@ -1806,7 +1806,8 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   >([]);
   const [monoConnecting, setMonoConnecting] = useState(false);
   const [monoLinks, setMonoLinks] = useState<Record<string, string>>({});
-  const [monoStatusLoaded, setMonoStatusLoaded] = useState(false);
+  const [monoStatusLoaded,setMonoStatusLoaded]=useState(false);
+  const [monoLastSyncedAt,setMonoLastSyncedAt]=useState<string|null>(null);
   useEffect(() => {
     if (!initialLoggedIn) return;
     fetch("/api/monobank/status")
@@ -1815,9 +1816,9 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
           if (data?.connected) {
             setMonoAccounts(data.accounts || []);
             setMonoLinks(data.links || {});
+            setMonoLastSyncedAt(data.lastSyncedAt || null);
           }
           setMonoStatusLoaded(true);
-        })
         .catch(() => setMonoStatusLoaded(true));
   }, [initialLoggedIn]);
   async function connectMonobank() {
@@ -1926,6 +1927,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
               ? `Завантажено: ${result.imported ?? 0}. Проблема: ${failed.error} (${failed.status || "немає з'єднання"})`
               : `Завантажено операцій: ${result.imported ?? 0}`,
       );
+      if (result.imported) setMonoLastSyncedAt(new Date().toISOString());
       if (result.debug?.length) {
         window.alert(
             result.debug
