@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { buildDigestPdf } from "@/lib/digest/buildPdf";
 
 export async function GET(request: Request) {
   const authorization = request.headers.get("authorization");
@@ -17,9 +18,9 @@ export async function GET(request: Request) {
   const force = url.searchParams.get("force") === "1";
 
   const { data: prefs } = await supabase
-    .from("notification_preferences")
-    .select("user_id,digest_enabled,digest_frequency,telegram_chat_id,digest_email_enabled")
-    .eq("digest_enabled", true);
+      .from("notification_preferences")
+      .select("user_id,digest_enabled,digest_frequency,telegram_chat_id,digest_email_enabled")
+      .eq("digest_enabled", true);
 
   let sent = 0;
   let lastDebug: Record<string, unknown> | null = null;
@@ -37,11 +38,11 @@ export async function GET(request: Request) {
     periodStart.setDate(periodStart.getDate() - (pref.digest_frequency === "weekly" ? 7 : 30));
 
     const { data: transactions } = await supabase
-      .from("transactions")
-      .select("amount,type,booked_at,categories(name)")
-      .eq("household_id", householdId)
-      .gte("booked_at", periodStart.toISOString())
-      .in("type", ["expense", "income"]);
+        .from("transactions")
+        .select("amount,type,booked_at,categories(name)")
+        .eq("household_id", householdId)
+        .gte("booked_at", periodStart.toISOString())
+        .in("type", ["expense", "income"]);
 
     const { data: budgets } = await supabase.from("budgets").select("limit_amount,categories(name)").eq("household_id", householdId);
     const { data: goals } = await supabase.from("goals").select("name,current_amount,target_amount").eq("household_id", householdId);
@@ -59,21 +60,34 @@ export async function GET(request: Request) {
     const topCategories = Object.entries(byCategory).sort((a, b) => b[1] - a[1]).slice(0, 3);
 
     const periodLabel = pref.digest_frequency === "weekly" ? "тиждень" : "місяць";
-    let text = `📊 Твій ${periodLabel} у rivna\n\n`;
-    text += `Витрачено: ₴${Math.round(totalSpent).toLocaleString("uk-UA")}\n`;
-    text += `Дохід: ₴${Math.round(totalIncome).toLocaleString("uk-UA")}\n\n`;
+
+    const lines: string[] = [];
+    lines.push(`Витрачено: ₴${Math.round(totalSpent).toLocaleString("uk-UA")}`);
+    lines.push(`Дохід: ₴${Math.round(totalIncome).toLocaleString("uk-UA")}`);
+    lines.push("");
     if (topCategories.length) {
-      text += `Топ категорій:\n`;
-      topCategories.forEach(([name, value]) => { text += `• ${name}: ₴${Math.round(value).toLocaleString("uk-UA")}\n`; });
-      text += `\n`;
+      lines.push("Топ категорій:");
+      topCategories.forEach(([name, value]) => lines.push(`• ${name}: ₴${Math.round(value).toLocaleString("uk-UA")}`));
+      lines.push("");
     }
     if (budgets?.length) {
-      text += `Бюджети: ${budgets.length} активних лімітів\n`;
+      lines.push("Виконання бюджету:");
+      budgets.forEach((b) => {
+        const name = (b.categories as { name?: string } | null)?.name || "Категорія";
+        const spent = byCategory[name] || 0;
+        const limit = Number(b.limit_amount) || 1;
+        const percent = Math.round((spent / limit) * 100);
+        lines.push(`• ${name}: ${percent}% (₴${Math.round(spent).toLocaleString("uk-UA")} з ₴${Math.round(limit).toLocaleString("uk-UA")})`);
+      });
+      lines.push("");
     }
     if (goals?.length) {
-      text += `\nНакопичення:\n`;
-      goals.forEach((g) => { text += `• ${g.name}: ${Math.round((g.current_amount / g.target_amount) * 100)}%\n`; });
+      lines.push("Накопичення:");
+      goals.forEach((g) => lines.push(`• ${g.name}: ${Math.round((g.current_amount / g.target_amount) * 100)}%`));
     }
+
+    let text = `📊 Твій ${periodLabel} у rivna\n\n`;
+    text += lines.join("\n");
 
     const debugInfo: Record<string, unknown> = { telegramChatId: pref.telegram_chat_id || null, digestEmailEnabled: pref.digest_email_enabled };
 
@@ -97,6 +111,15 @@ export async function GET(request: Request) {
       const toEmail = authUser?.user?.email;
       if (toEmail) {
         const html = `<pre style="font-family:inherit;white-space:pre-wrap">${text.replace(/</g, "&lt;")}</pre>`;
+
+        let attachments: { filename: string; content: string }[] | undefined;
+        try {
+          const pdfBytes = await buildDigestPdf(`Твій ${periodLabel} у rivna`, lines);
+          attachments = [{ filename: `rivna-digest.pdf`, content: Buffer.from(pdfBytes).toString("base64") }];
+        } catch {
+          attachments = undefined;
+        }
+
         const mailResponse = await fetch("https://api.resend.com/emails", {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${resendKey}` },
@@ -105,6 +128,7 @@ export async function GET(request: Request) {
             to: toEmail,
             subject: `📊 Твій ${periodLabel} у rivna`,
             html,
+            attachments,
           }),
         });
         const mailResult = await mailResponse.json();
