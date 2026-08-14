@@ -15,4 +15,6 @@ export async function GET() {
     (links || []).forEach((link) => { linksMap[link.mono_account_id] = link.app_account_id; });
 
     return NextResponse.json({ connected: true, accounts: connection.accounts_json || [], links: linksMap, lastSyncedAt: connection.last_synced_at || null });
+
+
 }
