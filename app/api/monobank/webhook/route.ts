@@ -71,5 +71,10 @@ export async function POST(request: Request) {
 
   await admin.from("monobank_synced_items").insert({ statement_item_id: item.id, transaction_id: transaction?.id || null });
 
+  await admin
+      .from("monobank_connections")
+      .update({ last_synced_at: new Date().toISOString() })
+      .eq("household_id", link.household_id);
+
   return NextResponse.json({ ok: true });
 }

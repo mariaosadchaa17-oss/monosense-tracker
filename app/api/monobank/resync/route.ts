@@ -135,5 +135,12 @@ export async function POST(request: Request) {
         }
     }
 
+    if (imported > 0) {
+        await admin
+            .from("monobank_connections")
+            .update({ last_synced_at: new Date().toISOString() })
+            .eq("household_id", context.householdId);
+    }
+
     return NextResponse.json({ imported, debug });
 }
