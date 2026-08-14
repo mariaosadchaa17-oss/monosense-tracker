@@ -7116,13 +7116,14 @@ function GoalActionModal({
                            action,
                            accounts,
                            withdraw,
+                           contribute,
                            breakGoal,
                            close,
                          }: {
   action: { goal: GoalItem; mode: "withdraw" | "break" | "history" | "contribute" };
   accounts: Account[];
   withdraw: (id: string, amount: number, targetAccountId: string) => void;
-  contribute: (id: string, amount: number) => void;
+  contribute: (id: string, amount: number, accountId: string) => void;
   breakGoal: (id: string, targetAccountId: string) => void;
   close: () => void;
 }) {
