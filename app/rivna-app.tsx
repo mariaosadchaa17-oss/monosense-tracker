@@ -8256,7 +8256,48 @@ function BudgetModal({
       </div>
   );
 }
-CategoryModal
+function CategoryModal({
+                         category,
+                         submit,
+                         close,
+                       }: {
+  category?: CategoryItem | null;
+  submit: (e: React.SyntheticEvent<HTMLFormElement>) => void;
+  close: () => void;
+}) {
+  const [icon, setIcon] = useState(category?.icon || BUDGET_ICON_NAMES[0]);
+  const [color, setColor] = useState(category?.color || BUDGET_COLORS[0]);
+  const [kind, setKind] = useState<"expense" | "income">(category?.kind === "income" ? "income" : "expense");
+  const [budgetGroup, setBudgetGroup] = useState(category?.budgetGroup || "");
+  return (
+      <div className="modal-backdrop" onMouseDown={close}>
+        <form className="expense-modal" onSubmit={submit} onMouseDown={(e) => e.stopPropagation()}>
+          <ModalHead label="Персоналізація" title={category ? "Редагувати категорію" : "Нова категорія"} close={close} />
+          {category && <input type="hidden" name="id" value={category.id} />}
+          <label>
+            Назва
+            <input name="name" required placeholder="Домашні улюбленці" defaultValue={category?.name} />
+          </label>
+          <label>
+            Тип
+            <select name="kind" value={kind} onChange={(e) => setKind(e.target.value === "income" ? "income" : "expense")} disabled={Boolean(category)}>
+              <option value="expense">Витрата</option>
+              <option value="income">Дохід</option>
+            </select>
+          </label>
+          {kind === "expense" && (
+              <label>
+                Група правила 50/30/20
+                <select name="budgetGroup" value={budgetGroup} onChange={(e) => setBudgetGroup(e.target.value)}>
+                  <option value="">Не вказано</option>
+                  <option value="needs">Базові потреби (50%)</option>
+                  <option value="wants">Бажання / Розваги (30%)</option>
+                  <option value="savings">Заощадження / Борги (20%)</option>
+                </select>
+              </label>
+          )}
+          <input type="hidden" name="icon" value={icon} />
+          <input type="hidden" name="color" value={color} />
           <label>Іконка</label>
           <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
             {BUDGET_ICON_NAMES.map((name) => (
@@ -8305,10 +8346,10 @@ CategoryModal
                 </button>
             ))}
           </div>
-<button className="primary">{category ? "Зберегти зміни" : "Створити категорію"}</button>
-</form>
-</div>
-);
+          <button className="primary">{category ? "Зберегти зміни" : "Створити категорію"}</button>
+        </form>
+      </div>
+  );
 }
 function RuleModal({
                      categories,
