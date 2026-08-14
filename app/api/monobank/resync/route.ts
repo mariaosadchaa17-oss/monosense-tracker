@@ -58,3 +58,6 @@ export async function POST() {
             imported++;
         }
     }
+
+    return NextResponse.json({ imported, debug });
+}
