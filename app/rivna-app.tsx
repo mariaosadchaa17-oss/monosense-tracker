@@ -6484,6 +6484,7 @@ function ExpenseModal({
                         accounts,
                         categories,
                         debts,
+                        goals,
                         submit,
                         close,
                       }: {
