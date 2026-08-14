@@ -3971,6 +3971,7 @@ function AccountsView({
                         monoConnecting,
                         connectMonobank,
                         linkMonobankAccount,
+                        unlinkMonobankAccount,
                         createAndLinkMonobankAccount,
                         resyncMonobank,
                         monoLinks,
