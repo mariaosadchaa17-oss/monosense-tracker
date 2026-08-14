@@ -1,32 +1,34 @@
 import { NextResponse } from "next/server";
 import { getFinanceContext } from "@/lib/supabase/context";
 
-export async function GET() {
+export async function GET(request: Request) {
+    const light = new URL(request.url).searchParams.get("light") === "1";
   const context = await getFinanceContext();
   if (!context) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const { supabase, householdId } = context;
-  const [accounts, transactions, categories, budgets, goals, debts, recurring, transfers, audit,exchangeRates,profile,household,creditLimitChanges] = await Promise.all([    supabase.from("accounts").select("*").eq("household_id", householdId).eq("archived", false).order("created_at"),
+    const emptyQuery = Promise.resolve({ data: null, error: null });
+    const [accounts, transactions, categories, budgets, goals, debts, recurring, transfers, audit,exchangeRates,profile,household,creditLimitChanges] = await Promise.all([    supabase.from("accounts").select("*").eq("household_id", householdId).eq("archived", false).order("created_at"),
     supabase.from("transactions").select("*,categories(name,icon),accounts(name,owner_label),transaction_tags(tags(name))").eq("household_id", householdId).order("booked_at", { ascending: false }).limit(200),
-    supabase.from("categories").select("*").eq("household_id", householdId).order("name"),
+        light ? emptyQuery : supabase.from("categories").select("*").eq("household_id", householdId).order("name"),
     supabase.from("budgets").select("*,categories(name,color,icon)").eq("household_id", householdId),
     supabase.from("goals").select("*").eq("household_id", householdId).order("created_at"),
     supabase.from("debts").select("*").eq("household_id", householdId).eq("settled", false),
     supabase.from("recurring_rules").select("*").eq("household_id", householdId).eq("active", true),
     supabase.from("transfers").select("*").eq("household_id", householdId).order("booked_at", { ascending: false }).limit(500),
-    supabase.from("audit_logs").select("*").eq("household_id",householdId).order("created_at",{ascending:false}).limit(100),
-    supabase.from("exchange_rates").select("*").eq("household_id",householdId).order("rate_date",{ascending:false}).limit(20),
-    supabase.from("profiles").select("planning_period,base_currency").eq("id",context.user.id).single(),
-    supabase.from("households").select("base_currency").eq("id",householdId).single(),
+        light ? emptyQuery : supabase.from("audit_logs").select("*").eq("household_id",householdId).order("created_at",{ascending:false}).limit(100),
+        light ? emptyQuery : supabase.from("exchange_rates").select("*").eq("household_id",householdId).order("rate_date",{ascending:false}).limit(20),
+        light ? emptyQuery : supabase.from("profiles").select("planning_period,base_currency").eq("id",context.user.id).single(),
+        light ? emptyQuery : supabase.from("households").select("base_currency").eq("id",householdId).single(),
     supabase.from("credit_limit_changes").select("*,accounts(name)").eq("household_id",householdId).order("changed_at",{ascending:false}).limit(100),
     ]);
 const error = [accounts, transactions, categories, budgets, goals, debts, recurring, transfers, audit,exchangeRates,profile,household,creditLimitChanges].find(result => result.error)?.error;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({
-    accounts: accounts.data, transactions: transactions.data, categories: categories.data,
-    budgets: budgets.data, goals: goals.data, debts: debts.data, recurring: recurring.data, transfers: transfers.data, audit: audit.data,exchangeRates:exchangeRates.data,
-    planningPeriod:profile.data?.planning_period==="week"?"week":"month",
-    baseCurrency:String(household.data?.base_currency||profile.data?.base_currency||"UAH"),
-        creditLimitChanges: creditLimitChanges.data,
+      accounts: accounts.data, transactions: transactions.data, categories: categories.data,
+      budgets: budgets.data, goals: goals.data, debts: debts.data, recurring: recurring.data, transfers: transfers.data, audit: audit.data,exchangeRates:exchangeRates.data,
+      planningPeriod: profile.data ? (profile.data?.planning_period==="week"?"week":"month") : undefined,
+      baseCurrency: (household.data||profile.data) ? String(household.data?.base_currency||profile.data?.base_currency||"UAH") : undefined,
+      creditLimitChanges: creditLimitChanges.data,
       });
     }
 

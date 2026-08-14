@@ -558,11 +558,11 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       await refreshFinance();
     }
   }
-  async function refreshFinance() {
+  async function refreshFinance(light = false) {
     if (!initialLoggedIn) return;
     setSyncing(true);
     try {
-      const response = await fetch("/api/finance", { cache: "no-store" });
+      const response = await fetch(light ? "/api/finance?light=1" : "/api/finance", { cache: "no-store" });
       const data = await response.json();
       if (!response.ok) return notify(data.error);
       setAccounts(
@@ -701,8 +701,9 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
             bookedAt: String(item.booked_at || ""),
           })),
       );
-      setCategories(
-          (data.categories || []).map((item: Record<string, unknown>) => ({
+      if (data.categories)
+        setCategories(
+            (data.categories || []).map((item: Record<string, unknown>) => ({
             id: String(item.id),
             name: String(item.name),
             kind: String(item.kind),
@@ -728,10 +729,13 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
             ),
           })),
       );
-      setPlanningPeriod(data.planningPeriod === "week" ? "week" : "month");
-      setBudgetPeriodType(data.planningPeriod === "week" ? "week" : "month");
-      setBaseCurrency(String(data.baseCurrency || "UAH"));
-      setAudit(
+      if (data.planningPeriod) {
+        setPlanningPeriod(data.planningPeriod === "week" ? "week" : "month");
+        setBudgetPeriodType(data.planningPeriod === "week" ? "week" : "month");
+      }
+      if (data.baseCurrency) setBaseCurrency(String(data.baseCurrency));
+      if (data.audit)
+        setAudit(
           (data.audit || []).map((item: Record<string, unknown>) => ({
             id: String(item.id),
             entity: String(item.entity_type),
@@ -752,8 +756,9 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
             actionValue: item.action_value ? Number(item.action_value) : undefined,
           })),
       );
-      setCustomRates(
-          (data.exchangeRates || []).map((item: Record<string, unknown>) => ({
+      if (data.exchangeRates)
+        setCustomRates(
+            (data.exchangeRates || []).map((item: Record<string, unknown>) => ({
             currency: String(item.quote_currency),
             rate: Number(item.custom_rate || item.official_rate),
             date: String(item.rate_date),
@@ -4009,7 +4014,7 @@ function AccountsView({
     creditLimit: number;
     maskedPan: string;
   }) => void;
-  resyncMonobank: () => void;
+  resyncMonobank: (force?: boolean) => void;
   monoLinks: Record<string, string>;
   monoResyncing: boolean;
   unlinkMonobankAccount: (monoAccountId: string) => void;
