@@ -1819,6 +1819,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
             setMonoLastSyncedAt(data.lastSyncedAt || null);
           }
           setMonoStatusLoaded(true);
+        })
         .catch(() => setMonoStatusLoaded(true));
   }, [initialLoggedIn]);
   async function connectMonobank() {
