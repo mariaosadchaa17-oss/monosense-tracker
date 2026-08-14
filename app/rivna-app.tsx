@@ -458,7 +458,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   );
   const [goalAction, setGoalAction] = useState<{
     goal: GoalItem;
-    mode: mode: "withdraw" | "break" | "history" | "contribute";
+    mode: "withdraw" | "break" | "history" | "contribute";
   } | null>(null);
   const [transferPresetTo, setTransferPresetTo] = useState<string | undefined>(undefined);
   const [topProfile, setTopProfile] = useState<{ name: string; email: string } | null>(null);
