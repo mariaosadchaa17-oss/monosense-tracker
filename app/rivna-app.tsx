@@ -621,6 +621,28 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
       }
       const [scanning,setScanning]=useState(false);
   const [scanItems,setScanItems]=useState<{id:string;amount:number;title:string;date:string|null;category:string|null;type:"income"|"expense"}[]>([]);
+  const [monoToken,setMonoToken]=useState("");
+  const [monoAccounts,setMonoAccounts]=useState<{id:string;type:string;currency:string;balance:number;creditLimit:number;maskedPan:string}[]>([]);
+  const [monoConnecting,setMonoConnecting]=useState(false);
+  async function connectMonobank(){
+    if(!monoToken.trim())return notify("Встав токен Monobank");
+    setMonoConnecting(true);
+    try{
+      const response=await fetch("/api/monobank/connect",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({token:monoToken.trim()})});
+      const result=await response.json();
+      if(!response.ok)return notify(result.error||"Не вдалося підключити Monobank");
+      setMonoAccounts(result.accounts||[]);
+      notify("Підключено! Тепер прив'яжи картки до рахунків нижче.");
+    }catch{notify("Помилка мережі")}
+    finally{setMonoConnecting(false)}
+  }
+  async function linkMonobankAccount(monoAccountId:string,appAccountId:string){
+    if(!appAccountId)return;
+    const response=await fetch("/api/monobank/link",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({monoAccountId,appAccountId})});
+    const result=await response.json();
+    if(!response.ok)return notify(result.error||"Не вдалося прив'язати");
+    notify("Картку прив'язано — операції прилітатимуть автоматично");
+  }
       async function scanReceipt(file:File){
         setScanning(true);
         try{
@@ -712,7 +734,7 @@ async function addDebt(e:React.SyntheticEvent<HTMLFormElement>){
           await fetch("/auth/signout", { method: "POST" });
           window.location.href = "/auth";
         } else setLoggedIn(false);
-      }} notify={notify}/>}
+      }} notify={notify} accounts={accounts} monoToken={monoToken} setMonoToken={setMonoToken} monoAccounts={monoAccounts} monoConnecting={monoConnecting} connectMonobank={connectMonobank} linkMonobankAccount={linkMonobankAccount}/>}
       {page === "Налаштування" && initialLoggedIn && <section className="panel passkey-panel">
         <div><strong>Швидкий вхід на цьому пристрої</strong><small>Face ID, Touch ID, Windows Hello або PIN пристрою</small></div>
         <PasskeyButton mode="register" className="small-primary" onMessage={notify}/>
@@ -1361,8 +1383,21 @@ function CashflowCalendar({balance,recurring,transactions,rates,customRates,base
   </section>;
 }
 function DebtsView({debts,add,settle,payOff,openPay,splitBill}:{debts:DebtItem[];add:()=>void;settle:(debt:DebtItem)=>void;payOff:(accountId:string)=>void;openPay:(debt:DebtItem)=>void;splitBill:()=>void}) { const mine=debts.filter(d=>d.direction==="owed_to_me");const owe=debts.filter(d=>d.direction==="i_owe");return <section className="panel full-view"><div className="section-title"><div><h2>Борги та кредити</h2><p>Хто винен мені та кому винна я</p></div><div className="title-actions"><button className="secondary" onClick={splitBill}><HandCoins/> Розділити чек</button><button className="small-primary" onClick={add}><Plus/> Додати борг</button></div></div><div className="debt-summary"><article><ArrowDownLeft/><div><small>Мені винні</small><strong>{currencySymbol("UAH")} {formatMoney(mine.reduce((s,d)=>s+d.amount,0))}</strong></div></article><article><ArrowUpRight/><div><small>Я винна</small><strong>{currencySymbol("UAH")} {formatMoney(owe.reduce((s,d)=>s+d.amount,0))}</strong></div></article></div><div className="debt-list">{debts.map(d=><div key={d.id}><span className={d.direction==="owed_to_me"?"debt-in":"debt-out"}>{d.direction==="owed_to_me"?<ArrowDownLeft/>:<ArrowUpRight/>}</span><div><strong>{d.person}</strong><small>{d.note||"Без нотатки"}{d.due?` · до ${new Date(d.due).toLocaleDateString("uk-UA")}`:""}</small></div><b>{d.currency} {formatMoney(d.amount)}</b>{d.isVirtual?<button className="small-primary" onClick={()=>d.accountId&&payOff(d.accountId)}>Погасити</button>:d.isInstallment&&d.direction==="i_owe"?<><button className="small-primary" onClick={()=>openPay(d)}>Погасити</button><button className="icon-button danger" onClick={()=>settle(d)}><Trash2 size={14}/></button></>:<button onClick={()=>settle(d)}>Закрити</button>}</div>)}{!debts.length&&<p className="empty">Активних боргів немає</p>}</div></section>; }
-function SettingsView({dark,setDark,skin,setSkin,cardStyle,setCardStyle,logout,notify,importCsv,categories,audit,addCategory,deleteCategory,pushEnabled,enablePush,installApp,goals,budgets,debts,transactions,rules,openAddRule,removeRule}:{dark:boolean;setDark:(v:boolean)=>void;skin:string;setSkin:(v:string)=>void;cardStyle:string;setCardStyle:(v:string)=>void;logout:()=>void;notify:(s:string)=>void;importCsv:(file:File)=>void;categories:CategoryItem[];audit:AuditItem[];addCategory:()=>void;deleteCategory:(id:string)=>void;pushEnabled:boolean;enablePush:()=>void;installApp:()=>void;goals:GoalItem[];budgets:BudgetItem[];debts:DebtItem[];transactions:Transaction[];rules:RuleItem[];openAddRule:()=>void;removeRule:(id:string)=>void}) {
-  return <><div className="settings-grid"><ProfileSettings dark={dark} setDark={setDark} skin={skin} setSkin={setSkin} cardStyle={cardStyle} setCardStyle={setCardStyle} notify={notify}/><section className="panel settings-card"><h2>Застосунок та інтеграції</h2><button className="integration" onClick={installApp}><Download/><span><strong>Встановити Rivna</strong><small>На домашній екран iOS, Android або ПК</small></span><ArrowRight/></button><button className="integration" onClick={enablePush}><Bell/><span><strong>{pushEnabled?"Сповіщення увімкнено":"Увімкнути сповіщення"}</strong><small>Алерти 80% і 100% бюджету</small></span><ArrowRight/></button><label className="integration file-integration"><Upload/><span><strong>Імпорт даних</strong><small>CSV до 5 МБ</small></span><ArrowRight/><input type="file" accept=".csv,text/csv" onChange={event=>{const file=event.target.files?.[0];if(file)importCsv(file);event.target.value=""}}/></label><button className="integration" onClick={()=>notify("Telegram chat ID зберігається у блоці «Загальні»")}><Goal/><span><strong>Telegram-бот</strong><small>Команда: 300 кава #робота</small></span><ArrowRight/></button><button className="logout" onClick={logout}>Вийти з акаунта</button></section></div>
+function SettingsView({dark,setDark,skin,setSkin,cardStyle,setCardStyle,logout,notify,importCsv,categories,audit,addCategory,deleteCategory,pushEnabled,enablePush,installApp,goals,budgets,debts,transactions,rules,openAddRule,removeRule,accounts,monoToken,setMonoToken,monoAccounts,monoConnecting,connectMonobank,linkMonobankAccount}:{dark:boolean;setDark:(v:boolean)=>void;skin:string;setSkin:(v:string)=>void;cardStyle:string;setCardStyle:(v:string)=>void;logout:()=>void;notify:(s:string)=>void;importCsv:(file:File)=>void;categories:CategoryItem[];audit:AuditItem[];addCategory:()=>void;deleteCategory:(id:string)=>void;pushEnabled:boolean;enablePush:()=>void;installApp:()=>void;goals:GoalItem[];budgets:BudgetItem[];debts:DebtItem[];transactions:Transaction[];rules:RuleItem[];openAddRule:()=>void;removeRule:(id:string)=>void;accounts:Account[];monoToken:string;setMonoToken:(v:string)=>void;monoAccounts:{id:string;type:string;currency:string;balance:number;creditLimit:number;maskedPan:string}[];monoConnecting:boolean;connectMonobank:()=>void;linkMonobankAccount:(monoAccountId:string,appAccountId:string)=>void}) {
+  return <><div className="settings-grid"><ProfileSettings dark={dark} setDark={setDark} skin={skin} setSkin={setSkin} cardStyle={cardStyle} setCardStyle={setCardStyle} notify={notify}/><section className="panel settings-card"><h2>Застосунок та інтеграції</h2><button className="integration" onClick={installApp}><Download/><span><strong>Встановити Rivna</strong><small>На домашній екран iOS, Android або ПК</small></span><ArrowRight/></button><button className="integration" onClick={enablePush}><Bell/><span><strong>{pushEnabled?"Сповіщення увімкнено":"Увімкнути сповіщення"}</strong><small>Алерти 80% і 100% бюджету</small></span><ArrowRight/></button><label className="integration file-integration"><Upload/><span><strong>Імпорт даних</strong><small>CSV до 5 МБ</small></span><ArrowRight/><input type="file" accept=".csv,text/csv" onChange={event=>{const file=event.target.files?.[0];if(file)importCsv(file);event.target.value=""}}/></label><button className="integration" onClick={()=>notify("Telegram chat ID зберігається у блоці «Загальні»")}><Goal/><span><strong>Telegram-бот</strong><small>Команда: 300 кава #робота</small></span><ArrowRight/></button><button className="logout" onClick={logout}>Вийти з акаунта</button></section>
+    <section className="panel settings-card"><h2>Monobank</h2><p className="fee-note">Операції прилітатимуть автоматично в реальному часі</p>
+      <div className="form-two"><label>Особистий токен<input type="password" value={monoToken} onChange={e=>setMonoToken(e.target.value)} placeholder="Токен з api.monobank.ua"/></label></div>
+      <button type="button" className="small-primary" onClick={connectMonobank} disabled={monoConnecting}>{monoConnecting?"Підключаю…":"Підключити"}</button>
+      {monoAccounts.length>0 && <div className="mono-accounts-list">{monoAccounts.map(ma=>
+          <div key={ma.id} className="mono-account-row">
+            <div><strong>{ma.type==="fop"?"ФОП":ma.type==="jar"?"Банка":"Картка"} {ma.maskedPan}</strong><small>{ma.currency} · {ma.balance.toFixed(0)}</small></div>
+            <select defaultValue="" onChange={e=>linkMonobankAccount(ma.id,e.target.value)}>
+              <option value="" disabled>Прив'язати до рахунку…</option>
+              {accounts.map(a=><option key={a.id} value={a.id}>{a.name} · {a.currency}</option>)}
+            </select>
+          </div>
+      )}</div>}
+    </section></div>
     <div className="settings-lower"><AchievementsPanel goals={goals} budgets={budgets} debts={debts} transactions={transactions}/><RulesPanel rules={rules} addRule={openAddRule} removeRule={removeRule}/><section className="panel"><div className="section-title"><div><h2>Категорії</h2><p>Власні назви, кольори та Lucide-іконки</p></div><button className="small-primary" onClick={addCategory}><Plus/> Категорія</button></div><div className="category-manager">{categories.map(category=><div key={category.id}><span style={{background:category.color}}/><strong>{category.name}</strong><small>{category.kind==="income"?"Дохід":"Витрата"}</small><button onClick={()=>deleteCategory(category.id)}><Trash2/></button></div>)}</div></section><section className="panel"><div className="section-title"><div><h2>Історія змін</h2><p>Останні ключові дії</p></div></div><div className="audit-list">{audit.slice(0,12).map(item=><div key={item.id}><span>{item.action==="insert"?"+":item.action==="delete"?"−":"↻"}</span><div><strong>{translateEntity(item.entity)}</strong><small>{translateAction(item.action)} · {new Date(item.created).toLocaleString("uk-UA")}</small></div></div>)}{!audit.length&&<p className="empty-inline">Історія з’явиться після змін у Supabase</p>}</div></section></div></>
 }
 

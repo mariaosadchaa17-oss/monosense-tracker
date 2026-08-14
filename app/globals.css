@@ -1874,6 +1874,11 @@ header h1 {
 }
 
 .row-menu-wrap{position:relative}
+.mono-accounts-list{margin-top:14px;display:flex;flex-direction:column;gap:10px}
+.mono-account-row{display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--line);border-radius:12px;padding:12px}
+.mono-account-row strong{font-size:12px}
+.mono-account-row small{color:var(--muted);font-size:10px;display:block;margin-top:2px}
+.mono-account-row select{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:9px;padding:8px;font-size:11px;min-width:160px}
 .scan-review-head{display:grid;grid-template-columns:110px 1fr 1.2fr 90px;gap:10px;padding:0 4px 6px;color:var(--muted);font-size:9px;text-transform:uppercase;font-weight:650}
 .scan-review-line{border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;display:grid;grid-template-columns:110px 1fr 1.2fr 90px;gap:10px;align-items:center}
 .scan-review-line input,.scan-review-line select{border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:9px;padding:8px;font-size:11px;min-width:0}
