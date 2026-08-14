@@ -1881,10 +1881,14 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     await refreshFinance();
   }
   const [monoResyncing, setMonoResyncing] = useState(false);
-  async function resyncMonobank() {
+  async function resyncMonobank(force?: boolean) {
     setMonoResyncing(true);
     try {
-      const response = await fetch("/api/monobank/resync", { method: "POST" });
+      const response = await fetch("/api/monobank/resync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ force: Boolean(force) }),
+      });
       let result: {
         error?: string;
         imported?: number;
@@ -1903,8 +1907,6 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       );
       console.log("Monobank resync debug", result.debug);
       await refreshFinance();
-    } catch {
-      notify("Немає з'єднання з сервером");
     } finally {
       setMonoResyncing(false);
     }
@@ -4094,7 +4096,7 @@ function AccountsView({
             </div>
             <div className="title-actions">
               {monoAccounts.length > 0 && (
-                  <button className="secondary" onClick={resyncMonobank} disabled={monoResyncing}>
+                  <button className="secondary" onClick={() => resyncMonobank(true)} disabled={monoResyncing}>
                     {monoResyncing ? "Оновлюю…" : "Оновити за 31 день"}
                   </button>
               )}

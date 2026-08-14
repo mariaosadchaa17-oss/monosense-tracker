@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { getFinanceContext } from "@/lib/supabase/context";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-export async function POST() {
+export async function POST(request: Request) {
+    const body = await request.json().catch(() => ({}));
+    const force = Boolean(body.force);
     const context = await getFinanceContext();
     if (!context) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
@@ -81,7 +83,7 @@ export async function POST() {
                 .eq("statement_item_id", item.id)
                 .maybeSingle();
 
-            if (alreadySynced) continue;
+            if (alreadySynced && !force) continue;
 
             const amount = item.amount / 100;
             const type = amount < 0 ? "expense" : "income";
