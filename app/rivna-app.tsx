@@ -1399,30 +1399,30 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     setBusy(true);
     try {
       let failed = false;
-    for (const p of participants) {
-      const response = await fetch("/api/finance", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "createDebt",
-          person: p.person,
-          direction: "owed_to_me",
-          amount: p.amount,
-          currency: baseCurrency,
-          note: note || "Спільний чек",
-        }),
-      });
-      if (!response.ok) failed = true;
-    }
-    const text =
-        `Рахунок${note ? ` за "${note}"` : ""} розділено на ${participants.length}. Кожен винен: ${formatMoney(participants[0]?.amount || 0)} ${baseCurrency}.\n` +
-        participants.map((p) => `${p.person}: ${formatMoney(p.amount)} ${baseCurrency}`).join("\n");
-    await navigator.clipboard.writeText(text).catch(() => {});
-    notify(
-        failed
-            ? "Частину боргів не вдалося створити, текст скопійовано"
-            : "Борги створено, текст для месенджера скопійовано",
-    );
+      for (const p of participants) {
+        const response = await fetch("/api/finance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "createDebt",
+            person: p.person,
+            direction: "owed_to_me",
+            amount: p.amount,
+            currency: baseCurrency,
+            note: note || "Спільний чек",
+          }),
+        });
+        if (!response.ok) failed = true;
+      }
+      const text =
+          `Рахунок${note ? ` за "${note}"` : ""} розділено на ${participants.length}. Кожен винен: ${formatMoney(participants[0]?.amount || 0)} ${baseCurrency}.\n` +
+          participants.map((p) => `${p.person}: ${formatMoney(p.amount)} ${baseCurrency}`).join("\n");
+      await navigator.clipboard.writeText(text).catch(() => {});
+      notify(
+          failed
+              ? "Частину боргів не вдалося створити, текст скопійовано"
+              : "Борги створено, текст для месенджера скопійовано",
+      );
       await refreshFinance();
       setModal(null);
     } finally {
@@ -1435,53 +1435,56 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     try {
       const f = new FormData(e.currentTarget);
       const totalAmount = Number(f.get("amount"));
-    const months = Number(f.get("installmentMonths")) || 0;
-    const autoDebit = f.get("autoDebit") === "on" && months > 0;
-    const debtResponse = await fetch("/api/finance", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        action: "createDebt",
-        person: f.get("person"),
-        direction: f.get("direction"),
-        amount: totalAmount,
-        currency: String(f.get("currency") || "UAH"),
-        dueDate: f.get("date") ? String(f.get("date")) : undefined,
-        note: String(f.get("note") || ""),
-        isInstallment: f.get("isInstallment") === "on",
-        installmentMonths: months || undefined,
-      }),
-    });
-    const debtResult = await debtResponse.json();
-    if (!debtResponse.ok) return notify(debtResult.error || "Не вдалося додати борг");
-    if (autoDebit && debtResult.data?.id) {
-      const account = accounts.find((a) => String(a.id) === String(f.get("autoAccount")));
-      const perMonth = Math.round((totalAmount / months) * 100) / 100;
-      const recurringResponse = await fetch("/api/finance", {
+      const months = Number(f.get("installmentMonths")) || 0;
+      const autoDebit = f.get("autoDebit") === "on" && months > 0;
+      const debtResponse = await fetch("/api/finance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          action: "createRecurring",
-          accountId: f.get("autoAccount"),
-          categoryId: f.get("autoCategory") || null,
-          name: `Розстрочка: ${f.get("person")}`,
-          amount: perMonth,
-          currency: account?.currency || String(f.get("currency") || "UAH"),
-          frequency: "monthly",
-          nextRunAt: f.get("autoFirstDate")
-              ? new Date(String(f.get("autoFirstDate"))).toISOString()
-              : undefined,
-          autoCreate: true,
-          debtId: debtResult.data.id,
+          action: "createDebt",
+          person: f.get("person"),
+          direction: f.get("direction"),
+          amount: totalAmount,
+          currency: String(f.get("currency") || "UAH"),
+          dueDate: f.get("date") ? String(f.get("date")) : undefined,
+          note: String(f.get("note") || ""),
+          isInstallment: f.get("isInstallment") === "on",
+          installmentMonths: months || undefined,
         }),
       });
-      if (!recurringResponse.ok) {
-        const recurringResult = await recurringResponse.json();
-        notify(recurringResult.error || "Борг додано, але не вдалося налаштувати автосписання");
-      } else notify("Борг і автосписання налаштовано");
-    } else notify("Борг додано");
-    await refreshFinance();
-    setModal(null);
+      const debtResult = await debtResponse.json();
+      if (!debtResponse.ok) return notify(debtResult.error || "Не вдалося додати борг");
+      if (autoDebit && debtResult.data?.id) {
+        const account = accounts.find((a) => String(a.id) === String(f.get("autoAccount")));
+        const perMonth = Math.round((totalAmount / months) * 100) / 100;
+        const recurringResponse = await fetch("/api/finance", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "createRecurring",
+            accountId: f.get("autoAccount"),
+            categoryId: f.get("autoCategory") || null,
+            name: `Розстрочка: ${f.get("person")}`,
+            amount: perMonth,
+            currency: account?.currency || String(f.get("currency") || "UAH"),
+            frequency: "monthly",
+            nextRunAt: f.get("autoFirstDate")
+                ? new Date(String(f.get("autoFirstDate"))).toISOString()
+                : undefined,
+            autoCreate: true,
+            debtId: debtResult.data.id,
+          }),
+        });
+        if (!recurringResponse.ok) {
+          const recurringResult = await recurringResponse.json();
+          notify(recurringResult.error || "Борг додано, але не вдалося налаштувати автосписання");
+        } else notify("Борг і автосписання налаштовано");
+      } else notify("Борг додано");
+      await refreshFinance();
+      setModal(null);
+    } finally {
+      setBusy(false);
+    }
   }
   async function addTransfer(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -1830,6 +1833,23 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
             : "Картку прив'язано — операції прилітатимуть автоматично",
     );
     await refreshFinance();
+  }
+  async function unlinkMonobankAccount(monoAccountId: string) {
+    if (!window.confirm("Відв'язати цю картку? Уже додані операції залишаться, нові перестануть прилітати."))
+      return;
+    const response = await fetch("/api/monobank/unlink", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ monoAccountId }),
+    });
+    const result = await response.json();
+    if (!response.ok) return notify(result.error || "Не вдалося відв'язати");
+    setMonoLinks((links) => {
+      const next = { ...links };
+      delete next[monoAccountId];
+      return next;
+    });
+    notify("Картку відв'язано");
   }
   async function createAndLinkMonobankAccount(ma: {
     id: string;
@@ -2221,6 +2241,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
                   monoConnecting={monoConnecting}
                   connectMonobank={connectMonobank}
                   linkMonobankAccount={linkMonobankAccount}
+                  unlinkMonobankAccount={unlinkMonobankAccount}
                   createAndLinkMonobankAccount={createAndLinkMonobankAccount}
                   resyncMonobank={resyncMonobank}
                   monoLinks={monoLinks}
@@ -3988,6 +4009,7 @@ function AccountsView({
   resyncMonobank: () => void;
   monoLinks: Record<string, string>;
   monoResyncing: boolean;
+  unlinkMonobankAccount: (monoAccountId: string) => void;
 }) {
   const visible = rates.filter((r) => ["USD", "EUR"].includes(r.currency));
   const [monoOpen, setMonoOpen] = useState(monoAccounts.length > 0);
@@ -4146,8 +4168,18 @@ function AccountsView({
                                 </small>
                               </div>
                               {linkedAccount ? (
-                                  <span className="mono-linked-badge">
-                          ✓ Прив'язано: {linkedAccount.name}
+                                  <span className="mono-linked-row">
+                          <span className="mono-linked-badge">
+                            ✓ Прив'язано: {linkedAccount.name}
+                          </span>
+                          <button
+                              type="button"
+                              className="icon-button danger"
+                              onClick={() => unlinkMonobankAccount(ma.id)}
+                              title="Відв'язати"
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </span>
                               ) : (
                                   <select
