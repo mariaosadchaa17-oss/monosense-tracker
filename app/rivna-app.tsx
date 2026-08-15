@@ -4572,17 +4572,6 @@ function AnalyticsView({
     else if (group === "savings") groupTotals.savings += value;
     else groupTotals.unassigned += value;
   });
-  const total = expenses.reduce(
-                  transaction.kind !== "transfer" &&
-                  transaction.kind !== "exchange",
-          )
-          .reduce((sum, transaction) => sum + (transaction.baseAmount ?? transaction.amount), 0),
-      impulsive = expenses
-          .filter((transaction) => transaction.impulse)
-          .reduce(
-              (sum, transaction) => sum + Math.abs(transaction.baseAmount ?? transaction.amount),
-              0,
-          );
   const grouped = Object.entries(
       expenses.reduce<Record<string, number>>((sum, transaction) => {
         sum[transaction.category] =
