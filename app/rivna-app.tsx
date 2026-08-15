@@ -5247,7 +5247,7 @@ function SettingsView({
                 </button>
                 <p>Власні назви, кольори та Lucide-іконки</p>
               </div>
-              <button className="small-primary" onClick={() => { setEditingCategory(null); addCategory(); }}>
+              <button className="small-primary" onClick={addCategory}>
                 <Plus /> Категорія
               </button>
             </div>
