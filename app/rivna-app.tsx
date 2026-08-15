@@ -1,4 +1,6 @@
 "use client";
+// @ts-ignore
+// @ts-ignore
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownLeft,
@@ -4542,6 +4544,34 @@ function AnalyticsView({
               transaction.kind !== "transfer" &&
               transaction.kind !== "exchange",
       );
+  const total = expenses.reduce(
+          (sum, transaction) => sum + Math.abs(transaction.baseAmount ?? transaction.amount),
+          0,
+      ),
+      income = currentTransactions
+          .filter(
+              (transaction) =>
+                  transaction.amount > 0 &&
+                  transaction.kind !== "transfer" &&
+                  transaction.kind !== "exchange",
+          )
+          .reduce((sum, transaction) => sum + (transaction.baseAmount ?? transaction.amount), 0),
+      impulsive = expenses
+          .filter((transaction) => transaction.impulse)
+          .reduce(
+              (sum, transaction) => sum + Math.abs(transaction.baseAmount ?? transaction.amount),
+              0,
+          );
+  const groupByCategoryName = new Map(categories.map((c) => [c.name, c.budgetGroup]));
+  const groupTotals = { needs: 0, wants: 0, savings: 0, unassigned: 0 };
+  expenses.forEach((t) => {
+    const group = groupByCategoryName.get(t.category);
+    const value = Math.abs(t.baseAmount ?? t.amount);
+    if (group === "needs") groupTotals.needs += value;
+    else if (group === "wants") groupTotals.wants += value;
+    else if (group === "savings") groupTotals.savings += value;
+    else groupTotals.unassigned += value;
+  });
   const total = expenses.reduce(
                   transaction.kind !== "transfer" &&
                   transaction.kind !== "exchange",
