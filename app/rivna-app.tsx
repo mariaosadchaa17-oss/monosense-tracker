@@ -2519,21 +2519,10 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
                 categories={categories}
                 debts={debts.filter((d) => d.direction === "i_owe" && !d.isVirtual)}
                 goals={goals}
+                budgets={savedBudgets}
+                transactions={transactions}
                 submit={addExpense}
                 close={() => setModal(null)}
-            />
-        )}
-        {modal === "scan-review" && (
-            <ScanReceiptModal
-                items={scanItems}
-                accounts={accounts}
-                categories={categories}
-                save={saveScannedTransaction}
-                removeItem={(id) => setScanItems((items) => items.filter((i) => i.id !== id))}
-                close={() => {
-                  setModal(null);
-                  setScanItems([]);
-                }}
             />
         )}
         {modal === "account" && (
@@ -2972,7 +2961,6 @@ function GracePeriodAlert({ accounts }: { accounts: Account[] }) {
       </div>
   );
 }
-function Dashboard({
 function Dashboard({
                      balance,
                      baseCurrency,
@@ -6637,6 +6625,8 @@ function ExpenseModal({
                         categories,
                         debts,
                         goals,
+                        budgets,
+                        transactions,
                         submit,
                         close,
                       }: {
@@ -6648,6 +6638,8 @@ function ExpenseModal({
   categories: CategoryItem[];
   debts: DebtItem[];
   goals: GoalItem[];
+  budgets: BudgetItem[];
+  transactions: Transaction[];
   submit: (e: React.SyntheticEvent<HTMLFormElement>) => void;
   close: () => void;
 }) {
@@ -6722,6 +6714,44 @@ function ExpenseModal({
               value={categoryId}
               onChange={setCategoryId}
           />
+          {type === "expense" && categoryId && (() => {
+            const now = new Date();
+            const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+            const selectedCategory = categories.find((c) => c.id === categoryId);
+            const activeBudget = budgets.find(
+                (b) => b.categoryId === categoryId && b.month.startsWith(monthKey),
+            );
+            if (!activeBudget || !selectedCategory) return null;
+            const spent = transactions
+                .filter(
+                    (t) =>
+                        t.category === selectedCategory.name &&
+                        t.amount < 0 &&
+                        t.kind !== "transfer" &&
+                        t.kind !== "exchange" &&
+                        t.bookedAt?.startsWith(monthKey),
+                )
+                .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+            const evaluated = evaluateExpression(amount);
+            const entered = evaluated !== null ? evaluated : Number(amount.replace(",", ".")) || 0;
+            const projected = spent + entered;
+            const remaining = Math.max(0, activeBudget.limit - spent);
+            const overLimit = projected > activeBudget.limit;
+            return (
+                <div className={overLimit ? "category-budget-mini over" : "category-budget-mini"}>
+                  <div className="category-budget-mini-head">
+                    <span>{selectedCategory.name}</span>
+                    <span>
+                  Залишилось {currencySymbol(activeBudget.currency)} {formatMoney(remaining)} з{" "}
+                      {formatMoney(activeBudget.limit)}
+                </span>
+                  </div>
+                  <div className="category-budget-mini-bar">
+                    <i style={{ width: `${Math.min(100, (projected / activeBudget.limit) * 100)}%` }} />
+                  </div>
+                </div>
+            );
+          })()}
           <label>
             Валюта
             <input name="currency" value={account?.currency || "UAH"} readOnly />

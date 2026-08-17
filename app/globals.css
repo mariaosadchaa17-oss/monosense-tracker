@@ -5863,3 +5863,10 @@ button:disabled {
 .grace-alert strong{display:block;font-size:12px}
 .grace-alert.urgent strong{color:#d94b4b}
 .grace-alert small{display:block;color:var(--muted);font-size:10px;margin-top:2px}
+
+.category-budget-mini{margin-top:-6px;padding:10px 12px;border-radius:12px;background:var(--bg);border:1px solid var(--line)}
+.category-budget-mini-head{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-bottom:6px}
+.category-budget-mini-bar{height:5px;border-radius:10px;background:var(--line);overflow:hidden}
+.category-budget-mini-bar i{display:block;height:100%;border-radius:10px;background:var(--purple);transition:width .2s}
+.category-budget-mini.over .category-budget-mini-bar i{background:#d94b4b}
+.category-budget-mini.over .category-budget-mini-head{color:#d94b4b}
