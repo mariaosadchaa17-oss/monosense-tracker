@@ -157,6 +157,7 @@ type Account = {
   color?: string;
   creditLimit?: number;
   graceEnd?: string;
+  graceBalance?: number;
   cardImage?: string;
 };
 type GoalItem = {
@@ -582,6 +583,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
             cardImage: item.card_image_url ? String(item.card_image_url) : undefined,
             creditLimit: Number(item.credit_limit) || 0,
             graceEnd: item.grace_period_end ? String(item.grace_period_end) : undefined,
+            graceBalance: item.grace_balance ? Number(item.grace_balance) : undefined,
           })),
       );
       const transferDirection: Record<string, "in" | "out"> = {};
@@ -1082,6 +1084,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
             balance: form.get("balance"),
             creditLimit: form.get("creditLimit"),
             graceEnd: form.get("graceEnd"),
+            graceBalance: form.get("graceBalance"),
             cardColor: form.get("cardColor"),
           }),
         });
@@ -1360,6 +1363,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
                         balance: Number(payload.balance) || 0,
                         creditLimit: Number(payload.creditLimit) || 0,
                         graceEnd: payload.graceEnd ? String(payload.graceEnd) : undefined,
+                        graceBalance: payload.graceBalance ? Number(payload.graceBalance) : undefined,
                         color: payload.cardColor ? String(payload.cardColor) : item.color,
                       }
                       : item,
@@ -2937,6 +2941,38 @@ function Login({
       </main>
   );
 }
+function GracePeriodAlert({ accounts }: { accounts: Account[] }) {
+  const now = Date.now();
+  const upcoming = accounts.filter((a) => {
+    if (!a.graceEnd) return false;
+    const days = Math.ceil((new Date(a.graceEnd).getTime() - now) / 86400000);
+    return days >= 0 && days <= 7;
+  });
+  if (!upcoming.length) return null;
+  return (
+      <div className="grace-alert-row">
+        {upcoming.map((a) => {
+          const days = Math.ceil((new Date(a.graceEnd!).getTime() - now) / 86400000);
+          return (
+              <div key={a.id} className={days <= 2 ? "grace-alert urgent" : "grace-alert"}>
+                <span className="grace-alert-icon">⏳</span>
+                <div>
+                  <strong>{a.name}: до погашення пільгового періоду {days} дн.</strong>
+                  {a.graceBalance ? (
+                      <small>
+                        Сума: {currencySymbol(a.currency)} {formatMoney(a.graceBalance)}
+                      </small>
+                  ) : (
+                      <small>Вкажи пільговий баланс у рахунку, щоб бачити суму</small>
+                  )}
+                </div>
+              </div>
+          );
+        })}
+      </div>
+  );
+}
+function Dashboard({
 function Dashboard({
                      balance,
                      baseCurrency,
@@ -3076,6 +3112,7 @@ function Dashboard({
   const symbol = currencySymbol(baseCurrency);
   return (
       <>
+        <GracePeriodAlert accounts={accounts} />
         {savingsBalance > 0 && (
             <div className="safe-to-spend-row">
               <div
@@ -4108,6 +4145,7 @@ function AccountsView({
   const [monoOpen, setMonoOpen] = useState(monoAccounts.length > 0);
   return (
       <section className="panel full-view">
+        <GracePeriodAlert accounts={accounts} />
         <div className="section-title">
           <div>
             <h2>Усі рахунки</h2>
@@ -7046,6 +7084,17 @@ function AccountModal({
               <label>
                 Кінець грейс-періоду
                 <input name="graceEnd" type="date" defaultValue={account?.graceEnd?.slice(0, 10)} />
+              </label>
+              <label>
+                Пільговий баланс (до сплати)
+                <input
+                    name="graceBalance"
+                    type="number"
+                    min="0"
+                    step=".01"
+                    defaultValue={account?.graceBalance}
+                    placeholder="Наприклад, 4500"
+                />
               </label>
             </div>
           </details>

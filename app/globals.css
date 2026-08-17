@@ -5855,3 +5855,11 @@ button:disabled {
 .budget-rule-bar{position:relative;height:8px;border-radius:4px;background:var(--bg);overflow:visible}
 .budget-rule-bar i{display:block;height:100%;border-radius:4px}
 .budget-rule-bar b{position:absolute;top:-3px;width:2px;height:14px;background:var(--text);opacity:.6}
+
+.grace-alert-row{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.grace-alert{display:flex;align-items:center;gap:10px;background:color-mix(in srgb,#f4b740 12%,var(--panel));border:1px solid color-mix(in srgb,#f4b740 30%,var(--line));border-radius:14px;padding:12px 14px}
+.grace-alert.urgent{background:color-mix(in srgb,#d94b4b 12%,var(--panel));border-color:color-mix(in srgb,#d94b4b 30%,var(--line))}
+.grace-alert-icon{font-size:18px;flex:none}
+.grace-alert strong{display:block;font-size:12px}
+.grace-alert.urgent strong{color:#d94b4b}
+.grace-alert small{display:block;color:var(--muted);font-size:10px;margin-top:2px}

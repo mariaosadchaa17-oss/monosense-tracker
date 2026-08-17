@@ -47,14 +47,14 @@ export async function POST(request: Request) {
             household_id: householdId, created_by: user.id, name: String(body.name).slice(0, 80),card_image_url:body.cardImageUrl||null,
             bank: String(body.bank || "").slice(0, 80), owner_label: String(body.owner || "").slice(0, 80),
             currency: String(body.currency || "UAH").toUpperCase().slice(0, 3), balance: Number(body.balance) || 0,
-            credit_limit:Number(body.creditLimit)||0,grace_period_end:body.graceEnd||null,card_color:String(body.cardColor||"").slice(0,20)||null,
+            credit_limit:Number(body.creditLimit)||0,grace_period_end:body.graceEnd||null,grace_balance:body.graceBalance?Number(body.graceBalance):null,card_color:String(body.cardColor||"").slice(0,20)||null,
           }).select().single();
           break;
     case "updateAccount":
       result=await supabase.from("accounts").update({
         name:String(body.name).slice(0,80),bank:String(body.bank||"").slice(0,80),owner_label:String(body.owner||"").slice(0,80),card_image_url:body.cardImageUrl||null,
         currency:String(body.currency||"UAH").toUpperCase().slice(0,3),balance:Number(body.balance)||0,
-        credit_limit:Number(body.creditLimit)||0,grace_period_end:body.graceEnd||null,card_color:String(body.cardColor||"").slice(0,20)||null,updated_at:new Date().toISOString(),
+        credit_limit:Number(body.creditLimit)||0,grace_balance:body.graceBalance?Number(body.graceBalance):null,grace_period_end:body.graceEnd||null,card_color:String(body.cardColor||"").slice(0,20)||null,updated_at:new Date().toISOString(),
       }).eq("id",body.id).eq("household_id",householdId).select().single();
       break;
     case "deleteAccount":
