@@ -871,9 +871,6 @@ header h1 {
     margin-top: 27px
 }
 
-.panel {
-    box-shadow: none
-}
 
 .tx-list {
     margin-top: 13px
@@ -1387,16 +1384,17 @@ header h1 {
 }
 
 /* Rivna 2026 visual system */
-:root {
-    --bg: #f3f5f1;
-    --text: #171a18;
-    --muted: #5f655f;
-    --line: #e2e7e1;
-    --purple: #6558e8;
-    --purple-dark: #5043d0;
-    --ink: #171a18;
-    --highlight: #e6fb72;
-    --shadow: 0 20px 55px rgba(31, 38, 33, .07)
+:root[data-theme="dark"] {
+    --bg: #101310;
+    --panel: #191d1a;
+    --text: #f3f6f2;
+    --muted: #aab0a6;
+    --line: #2b312d;
+    --shadow: 0 20px 55px rgba(0, 0, 0, .4)
+}
+:root[data-theme="dark"] .brand-mark-logo,
+:root[data-theme="dark"] .app-loader-logo {
+    background-color: var(--text)
 }
 
 :root[data-theme="dark"] {
