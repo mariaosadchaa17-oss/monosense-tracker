@@ -390,6 +390,9 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
           ? localStorage.getItem("rivna-cardstyle") || "default"
           : "default",
   );
+  const [budgetRollover, setBudgetRollover] = useState(
+      () => typeof window !== "undefined" && localStorage.getItem("rivna-budget-rollover") === "1",
+  );
   const [modal, setModal] = useState<
       | "expense"
       | "account"
@@ -798,6 +801,9 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     else document.documentElement.dataset.cardstyle = cardStyle;
     localStorage.setItem("rivna-cardstyle", cardStyle);
   }, [cardStyle]);
+  useEffect(() => {
+    localStorage.setItem("rivna-budget-rollover", budgetRollover ? "1" : "0");
+  }, [budgetRollover]);
   useEffect(() => {
     fetch("/api/exchange-rates")
         .then((r) => (r.ok ? r.json() : null))
@@ -2273,6 +2279,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
                       remove={(id: string | number) =>
                           financeAction({ action: "deleteBudget", id }, "Ліміт видалено")
                       }
+                      rolloverEnabled={budgetRollover}
                   />
               ) : (
                   <BudgetView
@@ -3800,6 +3807,7 @@ function LiveBudgetView({
                           baseCurrency,
                           add,
                           remove,
+                          rolloverEnabled,
                         }: {
   budgets: BudgetItem[];
   transactions: Transaction[];
@@ -3810,6 +3818,7 @@ function LiveBudgetView({
   baseCurrency: string;
   add: () => void;
   remove: (id: string) => void;
+  rolloverEnabled: boolean;
 }) {
   const { periodStart, periodEnd } = budgetPeriodBounds(periodType, anchor);
   const isCurrent = new Date() >= periodStart && new Date() < periodEnd;
@@ -3864,7 +3873,29 @@ function LiveBudgetView({
     );
     return [...realMonthBudgets.map((b) => ({ ...b, sourceIds: [b.id] })), ...aggregated];
   })();
-
+  if (periodType === "month" && rolloverEnabled) {
+    const prevMonthDate = new Date(periodStart.getFullYear(), periodStart.getMonth() - 1, 1);
+    const prevMonthKey = `${prevMonthDate.getFullYear()}-${String(prevMonthDate.getMonth() + 1).padStart(2, "0")}`;
+    const prevPeriodStart = prevMonthDate;
+    const prevPeriodEnd = periodStart;
+    activeBudgets.forEach((budget) => {
+      const prevBudget = budgets.find(
+          (b) => b.categoryId === budget.categoryId && b.period === "month" && b.month === `${prevMonthKey}-01`,
+      );
+      if (!prevBudget) return;
+      const prevSpent = transactions
+          .filter((t) => {
+            if (t.category !== budget.name || t.amount >= 0 || t.kind === "transfer" || t.kind === "exchange")
+              return false;
+            if (!t.bookedAt) return false;
+            const date = new Date(t.bookedAt);
+            return date >= prevPeriodStart && date < prevPeriodEnd;
+          })
+          .reduce((sum, t) => sum + Math.abs(t.baseAmount ?? t.amount), 0);
+      const leftover = prevBudget.limit - prevSpent;
+      budget.limit = Math.max(0, budget.limit + leftover);
+    });
+  }
   const spentBy = periodTransactions
       .filter((t) => t.amount < 0 && t.kind !== "transfer" && t.kind !== "exchange")
       .reduce<Record<string, number>>((sum, t) => {
@@ -5139,13 +5170,14 @@ function SettingsView({
                         setSkin,
                         cardStyle,
                         setCardStyle,
+                        budgetRollover,
+                        setBudgetRollover,
                         logout,
                         notify,
                         importCsv,
                         categories,
                         audit,
                         addCategory,
-                        editCategory,
                         deleteCategory,
                         pushEnabled,
                         enablePush,
@@ -5164,13 +5196,14 @@ function SettingsView({
   setSkin: (v: string) => void;
   cardStyle: string;
   setCardStyle: (v: string) => void;
+  budgetRollover: boolean;
+  setBudgetRollover: (v: boolean) => void;
   logout: () => void;
   notify: (s: string) => void;
   importCsv: (file: File) => void;
   categories: CategoryItem[];
   audit: AuditItem[];
   addCategory: () => void;
-  editCategory: (category: CategoryItem) => void;
   deleteCategory: (id: string) => void;
   pushEnabled: boolean;
   enablePush: () => void;
@@ -5193,6 +5226,8 @@ function SettingsView({
               setSkin={setSkin}
               cardStyle={cardStyle}
               setCardStyle={setCardStyle}
+              budgetRollover={budgetRollover}
+              setBudgetRollover={setBudgetRollover}
               notify={notify}
           />
           <section className="panel settings-card">
@@ -5953,6 +5988,8 @@ function ProfileSettings({
                            setSkin,
                            cardStyle,
                            setCardStyle,
+                           budgetRollover,
+                           setBudgetRollover,
                            notify,
                          }: {
   dark: boolean;
@@ -5961,6 +5998,8 @@ function ProfileSettings({
   setSkin: (value: string) => void;
   cardStyle: string;
   setCardStyle: (value: string) => void;
+  budgetRollover: boolean;
+  setBudgetRollover: (value: boolean) => void;
   notify: (message: string) => void;
 }) {
   const [profile, setProfile] = useState<SettingsProfile | null>({
@@ -6055,13 +6094,20 @@ function ProfileSettings({
         </button>
         <label className="setting-toggle">
         <span>
-          <strong>Алерт на 80%</strong>
-          <small>Попередження про наближення до ліміту</small>
+          <strong>Темна тема</strong>
+          <small>Змінити вигляд застосунку</small>
+        </span>
+          <input type="checkbox" checked={dark} onChange={(e) => setDark(e.target.checked)} />
+        </label>
+        <label className="setting-toggle">
+        <span>
+          <strong>Переносити залишок бюджету</strong>
+          <small>Невитрачене (або перевитрачене) переходить на наступний місяць для всіх категорій</small>
         </span>
           <input
               type="checkbox"
-              checked={profile?.budget80 ?? true}
-              onChange={(e) => setProfile((p) => (p ? { ...p, budget80: e.target.checked } : p))}
+              checked={budgetRollover}
+              onChange={(e) => setBudgetRollover(e.target.checked)}
           />
         </label>
         <label className="setting-toggle">
