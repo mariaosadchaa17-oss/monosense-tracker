@@ -5178,6 +5178,7 @@ function SettingsView({
                         categories,
                         audit,
                         addCategory,
+                        editCategory,
                         deleteCategory,
                         pushEnabled,
                         enablePush,
@@ -5204,6 +5205,7 @@ function SettingsView({
   categories: CategoryItem[];
   audit: AuditItem[];
   addCategory: () => void;
+  editCategory: (category: CategoryItem) => void;
   deleteCategory: (id: string) => void;
   pushEnabled: boolean;
   enablePush: () => void;
