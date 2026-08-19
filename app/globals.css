@@ -2,6 +2,15 @@
 @import "tailwindcss";
 
 :root {
+    --ink: #171a18;
+    --soft: #f0edff;
+}
+:root[data-theme="dark"] {
+    --ink: #f3f6f2;
+    --soft: #23261f;
+}
+
+:root {
     --bg: #f7f8fc;
     --panel: #fff;
     --text: #171625;
