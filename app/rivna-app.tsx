@@ -496,13 +496,6 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   } | null>(null);
   const [transferPresetTo, setTransferPresetTo] = useState<string | undefined>(undefined);
   const [topProfile, setTopProfile] = useState<{ name: string; email: string } | null>(null);
-  const [seenMilestones, setSeenMilestones] = useState<Record<string, number>>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("rivna-goal-milestones") || "{}");
-    } catch {
-      return {};
-    }
-  });
   const [milestoneCelebration, setMilestoneCelebration] = useState<{ goalName: string; percent: number } | null>(null);
   useEffect(() => {
     if (!initialLoggedIn) return;
