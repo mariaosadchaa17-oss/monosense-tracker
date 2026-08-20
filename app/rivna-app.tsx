@@ -3367,20 +3367,22 @@ function TransactionsView({
   scanReceipt: (file: File) => void;
   scanning: boolean;
 }) {
-  const [account, setAccount] = useState("");
-  const [category, setCategory] = useState("");
-  const [owner, setOwner] = useState("");
-  const [tag, setTag] = useState("");
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
-  const [editMode, setEditMode] = useState(false);
-  const [manualOrder, setManualOrder] = useState<(string | number)[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem("rivna-tx-order") || "[]");
-    } catch {
-      return [];
+  const [account,setAccount]=useState("");const [category,setCategory]=useState("");const [owner,setOwner]=useState("");const [tag,setTag]=useState("");const [from,setFrom]=useState("");const [to,setTo]=useState("");
+  const [minAmount,setMinAmount]=useState("");const [maxAmount,setMaxAmount]=useState("");
+  function toISO(d:Date){return d.toISOString().slice(0,10)}
+  function applyPreset(preset:string){
+    const now=new Date();
+    if(preset==="today"){setFrom(toISO(now));setTo(toISO(now))}
+    else if(preset==="yesterday"){const d=new Date(now);d.setDate(d.getDate()-1);setFrom(toISO(d));setTo(toISO(d))}
+    else if(preset==="weekend"){
+      const day=now.getDay();
+      const saturday=new Date(now);saturday.setDate(now.getDate()-((day+1)%7)+(day===0?-1:6-day));
+      const sunday=new Date(saturday);sunday.setDate(saturday.getDate()+1);
+      setFrom(toISO(saturday));setTo(toISO(sunday));
     }
-  });
+    else if(preset==="thisMonth"){setFrom(toISO(new Date(now.getFullYear(),now.getMonth(),1)));setTo(toISO(new Date(now.getFullYear(),now.getMonth()+1,0)))}
+    else if(preset==="lastMonth"){setFrom(toISO(new Date(now.getFullYear(),now.getMonth()-1,1)));setTo(toISO(new Date(now.getFullYear(),now.getMonth(),0)))}
+  }
   function reorderTx(
       draggedId: string | number,
       targetId: string | number,
@@ -3411,15 +3413,7 @@ function TransactionsView({
   }, [initialAccount]);
   const unique = (values: (string | undefined)[]) =>
       Array.from(new Set(values.filter(Boolean) as string[])).sort();
-  const filtered = transactions.filter(
-      (t) =>
-          (!account || t.account === account) &&
-          (!category || t.category === category) &&
-          (!owner || t.owner === owner) &&
-          (!tag || t.tags?.includes(tag)) &&
-          (!from || !t.bookedAt || t.bookedAt >= `${from}T00:00:00`) &&
-          (!to || !t.bookedAt || t.bookedAt <= `${to}T23:59:59`),
-  );
+  const filtered=transactions.filter(t=>(!account||t.account===account)&&(!category||t.category===category)&&(!owner||t.owner===owner)&&(!tag||t.tags?.includes(tag))&&(!from||!t.bookedAt||t.bookedAt>=`${from}T00:00:00`)&&(!to||!t.bookedAt||t.bookedAt<=`${to}T23:59:59`)&&(!minAmount||Math.abs(t.amount)>=Number(minAmount))&&(!maxAmount||Math.abs(t.amount)<=Number(maxAmount)));
   const shown = sortField
       ? [...filtered].sort((a, b) => {
         const dir = sortDir === "asc" ? 1 : -1;
@@ -3436,14 +3430,7 @@ function TransactionsView({
             return ia - ib;
           })
           : filtered;
-  const clear = () => {
-    setAccount("");
-    setCategory("");
-    setOwner("");
-    setTag("");
-    setFrom("");
-    setTo("");
-  };
+  const clear=()=>{setAccount("");setCategory("");setOwner("");setTag("");setFrom("");setTo("");setMinAmount("");setMaxAmount("")};
   return (
       <section className="panel full-view">
         <div className="view-toolbar">
@@ -3488,10 +3475,14 @@ function TransactionsView({
             />
           </label>
         </div>
-        <div className="filter-grid">
-          <label>
-            Рахунок
-            <select value={account} onChange={(e) => setAccount(e.target.value)}>
+        <div className="date-presets">
+          <button type="button" onClick={()=>applyPreset("today")}>Сьогодні</button>
+          <button type="button" onClick={()=>applyPreset("yesterday")}>Учора</button>
+          <button type="button" onClick={()=>applyPreset("weekend")}>Ці вихідні</button>
+          <button type="button" onClick={()=>applyPreset("thisMonth")}>Поточний місяць</button>
+          <button type="button" onClick={()=>applyPreset("lastMonth")}>Минулий місяць</button>
+        </div>
+        <div className="filter-grid"><label>Рахунок<select value={account} onChange={e=>setAccount(e.target.value)}>
               <option value="">Усі</option>
               {unique(transactions.map((t) => t.account)).map((v) => (
                   <option key={v}>{v}</option>
@@ -3532,6 +3523,26 @@ function TransactionsView({
           <label>
             До
             <input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </label>
+          <label>
+            Сума від
+            <input
+                type="number"
+                min="0"
+                value={minAmount}
+                onChange={(e) => setMinAmount(e.target.value)}
+                placeholder="1000"
+            />
+          </label>
+          <label>
+            Сума до
+            <input
+                type="number"
+                min="0"
+                value={maxAmount}
+                onChange={(e) => setMaxAmount(e.target.value)}
+                placeholder="5000"
+            />
           </label>
           <button
               type="button"
