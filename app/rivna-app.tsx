@@ -6769,7 +6769,7 @@ function ExpenseModal({
             const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
             const selectedCategory = categories.find((c) => c.id === categoryId);
             const activeBudget = budgets.find(
-                (b) => b.categoryId === categoryId && b.month.startsWith(monthKey),
+                (b) => b.categoryId === categoryId && b.period === "month" && b.month.startsWith(monthKey),
             );
             if (!activeBudget || !selectedCategory) return null;
             const spent = transactions
