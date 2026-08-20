@@ -7,7 +7,7 @@ export async function GET(){
   if(!context)return NextResponse.json({error:"Unauthorized"},{status:401});
   const admin=createAdminClient();
   const [{data:profile},{data:preferences},{data:household},{data:members},{data:invites}]=await Promise.all([
-    admin.from("profiles").select("display_name,base_currency,planning_period").eq("id",context.user.id).single(),
+    admin.from("profiles").select("display_name,base_currency,planning_period,budget_rollover").eq("id",context.user.id).single(),
     admin.from("notification_preferences").select("telegram_chat_id,recurring_reminders,budget_80,budget_100,digest_enabled,digest_frequency,digest_email_enabled").eq("user_id",context.user.id).maybeSingle(),
     admin.from("households").select("name,base_currency").eq("id",context.householdId).single(),
     admin.from("household_members").select("user_id,role,joined_at").eq("household_id",context.householdId).order("joined_at"),
@@ -23,7 +23,7 @@ export async function GET(){
   const householdNames=new Map((availableHouseholds||[]).map(item=>[item.id,item]));
   const names=new Map((profiles||[]).map(item=>[item.id,item.display_name]));
   return NextResponse.json({
-    profile:{name:profile?.display_name||context.user.email?.split("@")[0]||"Користувач",email:context.user.email,baseCurrency:household?.base_currency||profile?.base_currency||"UAH",planningPeriod:profile?.planning_period==="week"?"week":"month",householdName:household?.name||"Мої фінанси",telegramChatId:preferences?.telegram_chat_id||"",recurringReminders:preferences?.recurring_reminders??true,budget80:preferences?.budget_80??true,budget100:preferences?.budget_100??true,role:context.role,digestEnabled:preferences?.digest_enabled??false,digestFrequency:preferences?.digest_frequency||"weekly",digestEmailEnabled:preferences?.digest_email_enabled??false},
+    profile:{name:profile?.display_name||context.user.email?.split("@")[0]||"Користувач",email:context.user.email,baseCurrency:household?.base_currency||profile?.base_currency||"UAH",planningPeriod:profile?.planning_period==="week"?"week":"month",budgetRollover:Boolean(profile?.budget_rollover),householdName:household?.name||"Мої фінанси",telegramChatId:preferences?.telegram_chat_id||"",recurringReminders:preferences?.recurring_reminders??true,budget80:preferences?.budget_80??true,budget100:preferences?.budget_100??true,role:context.role,digestEnabled:preferences?.digest_enabled??false,digestFrequency:preferences?.digest_frequency||"weekly",digestEmailEnabled:preferences?.digest_email_enabled??false},
     members:(members||[]).map(item=>({userId:item.user_id,name:names.get(item.user_id)||"Учасник",role:item.role,joinedAt:item.joined_at,isMe:item.user_id===context.user.id})),
     invitations:invites||[],
     spaces:(userMemberships||[]).map(item=>({id:item.household_id,name:householdNames.get(item.household_id)?.name||"Фінансовий простір",currency:householdNames.get(item.household_id)?.base_currency||"UAH",role:item.role,active:item.household_id===context.householdId})),
@@ -37,7 +37,7 @@ export async function POST(request:Request){
   if(body.action==="saveProfile"){
     const name=String(body.name||"").trim().slice(0,80),currency=String(body.baseCurrency||"UAH").toUpperCase().slice(0,3);
     if(!name)return NextResponse.json({error:"Вкажіть ім’я"},{status:400});
-    const {error:profileError}=await admin.from("profiles").update({display_name:name,base_currency:currency,planning_period:body.planningPeriod==="week"?"week":"month",updated_at:new Date().toISOString()}).eq("id",context.user.id);
+    const {error:profileError}=await admin.from("profiles").update({display_name:name,base_currency:currency,planning_period:body.planningPeriod==="week"?"week":"month",budget_rollover:Boolean(body.budgetRollover),updated_at:new Date().toISOString()}).eq("id",context.user.id);
     const {error:preferenceError}=await admin.from("notification_preferences").upsert({user_id:context.user.id,telegram_chat_id:String(body.telegramChatId||"").trim()||null,recurring_reminders:Boolean(body.recurringReminders),budget_80:Boolean(body.budget80),budget_100:Boolean(body.budget100),digest_enabled:Boolean(body.digestEnabled),digest_frequency:body.digestFrequency==="monthly"?"monthly":"weekly",digest_email_enabled:Boolean(body.digestEmailEnabled)},{onConflict:"user_id"});   if(["owner","admin"].includes(context.role))await admin.from("households").update({base_currency:currency}).eq("id",context.householdId);
     const error=profileError||preferenceError;
     return error?NextResponse.json({error:error.message},{status:400}):NextResponse.json({ok:true});
