@@ -5887,3 +5887,46 @@ button:disabled {
 .category-budget-mini-bar i{display:block;height:100%;border-radius:10px;background:var(--purple);transition:width .2s}
 .category-budget-mini.over .category-budget-mini-bar i{background:#d94b4b}
 .category-budget-mini.over .category-budget-mini-head{color:#d94b4b}
+
+.goal-card-bar {
+    position: relative;
+}
+.goal-milestone-tick {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.6);
+}
+.milestone-card {
+    background: var(--panel);
+    border-radius: 24px;
+    padding: 32px;
+    max-width: 320px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+.milestone-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--purple) 15%, var(--panel));
+    color: var(--purple);
+    display: grid;
+    place-items: center;
+}
+.milestone-icon svg {
+    width: 26px;
+}
+.milestone-card h2 {
+    margin: 4px 0 0;
+    font-size: 20px;
+}
+.milestone-card p {
+    color: var(--muted);
+    font-size: 13px;
+    margin: 0 0 12px;
+}

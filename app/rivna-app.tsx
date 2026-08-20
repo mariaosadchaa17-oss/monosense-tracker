@@ -2,6 +2,7 @@
 // @ts-ignore
 // @ts-ignore
 import { useEffect, useMemo, useRef, useState } from "react";
+import confetti from "canvas-confetti";
 import {
   ArrowDownLeft,
   ArrowLeft,
@@ -65,6 +66,7 @@ import {
   Cat,
 } from "lucide-react";
 import { PasskeyButton } from "./components/passkey-button";
+import confetti from "canvas-confetti";
 const APP_VERSION = "2026.08.06-2";
 
 // Фиксированный набор иконок для лимитов — вынесен в конфиг, чтобы можно было
@@ -376,6 +378,14 @@ const isLight = (hex: string | undefined) => {
 };
 
 export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolean }) {
+  const [seenMilestones, setSeenMilestones] = useState<Record<string, number>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("rivna-goal-milestones") || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const [milestoneCelebration, setMilestoneCelebration] = useState<{ goalName: string; percent: number } | null>(null);
   const [loggedIn, setLoggedIn] = useState(initialLoggedIn);
   const [showPassword, setShowPassword] = useState(false);
   const [page, setPage] = useState<Page>("Головна");
@@ -423,6 +433,24 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   >([]);
   const [syncing, setSyncing] = useState(initialLoggedIn);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(!initialLoggedIn);
+  useEffect(() => {
+    goals.forEach((goal) => {
+      const percent = Math.min(100, Math.round((goal.current / Math.max(1, goal.target)) * 100));
+      const milestones = [25, 50, 75, 100];
+      const reached = milestones.filter((m) => percent >= m);
+      const lastSeen = seenMilestones[goal.id] || 0;
+      const newest = reached[reached.length - 1];
+      if (newest && newest > lastSeen) {
+        setSeenMilestones((prev) => {
+          const next = { ...prev, [goal.id]: newest };
+          localStorage.setItem("rivna-goal-milestones", JSON.stringify(next));
+          return next;
+        });
+        setMilestoneCelebration({ goalName: goal.name, percent: newest });
+        confetti({ particleCount: 120, spread: 80, origin: { y: 0.6 } });
+      }
+    });
+  }, [goals]);
   const [goals, setGoals] = useState<GoalItem[]>(initialLoggedIn ? [] : seedGoals);
   const [debts, setDebts] = useState<DebtItem[]>([]);
   const [recurring, setRecurring] = useState<RecurringItem[]>([]);
@@ -468,7 +496,14 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   } | null>(null);
   const [transferPresetTo, setTransferPresetTo] = useState<string | undefined>(undefined);
   const [topProfile, setTopProfile] = useState<{ name: string; email: string } | null>(null);
-
+  const [seenMilestones, setSeenMilestones] = useState<Record<string, number>>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("rivna-goal-milestones") || "{}");
+    } catch {
+      return {};
+    }
+  });
+  const [milestoneCelebration, setMilestoneCelebration] = useState<{ goalName: string; percent: number } | null>(null);
   useEffect(() => {
     if (!initialLoggedIn) return;
     fetch("/api/settings", { cache: "no-store" })
@@ -2714,6 +2749,13 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
                 submit={updateTransaction}
             />
         )}
+        {milestoneCelebration && (
+            <MilestoneModal
+                goalName={milestoneCelebration.goalName}
+                percent={milestoneCelebration.percent}
+                close={() => setMilestoneCelebration(null)}
+            />
+        )}
         {modal === "invite" && <InviteModal submit={createInvite} close={() => setModal(null)} />}
         {modal === "rate" && <CustomRateModal submit={addCustomRate} close={() => setModal(null)} />}
         {toast && <div className="toast">{toast}</div>}
@@ -3369,6 +3411,14 @@ function TransactionsView({
 }) {
   const [account,setAccount]=useState("");const [category,setCategory]=useState("");const [owner,setOwner]=useState("");const [tag,setTag]=useState("");const [from,setFrom]=useState("");const [to,setTo]=useState("");
   const [minAmount,setMinAmount]=useState("");const [maxAmount,setMaxAmount]=useState("");
+  const [openMenuId, setOpenMenuId] = useState<string | number | null>(null);
+  const [manualOrder, setManualOrder] = useState<(string | number)[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem("rivna-tx-order") || "[]");
+    } catch {
+      return [];
+    }
+  });
   function toISO(d:Date){return d.toISOString().slice(0,10)}
   function applyPreset(preset:string){
     const now=new Date();
@@ -4484,6 +4534,9 @@ function GoalsView({
                         </p>
                         <div className="goal-card-bar">
                           <i style={{ width: `${percent}%`, background: g.color }} />
+                          <span className="goal-milestone-tick" style={{ left: "25%" }} />
+                          <span className="goal-milestone-tick" style={{ left: "50%" }} />
+                          <span className="goal-milestone-tick" style={{ left: "75%" }} />
                         </div>
                         <div className="goal-actions-row">
                           <button
@@ -6664,6 +6717,58 @@ function TransactionList({ transactions }: { transactions: Transaction[] }) {
               </strong>
             </div>
         ))}
+      </div>
+  );
+}
+function MilestoneModal({
+                          goalName,
+                          percent,
+                          close,
+                        }: {
+  goalName: string;
+  percent: number;
+  close: () => void;
+}) {
+  return (
+      <div className="modal-backdrop" onMouseDown={close}>
+        <div className="milestone-card" onMouseDown={(e) => e.stopPropagation()}>
+        <span className="milestone-icon">
+          <PiggyBank />
+        </span>
+          <h2>{percent}% досягнуто!</h2>
+          <p>
+            Ти вже накопичила {percent}% для цілі «{goalName}». Так тримати!
+          </p>
+          <button className="primary" onClick={close}>
+            Продовжити
+          </button>
+        </div>
+      </div>
+  );
+}
+function MilestoneModal({
+                          goalName,
+                          percent,
+                          close,
+                        }: {
+  goalName: string;
+  percent: number;
+  close: () => void;
+}) {
+  return (
+      <div className="modal-backdrop" onMouseDown={close}>
+        <div className="milestone-card" onMouseDown={(e) => e.stopPropagation()}>
+          <span className="milestone-icon">
+            <PiggyBank />
+          </span>
+          <h2>{percent}% досягнуто!</h2>
+          <p>
+            Ти вже накопичила {percent}% для цілі «{goalName}». Так тримати!
+          </p>
+          <button className="primary" onClick={close}>
+            Продовжити
+          </button>
+        </div>
       </div>
   );
 }
