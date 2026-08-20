@@ -390,9 +390,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
           ? localStorage.getItem("rivna-cardstyle") || "default"
           : "default",
   );
-  const [budgetRollover, setBudgetRollover] = useState(
-      () => typeof window !== "undefined" && localStorage.getItem("rivna-budget-rollover") === "1",
-  );
+  const [budgetRollover, setBudgetRollover] = useState(false);
   const [modal, setModal] = useState<
       | "expense"
       | "account"
@@ -741,6 +739,7 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       );
       if (data.planningPeriod) {
         setPlanningPeriod(data.planningPeriod === "week" ? "week" : "month");
+        setBudgetRollover(Boolean(data.budgetRollover));
         setBudgetPeriodType(data.planningPeriod === "week" ? "week" : "month");
       }
       if (data.baseCurrency) setBaseCurrency(String(data.baseCurrency));
@@ -802,7 +801,6 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
     localStorage.setItem("rivna-cardstyle", cardStyle);
   }, [cardStyle]);
   useEffect(() => {
-    localStorage.setItem("rivna-budget-rollover", budgetRollover ? "1" : "0");
   }, [budgetRollover]);
   useEffect(() => {
     fetch("/api/exchange-rates")

@@ -2371,11 +2371,16 @@ header h1 {
     gap: 16px
 }
 
+.category-chart {
+    max-width: 100%;
+    overflow: hidden;
+}
 .category-chart>div {
     display: grid;
-    grid-template-columns: 10px 110px 1fr 40px;
+    grid-template-columns: 10px 110px minmax(0, 1fr) 40px;
     align-items: center;
-    gap: 10px
+    gap: 10px;
+    min-width: 0;
 }
 
 .category-chart>div>span {
@@ -2391,7 +2396,10 @@ header h1 {
 .category-chart i {
     height: 8px;
     background: var(--line);
-    border-radius: 10px
+    border-radius: 10px;
+    min-width: 0;
+    overflow: hidden;
+    display: block;
 }
 
 .category-chart i b {
