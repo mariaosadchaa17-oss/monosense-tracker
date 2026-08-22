@@ -496,7 +496,6 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
   } | null>(null);
   const [transferPresetTo, setTransferPresetTo] = useState<string | undefined>(undefined);
   const [topProfile, setTopProfile] = useState<{ name: string; email: string } | null>(null);
-  const [milestoneCelebration, setMilestoneCelebration] = useState<{ goalName: string; percent: number } | null>(null);
   useEffect(() => {
     if (!initialLoggedIn) return;
     fetch("/api/settings", { cache: "no-store" })
