@@ -66,7 +66,6 @@ import {
   Cat,
 } from "lucide-react";
 import { PasskeyButton } from "./components/passkey-button";
-import confetti from "canvas-confetti";
 const APP_VERSION = "2026.08.06-2";
 
 // Фиксированный набор иконок для лимитов — вынесен в конфиг, чтобы можно было
@@ -6756,32 +6755,6 @@ function MilestoneModal({
         <span className="milestone-icon">
           <PiggyBank />
         </span>
-          <h2>{percent}% досягнуто!</h2>
-          <p>
-            Ти вже накопичила {percent}% для цілі «{goalName}». Так тримати!
-          </p>
-          <button className="primary" onClick={close}>
-            Продовжити
-          </button>
-        </div>
-      </div>
-  );
-}
-function MilestoneModal({
-                          goalName,
-                          percent,
-                          close,
-                        }: {
-  goalName: string;
-  percent: number;
-  close: () => void;
-}) {
-  return (
-      <div className="modal-backdrop" onMouseDown={close}>
-        <div className="milestone-card" onMouseDown={(e) => e.stopPropagation()}>
-          <span className="milestone-icon">
-            <PiggyBank />
-          </span>
           <h2>{percent}% досягнуто!</h2>
           <p>
             Ти вже накопичила {percent}% для цілі «{goalName}». Так тримати!
