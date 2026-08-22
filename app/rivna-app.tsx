@@ -1007,6 +1007,35 @@ export function RivnaApp({ initialLoggedIn = false }: { initialLoggedIn?: boolea
       if (!value) return;
       const operationType = form.get("type") === "income" ? "income" : "expense",
           isIncome = operationType === "income";
+      const isTransferSubmit = form.get("isTransfer") === "on" && operationType === "expense";
+      const transferToAccountId = String(form.get("transferToAccountId") || "");
+      if (isTransferSubmit && transferToAccountId) {
+        const fromAccount = accounts.find((a) => String(a.id) === String(form.get("account"))) || accounts[0];
+        if (!fromAccount) return notify("Спочатку створіть рахунок");
+        const reduceCreditLimit = form.get("reduceCreditLimit") === "on";
+        const ok = await financeAction(
+            {
+              action: "createTransfer",
+              fromAccountId: fromAccount.id,
+              toAccountId: transferToAccountId,
+              sentAmount: value,
+              receivedAmount: value,
+              exchangeRate: 1,
+              feeAmount: 0,
+              feeCurrency: fromAccount.currency,
+              note: note || "Переказ",
+              creditLimitDelta: reduceCreditLimit ? value : 0,
+              bookedAt: form.get("date") ? new Date(String(form.get("date"))).toISOString() : undefined,
+            },
+            "Переказ виконано",
+        );
+        if (ok) {
+          setAmount("");
+          setNote("");
+          setModal(null);
+        }
+        return;
+      }
       if (initialLoggedIn) {
         const account =
             accounts.find((a) => String(a.id) === String(form.get("account"))) || accounts[0];
@@ -6801,6 +6830,9 @@ function ExpenseModal({
   close: () => void;
 }) {
   const [debtId, setDebtId] = useState("");
+  const [isTransfer, setIsTransfer] = useState(false);
+  const [transferToAccountId, setTransferToAccountId] = useState("");
+  const [reduceCreditLimit, setReduceCreditLimit] = useState(false);
   const [type, setType] = useState<"expense" | "income">("expense"),
       [accountId, setAccountId] = useState(String(accounts[0]?.id || "")),
       [categoryId, setCategoryId] = useState("");
@@ -7014,6 +7046,9 @@ function ExpenseModal({
                 </label>
               </>
           )}
+          <input type="hidden" name="isTransfer" value={isTransfer ? "on" : ""} />
+          <input type="hidden" name="transferToAccountId" value={transferToAccountId} />
+          <input type="hidden" name="reduceCreditLimit" value={reduceCreditLimit ? "on" : ""} />
           <button className="primary">{type === "income" ? "Додати дохід" : "Додати витрату"}</button>
         </form>
       </div>
@@ -7985,6 +8020,51 @@ function EditTransactionModal({
                   ))}
             </select>
           </label>
+          {type === "expense" && (
+              <label className="check impulse">
+                <input
+                    type="checkbox"
+                    checked={isTransfer}
+                    onChange={(e) => setIsTransfer(e.target.checked)}
+                />{" "}
+                Це переказ на іншу мою картку (не витрата)
+              </label>
+          )}
+          {type === "expense" && isTransfer && (
+              <>
+                <label>
+                  На яку картку
+                  <select
+                      value={transferToAccountId}
+                      onChange={(e) => setTransferToAccountId(e.target.value)}
+                      required
+                  >
+                    <option value="">Оберіть картку…</option>
+                    {accounts
+                        .filter((a) => String(a.id) !== accountId)
+                        .map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.name} · {a.currency}
+                            </option>
+                        ))}
+                  </select>
+                </label>
+                {(() => {
+                  const destAccount = accounts.find((a) => String(a.id) === transferToAccountId);
+                  if (!destAccount || !(destAccount.creditLimit && destAccount.creditLimit > 0)) return null;
+                  return (
+                      <label className="check impulse">
+                        <input
+                            type="checkbox"
+                            checked={reduceCreditLimit}
+                            onChange={(e) => setReduceCreditLimit(e.target.checked)}
+                        />{" "}
+                        Це погашення / пониження кредитного ліміту
+                      </label>
+                  );
+                })()}
+              </>
+          )}
           {type === "expense" && goals.length > 0 && (
               <label>
                 Покласти в банку (необов'язково)
